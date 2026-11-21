@@ -6,11 +6,13 @@ public import Mathlib.Analysis.SpecialFunctions.Complex.Arg
 public import Mathlib.Geometry.Manifold.Instances.UnitsOfNormedAlgebra
 public import Mathlib.Geometry.Manifold.Submersion
 import Mathlib.Analysis.SpecialFunctions.Complex.LogDeriv
+import Mathlib.Analysis.InnerProductSpace.Calculus
 import all Mathlib.Geometry.Manifold.Submersion
 import Mathlib.NumberTheory.NumberField.CanonicalEmbedding.PolarCoord
 import Mathlib.Topology.Algebra.Group.Units
 import Mathlib.Topology.MetricSpace.ProperSpace.Lemmas
 import all RiemannMasullo.AppA_AlgebraicNT.Sec1
+import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
 
 /-!
@@ -2123,9 +2125,93 @@ include hr₁ hr in
 of the closure of the global domain meet a given compact subset of the norm-one ideles. -/
 theorem ideleFundamentalDomain_finite_translates (K : Set N₁) (hK : IsCompact K) :
     {x : Fˣ | ((principal₁ x • closure E₁) ∩ K).Nonempty}.Finite := by
-  sorry
+  let d := IdeleGroup.unitEmbedding (𝓞 F) F
+  let quotient (p : N₁ × N₁) : 𝕀[F] := (p.1 / p.2 : N₁).val
+  let C := quotient '' (K ×ˢ closure E₁)
+  obtain ⟨hinj, hclosed, hdiscrete, -⟩ := ideleGroup_quotient.{_, 0} F
+  have hC : IsCompact C :=
+    (hK.prod (ideleFundamentalDomain_precompact F b v₀ σ r hr₁ hr)).image
+      (continuous_subtype_val.comp continuous_div')
+  have hfinite : (C ∩ Set.range d).Finite :=
+    (hC.inter_right hclosed).finite (hdiscrete.mono Set.inter_subset_right)
+  refine (hfinite.preimage hinj.injOn).subset fun x hx ↦ ?_
+  obtain ⟨k, e, ⟨hk, he⟩, hke⟩ := Set.smul_inter_nonempty_iff'.mp hx
+  exact ⟨⟨(k, e), ⟨hk, he⟩, congrArg Subtype.val hke⟩, ⟨x, rfl⟩⟩
 
 variable (s : ℝ≥0ˣ →* (InfiniteAdeleRing F)ˣ) (hs : Continuous s) (hn : RightInverse s (infiniteIdeleNorm F))
+
+include hs in
+/-- A continuous homomorphism from positive real units has smooth mixed coordinates.
+Each complex completion coordinate is a complex power of the positive parameter. -/
+private theorem infiniteIdeleSection_smooth :
+    ∃ S : ℝ → mixedEmbedding.mixedSpace F, ContDiffOn ℝ ∞ S (Set.Ioi 0) ∧
+      ∀ t : ℝ≥0ˣ, S (t.val : ℝ) = InfiniteAdeleRing.ringEquiv_mixedSpace F (s t).val := by
+  let c (v : InfinitePlace F) : ℝ≥0ˣ →ₜ* ℂ :=
+    { toMonoidHom :=
+        (extensionEmbedding v).toMonoidHom.comp
+          ((Pi.evalRingHom _ v).toMonoidHom.comp ((Units.coeHom _).comp s))
+      continuous_toFun := (isometry_extensionEmbedding v).continuous.comp
+        ((continuous_apply v).comp (Units.continuous_val.comp hs)) }
+  choose a ha using fun v ↦ (existsUnique_complexPower (c v)).exists
+  let p (v : InfinitePlace F) (x : ℝ) := Complex.exp ((Real.log x : ℂ) * a v)
+  have hp (v : InfinitePlace F) : ContDiffOn ℝ ∞ (p v) (Set.Ioi 0) := by
+    have hlog : ContDiffOn ℝ ∞ Real.log (Set.Ioi 0) :=
+      Real.contDiffOn_log.mono fun _ hx ↦ (Set.mem_Ioi.mp hx).ne'
+    exact Complex.contDiff_exp.comp_contDiffOn
+      ((Complex.ofRealCLM.contDiff.comp_contDiffOn hlog).mul contDiffOn_const)
+  have hval (v : InfinitePlace F) (t : ℝ≥0ˣ) : p v (t.val : ℝ) = c v t := by
+    have ht := NNReal.coe_pos.mpr (Units.zero_lt t)
+    rw [ha v t, Complex.cpow_def_of_ne_zero (Complex.ofReal_ne_zero.mpr ht.ne'),
+      ← Complex.ofReal_log ht.le]
+  refine ⟨fun x ↦ (fun v ↦ (p v.val x).re, fun v ↦ p v.val x), ?_, ?_⟩
+  · apply ContDiffOn.prodMk
+    · exact contDiffOn_pi.mpr fun v ↦ Complex.reCLM.contDiff.comp_contDiffOn (hp v.val)
+    · exact contDiffOn_pi.mpr fun v ↦ hp v.val
+  · intro t
+    rw [InfiniteAdeleRing.ringEquiv_mixedSpace_apply]
+    refine Prod.ext (funext fun v ↦ ?_) (funext fun v ↦ ?_)
+    · change (p v.val (t.val : ℝ)).re = extensionEmbeddingOfIsReal v.property ((s t).val v.val)
+      rw [hval]
+      change (extensionEmbedding v.val ((s t).val v.val)).re = _
+      rw [← extensionEmbeddingOfIsReal_apply v.property, Complex.ofReal_re]
+    · exact hval v.val t
+
+/-- The real value of the archimedean idele norm is the norm in mixed coordinates. -/
+private theorem infiniteIdeleNorm_eq_mixedNorm (g : 𝕀∞) :
+    ((infiniteIdeleNorm F g).val : ℝ) =
+      mixedEmbedding.norm (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val) := by
+  simp only [infiniteIdeleNorm, MonoidHom.finsetProd_apply, MonoidHom.pow_apply,
+    Units.coe_prod, NNReal.coe_prod, Units.val_pow_eq_pow_val, NNReal.coe_pow,
+    mixedEmbedding.norm_apply]
+  apply Finset.prod_congr rfl
+  intro v _
+  change ‖g.val v‖ ^ v.mult =
+    mixedEmbedding.normAtPlace v (InfiniteAdeleRing.ringEquiv_mixedSpace F g.val) ^ v.mult
+  congr 1
+  by_cases hv : v.IsReal
+  · rw [mixedEmbedding.normAtPlace_apply_of_isReal hv, InfiniteAdeleRing.ringEquiv_mixedSpace_apply]
+    exact ((isometry_extensionEmbeddingOfIsReal hv).norm_map_of_map_zero (map_zero _) _).symm
+  · rw [mixedEmbedding.normAtPlace_apply_of_isComplex (InfinitePlace.not_isReal_iff_isComplex.mp hv),
+      InfiniteAdeleRing.ringEquiv_mixedSpace_apply]
+    exact ((isometry_extensionEmbedding v).norm_map_of_map_zero (map_zero _) _).symm
+
+/-- The mixed norm is smooth on the unit locus, where each local norm is away from zero. -/
+private theorem mixedNorm_smoothOn_units :
+    ContDiffOn ℝ ∞ (fun z : mixedEmbedding.mixedSpace F ↦ mixedEmbedding.norm z) {z | IsUnit z} := by
+  simp only [mixedEmbedding.norm_apply]
+  refine contDiffOn_prod fun v _ ↦ ?_
+  by_cases hv : v.IsReal
+  · simp_rw [mixedEmbedding.normAtPlace_apply_of_isReal hv]
+    have h : ContDiff ℝ ∞ (fun z : mixedEmbedding.mixedSpace F ↦ z.1 ⟨v, hv⟩) :=
+      (contDiff_pi.mp (contDiff_fst (E := ({w : InfinitePlace F // w.IsReal} → ℝ)))) ⟨v, hv⟩
+    exact fun z hz ↦ (h.contDiffAt.norm ℝ
+      ((Prod.isUnit_iff.mp hz).1.apply ⟨v, hv⟩).ne_zero).contDiffWithinAt.pow _
+  · let hc := InfinitePlace.not_isReal_iff_isComplex.mp hv
+    simp_rw [mixedEmbedding.normAtPlace_apply_of_isComplex hc]
+    have h : ContDiff ℝ ∞ (fun z : mixedEmbedding.mixedSpace F ↦ z.2 ⟨v, hc⟩) :=
+      (contDiff_pi.mp (contDiff_snd (F := ({w : InfinitePlace F // w.IsComplex} → ℂ)))) ⟨v, hc⟩
+    exact fun z hz ↦ (h.contDiffAt.norm ℂ
+      ((Prod.isUnit_iff.mp hz).2.apply ⟨v, hc⟩).ne_zero).contDiffWithinAt.pow _
 
 include hs hn in
 /-- Paper: Lemma A.2.3.11, p. 553. Multiplication by any continuous homomorphic
@@ -2140,7 +2226,51 @@ theorem infiniteIdeleNormSection_product :
       (∃ f : mixedEmbedding.mixedSpace F → ℝ × mixedEmbedding.mixedSpace F,
         ContDiffOn ℝ ∞ f {z | IsUnit z} ∧ ∀ g : 𝕀∞, f (m g.val) =
           (((e.symm g).1.val : ℝ), m (e.symm g).2.val.val)) := by
-  sorry
+  intro m
+  let n := infiniteIdeleNorm F
+  have hres (g : 𝕀∞) : s ((n g)⁻¹) * g ∈ n.ker := by
+    rw [MonoidHom.mem_ker, map_mul, hn ((n g)⁻¹), inv_mul_cancel]
+  let e : (ℝ≥0ˣ × N∞) ≃ₜ* 𝕀∞ :=
+    { toFun := fun p ↦ s p.1 * p.2.val
+      invFun := fun g ↦ (n g, ⟨s ((n g)⁻¹) * g, hres g⟩)
+      left_inv := by
+        rintro ⟨t, g⟩
+        have ht : n (s t * g.val) = t := by
+          rw [map_mul, hn t, MonoidHom.mem_ker.mp g.property, mul_one]
+        refine Prod.ext ht (Subtype.ext ?_)
+        change s ((n (s t * g.val))⁻¹) * (s t * g.val) = g.val
+        rw [ht, map_inv, inv_mul_cancel_left]
+      right_inv := fun g ↦ by
+        change s (n g) * (s ((n g)⁻¹) * g) = g
+        rw [map_inv, mul_inv_cancel_left]
+      map_mul' := fun p q ↦ by
+        change s (p.1 * q.1) * (p.2.val * q.2.val) = (s p.1 * p.2.val) * (s q.1 * q.2.val)
+        rw [map_mul, mul_mul_mul_comm]
+      continuous_toFun := (hs.comp continuous_fst).mul (continuous_subtype_val.comp continuous_snd)
+      continuous_invFun := (infiniteIdeleNorm_continuous F).prodMk
+        (((hs.comp ((infiniteIdeleNorm_continuous F).inv)).mul continuous_id).subtype_mk hres) }
+  obtain ⟨S, hS, hSval⟩ := infiniteIdeleSection_smooth F s hs
+  refine ⟨e, fun _ _ ↦ rfl, ⟨fun z ↦ S z.1 * z.2, ?_, ?_⟩, ?_⟩
+  · exact (hS.comp contDiffOn_fst (fun _ hz ↦ hz)).mul contDiffOn_snd
+  · intro t g
+    change S (t.val : ℝ) * m g.val.val = m ((s t).val * g.val.val)
+    rw [hSval]
+    exact (map_mul m _ _).symm
+  let N : mixedEmbedding.mixedSpace F → ℝ := mixedEmbedding.norm
+  have hN : ContDiffOn ℝ ∞ N {z | IsUnit z} := mixedNorm_smoothOn_units F
+  have hpos (z : mixedEmbedding.mixedSpace F) (hz : IsUnit z) : 0 < N z :=
+    lt_of_le_of_ne (mixedEmbedding.norm_nonneg z) (hz.map (mixedEmbedding.norm (K := F))).ne_zero.symm
+  refine ⟨fun z ↦ (N z, S (N z)⁻¹ * z), ?_, ?_⟩
+  · exact hN.prodMk ((hS.comp (hN.inv fun z hz ↦ (hpos z hz).ne')
+      (fun z hz ↦ inv_pos.mpr (hpos z hz))).mul contDiffOn_id)
+  · intro g
+    have hNg : N (m g.val) = (n g).val := (infiniteIdeleNorm_eq_mixedNorm F g).symm
+    have hinv : (N (m g.val))⁻¹ = (((n g)⁻¹).val : ℝ) := by
+      rw [hNg, Units.val_inv_eq_inv_val, NNReal.coe_inv]
+    change (N (m g.val), S (N (m g.val))⁻¹ * m g.val) =
+      (((n g).val : ℝ), m ((s ((n g)⁻¹)).val * g.val))
+    rw [hinv, hSval]
+    exact Prod.ext hNg (map_mul m _ _).symm
 
 include hr₁ hr hs hn in
 /-- Paper: Lemma A.2.3.12, p. 553. Multiplication of a principal idele, a section
@@ -2149,7 +2279,49 @@ theorem ideleFundamentalDomain_bijective :
     let j : 𝕀∞ →* 𝕀[F] := fromInfinity
     Bijective (fun z : Fˣ × ℝ≥0ˣ × E₁ ↦
       IdeleGroup.unitEmbedding (𝓞 F) F z.1 * j (s z.2.1) * z.2.2.val.val) := by
-  sorry
+  let j : 𝕀∞ →* 𝕀[F] := fromInfinity
+  let d := IdeleGroup.unitEmbedding (𝓞 F) F
+  change Bijective (fun z : Fˣ × ℝ≥0ˣ × E₁ ↦ d z.1 * j (s z.2.1) * z.2.2.val.val)
+  have hsection (t : ℝ≥0ˣ) : ideleNorm F (j (s t)) = t :=
+    (infiniteIdeleNorm_eq_global F (s t)).symm.trans (hn t)
+  have hnorm (x : Fˣ) (t : ℝ≥0ˣ) (e : E₁) :
+      ideleNorm F (d x * j (s t) * e.val.val) = t := by
+    have hd : ideleNorm F (d x) = 1 := (principal₁ x).prop
+    simp only [map_mul, hsection, hd, MonoidHom.mem_ker.mp e.val.prop, one_mul, mul_one]
+  constructor
+  · rintro ⟨x, t, e⟩ ⟨y, u, f⟩ h
+    change d x * j (s t) * e.val.val = d y * j (s u) * f.val.val at h
+    have htu : t = u := by
+      simpa only [hnorm] using congrArg (ideleNorm F) h
+    subst u
+    have hmul : principal₁ x * e.val = principal₁ y * f.val := by
+      apply Subtype.ext
+      change d x * e.val.val = d y * f.val.val
+      rw [mul_right_comm (d x) (j (s t)), mul_right_comm (d y) (j (s t))] at h
+      exact mul_right_cancel h
+    have htranslate : principal₁ (x / y) * e.val = f.val := by
+      rw [map_div, div_mul_eq_mul_div, hmul, mul_div_cancel_left]
+    have hxy : x = y := by
+      apply div_eq_one.mp
+      by_contra hne
+      exact Set.disjoint_left.mp (ideleFundamentalDomain_disjoint F b v₀ σ r hr₁ hr (x / y) hne)
+        (Set.mem_smul_set.mpr ⟨e.val, e.prop, htranslate⟩) f.prop
+    subst y
+    have hef : e = f := Subtype.ext (mul_left_cancel hmul)
+    subst f
+    rfl
+  · intro g
+    let t := ideleNorm F g
+    let g₁ : N₁ := ⟨g / j (s t), (MonoidHom.div_mem_ker_iff (ideleNorm F)).mpr (hsection t).symm⟩
+    have hcover : g₁ ∈ ⋃ x : Fˣ, principal₁ x • E₁ := by
+      rw [ideleFundamentalDomain_cover F b v₀ σ r hr₁ hr]
+      exact Set.mem_univ _
+    obtain ⟨x, hx⟩ := Set.mem_iUnion.mp hcover
+    obtain ⟨e, he, heq⟩ := Set.mem_smul_set.mp hx
+    have hval : d x * e.val = g / j (s t) := congrArg Subtype.val heq
+    refine ⟨(x, t, ⟨e, he⟩), ?_⟩
+    change d x * j (s t) * e.val = g
+    rw [mul_right_comm, hval, div_mul_cancel]
 
 end Representatives
 
@@ -2249,14 +2421,20 @@ include hK in
 misses every coordinate hyperplane. -/
 theorem infiniteIdele_product_disjoint_hyperplanes :
     Disjoint (Units.val '' productLocus) (⋃ v : InfinitePlace F, {a : InfiniteAdeleRing F | a v = 0}) := by
-  sorry
+  rw [Set.disjoint_left]
+  rintro a ⟨g, -, rfl⟩ ha
+  obtain ⟨v, hv⟩ := Set.mem_iUnion.mp ha
+  exact (Units.map (Pi.evalRingHom InfinitePlace.Completion v).toMonoidHom g).ne_zero hv
 
 include hK in
 /-- Paper: Lemma A.2.3.13(3), p. 553. If the compact set has interior in the positive
 subgroup, the product also has interior in the archimedean adele ring. -/
 theorem infiniteIdele_product_adele_interior (hi : (interior K).Nonempty) :
     (interior (Units.val '' productLocus)).Nonempty := by
-  sorry
+  have hOpen : IsOpenMap (Units.val : 𝕀∞ → InfiniteAdeleRing F) :=
+    (IsOpenUnits.isOpenEmbedding_unitsVal (M := (w : InfinitePlace F) → w.Completion)).isOpenMap
+  exact ((infiniteIdele_product_interior F b v₀ σ K hK hi).image Units.val).mono
+    (hOpen.image_interior_subset productLocus)
 
 section SLocal
 
@@ -2301,13 +2479,92 @@ theorem diagonal_mem_sAdeleFundamentalDomain (x : Oₛ(F, S)) : addAtS x ∈ D�
 /-- Paper: Lemma A.2.4.2(1), p. 554. S-integer translates of the additive domain
 cover the S-adeles. -/
 theorem sAdeleFundamentalDomain_cover : (⋃ x : Oₛ(F, S), addAtS x +ᵥ Dₛ) = Set.univ := by
-  sorry
+  apply Set.eq_univ_of_forall
+  intro m
+  have h := sAdele_additive_quotient F S
+  dsimp only at h
+  obtain ⟨-, -, -, -, -, -, -, ⟨π, -, hπq, hπ⟩, -, -⟩ := h
+  -- Lift the class of `m` to an adele integral outside `S`.
+  obtain ⟨c, hc⟩ := hπq.surjective
+    (QuotientAddGroup.mk' (((adeleProjection F S).comp (integralAdelesOutside F S).subtype).comp
+      (integralAdeleDiagonal F S)).toAddMonoidHom.range m)
+  obtain ⟨y, rfl⟩ := QuotientAddGroup.mk_surjective c
+  have hy := hc.symm.trans (hπ y)
+  obtain ⟨x', hx'⟩ := (QuotientAddGroup.eq_iff_sub_mem.mp hy)
+  -- Cover the global adele by field translates of the global domain.
+  have hcov : y.val ∈ ⋃ x : F, algebraMap F (AdeleRing (𝓞 F) F) x +ᵥ adeleFundamentalDomain F a :=
+    (adeleFundamentalDomain_cover F a).symm ▸ Set.mem_univ _
+  obtain ⟨x, hx⟩ := Set.mem_iUnion.mp hcov
+  obtain ⟨z, hz, hxz⟩ := Set.mem_vadd_set.mp hx
+  have hzI : z ∈ integralAdelesOutside F S := by
+    have hz' := hz.2
+    simp only [integralAdelesOutside, Subring.mem_iInf] at hz' ⊢
+    exact fun v hv ↦ hz' v (by simp)
+  have hxI : algebraMap F (AdeleRing (𝓞 F) F) x ∈ integralAdelesOutside F S := by
+    have : algebraMap F (AdeleRing (𝓞 F) F) x = y.val - z := by
+      rw [← hxz]
+      change _ = algebraMap F (AdeleRing (𝓞 F) F) x + z - z
+      rw [add_sub_cancel_right]
+    rw [this]
+    exact (integralAdelesOutside F S).sub_mem y.property hzI
+  have hxint := (diagonal_mem_integralAdelesOutside F S x).mp hxI
+  refine Set.mem_iUnion.mpr ⟨⟨x, hxint⟩ + x', Set.mem_vadd_set.mpr ⟨adeleProjection F S z, ⟨?_, ?_⟩, ?_⟩⟩
+  · exact hz.1
+  · intro v
+    have hz' := hz.2
+    simp only [integralAdelesOutside, Subring.mem_iInf] at hz'
+    exact hz' v.val (Finset.notMem_empty _)
+  · have hpy : adeleProjection F S y.val =
+        addAtS ⟨x, hxint⟩ + adeleProjection F S z := by
+      rw [← hxz]
+      exact map_add _ _ _
+    have hx'' : addAtS x' = m - adeleProjection F S y.val := hx'
+    rw [hpy] at hx''
+    change addAtS (⟨x, hxint⟩ + x') + adeleProjection F S z = m
+    rw [map_add, hx'']
+    abel
 
 /-- Paper: Lemma A.2.4.2(2), p. 554. Only finitely many diagonal S-integer translates
 of the closure meet a given compact subset of the S-adeles. -/
 theorem sAdeleFundamentalDomain_finite_translates (K : Set (SAdeleRing F S)) (hK : IsCompact K) :
     {x : Oₛ(F, S) | ((addAtS x +ᵥ closure Dₛ) ∩ K).Nonempty}.Finite := by
-  sorry
+  have h := sAdele_additive_quotient F S
+  dsimp only at h
+  obtain ⟨hinj, hclosed, hdiscrete, -⟩ := h
+  -- The closure of the S-domain is compact.
+  have : T2Space (InfiniteAdeleRing F) := by
+    change T2Space ((w : InfinitePlace F) → w.Completion)
+    infer_instance
+  have hinf : closure (infiniteAdeleFundamentalDomain F a) ⊆
+      Prod.fst '' closure (adeleFundamentalDomain F a) := by
+    refine closure_minimal ?_
+      ((adeleFundamentalDomain_precompact F a).image continuous_fst).isClosed
+    intro x hx
+    refine ⟨(x, 0), subset_closure ⟨hx, ?_⟩, rfl⟩
+    simp only [integralAdelesOutside, Subring.mem_iInf]
+    intro v _
+    exact (v.adicCompletionIntegers F).zero_mem
+  have hDcompact : IsCompact (closure Dₛ) := by
+    have hbox : IsCompact ((Prod.fst '' closure (adeleFundamentalDomain F a)) ×ˢ
+        Set.pi Set.univ (fun v : S ↦ (v.val.adicCompletionIntegers F : Set (v.val.adicCompletion F)))) :=
+      ((adeleFundamentalDomain_precompact F a).image continuous_fst).prod
+        (isCompact_univ_pi fun v ↦
+          isCompact_iff_compactSpace.mpr (compactSpace_adicCompletionIntegers v.val))
+    refine hbox.of_isClosed_subset isClosed_closure (closure_minimal ?_ hbox.isClosed)
+    intro x hx
+    exact ⟨hinf (subset_closure hx.1), fun v _ ↦ hx.2 v⟩
+  let d := (adeleProjection F S).comp (integralAdelesOutside F S).subtype |>.comp
+    (integralAdeleDiagonal F S)
+  have hdiff : IsCompact (K - closure Dₛ) := by
+    change IsCompact (Set.image2 (· - ·) K (closure Dₛ))
+    rw [← Set.image_prod]
+    exact (hK.prod hDcompact).image (continuous_fst.sub continuous_snd)
+  have hfinite : ((K - closure Dₛ) ∩ Set.range d).Finite :=
+    (hdiff.inter_right hclosed).finite (hdiscrete.mono Set.inter_subset_right)
+  refine (hfinite.preimage hinj.injOn).subset ?_
+  rintro x ⟨y, hy, hyK⟩
+  obtain ⟨b, hb, rfl⟩ := Set.mem_vadd_set.mp hy
+  exact ⟨Set.mem_sub.mpr ⟨addAtS x +ᵥ b, hyK, b, hb, add_sub_cancel_right _ _⟩, ⟨x, rfl⟩⟩
 
 /-- Paper: Definition A.2.4.3, p. 554. The S-logarithm has one normalized log absolute
 value for each infinite place and each selected finite place, as in (A.2.4.7) on p. 555. -/
@@ -2336,7 +2593,99 @@ theorem sIdeleLog_sum (g : 𝕀ₛ) :
 exactly on torsion units. -/
 theorem sIdeleLog_unit_eq_zero (u : Oₛ(F, S)ˣ) :
     sIdeleLog F S (unitAtS u) = 0 ↔ u ∈ CommGroup.torsion Oₛ(F, S)ˣ := by
-  sorry
+  have hw (w : InfinitePlace F) : ‖(unitAtS u).val.1 w‖ = w (u.val.val : F) := by
+    change ‖algebraMap F w.Completion (u.val.val : F)‖ = _
+    rw [AbsoluteValue.Completion.algebraMap_def, WithAbs.algebraMap_right_apply,
+      Algebra.algebraMap_self_apply]
+    exact AbsoluteValue.Completion.norm_coe (v := w.1) _
+  have hv (v : S) : ‖(unitAtS u).val.2 v‖ = ‖(u.val.val : v.val.adicCompletion F)‖ := rfl
+  have hx0 : (u.val.val : F) ≠ 0 := fun h ↦ u.ne_zero (Subtype.ext h)
+  have hnormpos (w : InfinitePlace F) : 0 < ‖(unitAtS u).val.1 w‖ := by
+    rw [hw]; exact w.pos_iff.mpr hx0
+  have hnormpos' (v : S) : 0 < ‖(unitAtS u).val.2 v‖ := by
+    rw [hv]
+    exact norm_pos_iff.mpr ((map_ne_zero (algebraMap F (v.val.adicCompletion F))).mpr hx0)
+  constructor
+  · intro h
+    have h1 (w : InfinitePlace F) : w (u.val.val : F) = 1 := by
+      have := congrFun h (Sum.inl w)
+      simp only [sIdeleLog, Sum.elim_inl, Pi.zero_apply] at this
+      rw [← hw]
+      rcases mul_eq_zero.mp this with h0 | h0
+      · exact absurd h0 (by exact_mod_cast w.mult_ne_zero)
+      · exact Real.eq_one_of_pos_of_log_eq_zero (hnormpos w) h0
+    have h2 (v : S) : v.val.valuation F (u.val.val : F) = 1 := by
+      have := congrFun h (Sum.inr v)
+      simp only [sIdeleLog, Sum.elim_inr, Pi.zero_apply] at this
+      have hn : ‖(u.val.val : v.val.adicCompletion F)‖ = 1 :=
+        Real.eq_one_of_pos_of_log_eq_zero (hv v ▸ hnormpos' v) this
+      rw [Valued.toNormedField.norm_eq_one_iff,
+        HeightOneSpectrum.valuedAdicCompletion_eq_valuation'] at hn
+      exact hn
+    have hle (y : Oₛ(F, S)ˣ) (hy : ∀ v : S, v.val.valuation F (y.val.val : F) = 1) (v : Primes(F)) :
+        v.valuation F (y.val.val : F) ≤ 1 := by
+      by_cases hvS : v ∈ S
+      · exact (hy ⟨v, hvS⟩).le
+      · exact y.val.prop v hvS
+    have h2' (v : S) : v.val.valuation F (u⁻¹.val.val : F) = 1 := by
+      have : (u⁻¹.val.val : F) = (u.val.val : F)⁻¹ := by
+        have := congrArg (fun z : Oₛ(F, S) ↦ (z.val : F)) u.inv_val
+        have h' := congrArg (fun z : Oₛ(F, S) ↦ (z.val : F)) u.val_inv
+        simp only [OneMemClass.coe_one] at h'
+        exact eq_inv_of_mul_eq_one_right h'
+      rw [this, map_inv₀, h2, inv_one]
+    obtain ⟨r, hr⟩ := HeightOneSpectrum.mem_integers_of_valuation_le_one F (u.val.val : F)
+      (hle u h2)
+    obtain ⟨r', hr'⟩ := HeightOneSpectrum.mem_integers_of_valuation_le_one F (u⁻¹.val.val : F)
+      (hle u⁻¹ h2')
+    let w : (𝓞 F)ˣ :=
+      { val := r
+        inv := r'
+        val_inv := by
+          apply RingOfIntegers.ext
+          have h' := congrArg (fun z : Oₛ(F, S) ↦ (z.val : F)) u.val_inv
+          simp only [OneMemClass.coe_one] at h'
+          change (r : F) * (r' : F) = 1
+          rw [show (r : F) = u.val.val from hr, show (r' : F) = u⁻¹.val.val from hr']
+          exact h'
+        inv_val := by
+          apply RingOfIntegers.ext
+          have h' := congrArg (fun z : Oₛ(F, S) ↦ (z.val : F)) u.inv_val
+          simp only [OneMemClass.coe_one] at h'
+          change (r' : F) * (r : F) = 1
+          rw [show (r : F) = u.val.val from hr, show (r' : F) = u⁻¹.val.val from hr']
+          exact h' }
+    have hwt : w ∈ Units.torsion F := by
+      rw [NumberField.Units.mem_torsion]
+      intro pl
+      rw [← h1 pl, ← hr]
+    have hmap : Units.map (algebraMap (𝓞 F) Oₛ(F, S)).toMonoidHom w = u := by
+      ext
+      exact hr
+    rw [← hmap]
+    exact (CommGroup.mem_torsion _).mpr (MonoidHom.isOfFinOrder _ ((CommGroup.mem_torsion _).mp hwt))
+  · intro h
+    obtain ⟨n, hn, hun⟩ := isOfFinOrder_iff_pow_eq_one.mp ((CommGroup.mem_torsion _).mp h)
+    have hg : (unitAtS u) ^ n = 1 := by rw [← map_pow, hun, map_one]
+    have hpow (y : ℝ) (hy : 0 < y) (hy1 : y ^ n = 1) : Real.log y = 0 := by
+      rw [pow_eq_one_iff_of_nonneg hy.le hn.ne'] at hy1
+      rw [hy1, Real.log_one]
+    funext i
+    rcases i with w | v
+    · have h0 : ((unitAtS u).val.1 w) ^ n = 1 := by
+        have := congrArg (fun z : (SAdeleRing F S)ˣ ↦ z.val.1 w) hg
+        simp only [Units.val_pow_eq_pow_val, Units.val_one] at this
+        exact this
+      have h1 : ‖(unitAtS u).val.1 w‖ ^ n = 1 := by rw [← norm_pow, h0, norm_one]
+      simp only [sIdeleLog, Sum.elim_inl, Pi.zero_apply]
+      rw [hpow _ (hnormpos w) h1, mul_zero]
+    · have h0 : ((unitAtS u).val.2 v) ^ n = 1 := by
+        have := congrArg (fun z : (SAdeleRing F S)ˣ ↦ z.val.2 v) hg
+        simp only [Units.val_pow_eq_pow_val, Units.val_one] at this
+        exact this
+      have h1 : ‖(unitAtS u).val.2 v‖ ^ n = 1 := by rw [← norm_pow, h0, norm_one]
+      simp only [sIdeleLog, Sum.elim_inr, Pi.zero_apply]
+      exact hpow _ (hnormpos' v) h1
 
 /-- Paper: §A.2.4.2, p. 554. The roots of unity in the ordinary units map onto
 the full torsion subgroup of the S-units, so its order is independent of S. -/

@@ -472,12 +472,32 @@ def infiniteStandardGaussian (w : InfinitePlace F) (χ : PontryaginDual w.Comple
     ℬ(w.Completion) :=
   ⟨fun x ↦ infiniteStandardGaussianValue w χ x.toAdd, infiniteStandardGaussian_mem w χ⟩
 
+/-- The angular exponent of the trivial unitary character of the complex units is zero. -/
+theorem complexUnits_character_parameter_snd_trivial (c : ℂˣ →ₜ* ℂ) (hc : ∀ x, ‖c x‖ = 1)
+    (h1 : ∀ x, c x = 1) :
+    (existsUnique_complexUnits_character_parameters c hc).exists.choose.2 = 0 := by
+  have h := (existsUnique_complexUnits_character_parameters c hc).unique
+    (existsUnique_complexUnits_character_parameters c hc).exists.choose_spec
+    (show ((0 : ℂ), (0 : ℤ)).1.re = 0 ∧ _ from ⟨by simp, fun x ↦ by simp [h1]⟩)
+  exact congrArg Prod.snd h
+
 open Classical in
 /-- Paper: Equations (3.4.3.3) and (3.4.3.5), p. 152. At zero and weight
 one, the real Gaussian equals one and the complex Gaussian equals one over two pi. -/
 theorem infiniteStandardGaussian_trivial_zero (w : InfinitePlace F) :
     infiniteStandardGaussian w 1 (Multiplicative.ofAdd 0) =
-      if w.IsReal then 1 else (2 * (Real.pi : ℂ))⁻¹ := by sorry
+      if w.IsReal then 1 else (2 * (Real.pi : ℂ))⁻¹ := by
+  by_cases h : w.IsReal
+  · simp [infiniteStandardGaussian, infiniteStandardGaussianValue, h]
+  · simp only [infiniteStandardGaussian, infiniteStandardGaussianValue, h, dite_false,
+      ite_false]
+    rw [complexUnits_character_parameter_snd_trivial]
+    · simp
+    · intro x
+      refine (congrArg norm (?_ : _ = (1 : ℂ))).trans (norm_one (α := ℂ))
+      rfl
+    · intro x
+      rfl
 
 local notation "integerUnits(" v ")" => ((HeightOneSpectrum.adicCompletionIntegers F v).units)
 local notation "unramified(" v "," c ")" => (∀ u ∈ integerUnits(v), c u = (1 : ℂ))

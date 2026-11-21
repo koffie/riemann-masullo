@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec1
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 public import RiemannMasullo.Ch03_IdelicZeta.Sec3
+import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 
 /-!
 # Exponential system on monogenic quotients
@@ -94,7 +95,27 @@ theorem modulatedMellin_tensor_equiv :
 /-- Paper: Discussion 4.4.1.1, p. 191. A unitary character has a unique real
 frequency along the fixed positive-real section. -/
 theorem existsUnique_modulatedMellinSectionFrequency :
-    ∃! b : ℝ, ∀ t : ℝ≥0ˣ, χ (τ t) = Circle.exp (b * Real.log (t.val : ℝ)) := by sorry
+    ∃! b : ℝ, ∀ t : ℝ≥0ˣ, χ (τ t) = Circle.exp (b * Real.log (t.val : ℝ)) := by
+  have key (b : ℝ) (t : ℝ≥0ˣ) : ((t.val : ℝ) : ℂ) ^ ((b : ℂ) * Complex.I) =
+      (Circle.exp (b * Real.log (t.val : ℝ)) : ℂ) := by
+    have ht : 0 < (t.val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt t)
+    rw [Complex.cpow_def_of_ne_zero (Complex.ofReal_ne_zero.mpr ht.ne'),
+      ← Complex.ofReal_log ht.le, Circle.coe_exp]
+    congr 1
+    push_cast
+    ring
+  obtain ⟨z, ⟨hre, hz⟩, huniq⟩ := existsUnique_unitaryComplexPower
+    ((circleToComplex).comp (ContinuousMonoidHom.comp χ τ)) (fun t ↦ Circle.norm_coe _)
+  have hzb : z = (z.im : ℂ) * Complex.I := by
+    apply Complex.ext <;> simp [hre]
+  refine ⟨z.im, fun t ↦ Circle.ext ?_, fun b hb ↦ ?_⟩
+  · rw [← key, ← hzb]
+    exact hz t
+  · have h := huniq ((b : ℂ) * Complex.I) ⟨by simp, fun t ↦ ?_⟩
+    · rw [← h]
+      simp
+    · rw [key, ← hb t]
+      rfl
 
 -- TODO(paper-gap): The bottom arrow in (4.4.1.3) evaluates the scalar Mellin
 -- transform at s. The displayed integral on p. 191 evaluates it at s + i x₀.
@@ -127,7 +148,18 @@ theorem modulatedMellin_translate (f : D) (s : ℂ) (hs : s.re ∈ I) :
       modulatedExponentialDecaySubmodule_translate m I hm hms γ⁻¹ f⟩
     modulatedFourierMellin m I hm μ f'.val (twist[s]) =
       (χ γ⁻¹ : ℂ) * (((m γ).val : ℝ) : ℂ) ^ (-s) *
-        modulatedFourierMellin m I hm μ f.val (twist[s]) := by sorry
+        modulatedFourierMellin m I hm μ f.val (twist[s]) := by
+  intro f'
+  have hmem : twist[s] ∈ relativeVerticalStrip m.toMonoidHom hm.1 hm.2 I := by
+    change quasiCharacterAbscissa m.toMonoidHom hm.1 hm.2 (twist[s]) ∈ I
+    rw [quasiCharacterAbscissa_of_unitary_twist m.toMonoidHom hm.1 hm.2 _ χ s (fun _ ↦ rfl)]
+    exact hs
+  have hval : (twist[s]) γ⁻¹ = (χ γ⁻¹ : ℂ) * (((m γ).val : ℝ) : ℂ) ^ (-s) := by
+    change (χ γ⁻¹ : ℂ) * (((m γ⁻¹).val : ℝ) : ℂ) ^ s = _
+    rw [map_inv m γ, Units.val_inv_eq_inv_val, NNReal.coe_inv, Complex.ofReal_inv,
+      Complex.inv_cpow_ofReal_nonneg (NNReal.coe_nonneg _), Complex.cpow_neg]
+  exact (modulatedFourierMellin_equivariant m I hm hInt hne μ hOpen hms γ⁻¹ f ⟨_, hmem⟩).trans
+    (congrArg (· * modulatedFourierMellin m I hm μ f.val (twist[s])) hval)
 
 include hτ in
 /-- Paper: Discussion 4.4.1.1(3), p. 191. Compact averaging sends translation by
@@ -135,7 +167,26 @@ the inverse generator to dilation of the positive-real profile by its module,
 weighted by the character of the inverse generator's compact component. -/
 theorem modulatedMellin_average_translate (f : D) (t : ℝ≥0ˣ) :
     (∫ k : K, (χ k.val : ℂ) * f.val (γ * (k.val * τ t)) ∂μ₁) =
-      (χ (τ (m γ) * γ⁻¹) : ℂ) * avg⟦f, m γ * t⟧ := by sorry
+      (χ (τ (m γ) * γ⁻¹) : ℂ) * avg⟦f, m γ * t⟧ := by
+  have hk₀ : γ * (τ (m γ))⁻¹ ∈ K := by
+    change m (γ * (τ (m γ))⁻¹) = 1
+    rw [map_mul, map_inv m (τ (m γ)), hτ (m γ), mul_inv_cancel]
+  obtain ⟨k₀, hk₀v⟩ : ∃ k₀ : K, k₀.val = γ * (τ (m γ))⁻¹ := ⟨⟨_, hk₀⟩, rfl⟩
+  have hpt (k : K) : (χ k.val : ℂ) * f.val (γ * (k.val * τ t)) =
+      (χ (τ (m γ) * γ⁻¹) : ℂ) *
+        ((χ (k₀ * k).val : ℂ) * f.val ((k₀ * k).val * τ (m γ * t))) := by
+    have h1 : γ * (k.val * τ t) = (k₀ * k).val * τ (m γ * t) := by
+      rw [Subgroup.coe_mul, hk₀v, map_mul τ, mul_assoc γ, mul_assoc γ, mul_comm _ k.val,
+        mul_assoc k.val, inv_mul_cancel_left]
+    have h2 : k.val = τ (m γ) * γ⁻¹ * (k₀ * k).val := by
+      rw [Subgroup.coe_mul, hk₀v, mul_assoc γ, mul_assoc, inv_mul_cancel_left,
+        mul_inv_cancel_left]
+    rw [h1, ← mul_assoc, ← Circle.coe_mul, ← map_mul, ← h2]
+  simp_rw [hpt]
+  rw [integral_const_mul]
+  congr 1
+  exact integral_mul_left_eq_self
+    (fun k : K ↦ (χ k.val : ℂ) * f.val (k.val * τ (m γ * t))) k₀
 
 include hτ in
 /-- Paper: Discussion 4.4.1.1(3), p. 191. The cyclic translation action descends
@@ -165,7 +216,16 @@ spectral variable gives the compact character times the scalar multiplier. -/
 theorem modulatedMellin_shift_multiplier (b : ℝ)
     (hb : ∀ t : ℝ≥0ˣ, χ (τ t) = Circle.exp (b * Real.log (t.val : ℝ))) (s : ℂ) :
     (χ γ⁻¹ : ℂ) * (((m γ).val : ℝ) : ℂ) ^ (-s + phase[b]) =
-      (χ (τ (m γ) * γ⁻¹) : ℂ) * (((m γ).val : ℝ) : ℂ) ^ (-s) := by sorry
+      (χ (τ (m γ) * γ⁻¹) : ℂ) * (((m γ).val : ℝ) : ℂ) ^ (-s) := by
+  have hx : 0 < ((m γ).val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt (m γ))
+  have hx' : (((m γ).val : ℝ) : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr hx.ne'
+  have key : (((m γ).val : ℝ) : ℂ) ^ phase[b] = (χ (τ (m γ)) : ℂ) := by
+    rw [hb, Complex.cpow_def_of_ne_zero hx', ← Complex.ofReal_log hx.le, Circle.coe_exp]
+    congr 1
+    push_cast
+    ring
+  rw [map_mul, Circle.coe_mul, Complex.cpow_add _ _ hx', key]
+  ring
 
 end Mellin
 
@@ -264,7 +324,35 @@ theorem exists_modulatedCyclicCharacter_lifts (τ : ℝ≥0ˣ →ₜ* G) (hτ : 
     ∃ (χ : PontryaginDual K → PontryaginDual G) (b t₀ : PontryaginDual K → ℝ),
       (∀ ω (k : K), χ ω k.val = ω k) ∧
       (∀ ω (t : ℝ≥0ˣ), χ ω (τ t) = Circle.exp (b ω * Real.log (t.val : ℝ))) ∧
-      (∀ ω, t₀ ω ∈ Ico 0 (2 * Real.pi / L) ∧ Circle.exp (t₀ ω * L) = χ ω γ) := by sorry
+      (∀ ω, t₀ ω ∈ Ico 0 (2 * Real.pi / L) ∧ Circle.exp (t₀ ω * L) = χ ω γ) := by
+  have hmem (x : G) : x * (τ (m x))⁻¹ ∈ K := by
+    change m (x * (τ (m x))⁻¹) = 1
+    rw [map_mul, map_inv, hτ (m x), mul_inv_cancel]
+  let p : G →ₜ* K :=
+    { toFun := fun x ↦ ⟨x * (τ (m x))⁻¹, hmem x⟩
+      map_one' := Subtype.ext (by simp)
+      map_mul' := fun x y ↦ Subtype.ext (by
+        change x * y * (τ (m (x * y)))⁻¹ = x * (τ (m x))⁻¹ * (y * (τ (m y))⁻¹)
+        rw [map_mul, map_mul, mul_inv, mul_mul_mul_comm])
+      continuous_toFun :=
+        (continuous_id.mul (τ.continuous.comp m.continuous).inv).subtype_mk hmem }
+  let χ : PontryaginDual K → PontryaginDual G := fun ω ↦ ContinuousMonoidHom.comp ω p
+  have hphase (ω : PontryaginDual K) :
+      ∃ t : ℝ, t ∈ Ico 0 (2 * Real.pi / L) ∧ Circle.exp (t * L) = χ ω γ :=
+    (existsUnique_modulatedCharacterPhase m γ hγ (χ ω)).exists
+  choose t₀ ht₀ using hphase
+  refine ⟨χ, fun _ ↦ 0, t₀, fun ω k ↦ ?_, fun ω t ↦ ?_, ht₀⟩
+  · have hk : p k.val = k := Subtype.ext (by
+      change k.val * (τ (m k.val))⁻¹ = k.val
+      rw [show m k.val = 1 from k.property, map_one, inv_one, mul_one])
+    change ω (p k.val) = ω k
+    rw [hk]
+  · have ht : p (τ t) = 1 := Subtype.ext (by
+      change τ t * (τ (m (τ t)))⁻¹ = 1
+      rw [hτ t, mul_inv_cancel])
+    change ω (p (τ t)) = _
+    rw [ht]
+    simp
 
 include hm hms hχ in
 /-- Paper: Remark 4.4.2.4, p. 192. With the chosen lifts, the norm twists
@@ -335,7 +423,9 @@ def modulatedCyclicCharacter (j : J) : PontryaginDual Q :=
 /-- Paper: Equation (4.4.2.4), p. 193. The quotient character takes its
 prescribed value at every representative. -/
 theorem modulatedCyclicCharacter_mk (j : J) (x : G) :
-    modulatedCyclicCharacter m γ hγ χ t₀ ht₀ j (QuotientGroup.mk x) = expValue[j, x] := by sorry
+    modulatedCyclicCharacter m γ hγ χ t₀ ht₀ j (QuotientGroup.mk x) = expValue[j, x] := by
+  simp only [modulatedCyclicCharacter]
+  rfl
 
 -- TODO(paper-gap): The proof on p. 193 chooses t₁ in an interval open at zero.
 -- For the trivial lift this forces t₀ = -t₁ to be the excluded upper endpoint.

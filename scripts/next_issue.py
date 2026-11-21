@@ -9,7 +9,8 @@ Proof issues are handed out bottom-up: from the library file that sits lowest in
 graph and still has a free issue, so that a section's statements are proved before work moves
 to what is built on them. At most PER_FILE proofs are in flight in one file at a time, so that
 agents running side by side rarely collide; when the lowest file is full the next one is used.
-Issues labelled `claimed`, `blocked` or `stuck` are not free.
+Issues labelled `claimed`, `blocked` or `stuck` are not free. While the file `.agent/PAUSE` exists
+no issue is handed out.
 """
 import collections, functools, json, pathlib, re, subprocess, sys
 
@@ -41,7 +42,7 @@ def in_review():
         return set()
     found = set()
     for ref in out.stdout.split():
-        m = re.fullmatch(r"(?:prover|digester)/(\d+)", ref)
+        m = re.fullmatch(r"(?:prover|digester|sweeper)/(\d+)", ref)
         if m:
             found.add(int(m.group(1)))
     return found
@@ -62,7 +63,37 @@ def depths():
     return {rel: depth(rel) for rel in imports}
 
 
+def launchers_running():
+    """How many `scripts/agent.sh prover|digester|sweeper ...` launchers are running on this machine
+    (the one asking for an issue is among them). A launcher's own subshells, which have the
+    same command line, are not counted."""
+    found = {}
+    for entry in pathlib.Path("/proc").iterdir():
+        if entry.name.isdigit():
+            try:
+                args = (entry / "cmdline").read_bytes().split(b"\0")
+                parent = int((entry / "stat").read_text().rsplit(")", 1)[1].split()[1])
+            except (OSError, ValueError, IndexError):
+                continue
+            if len(args) > 2 and args[0].endswith(b"bash") and args[1].endswith(b"scripts/agent.sh") \
+                    and args[2] in (b"prover", b"digester", b"sweeper"):
+                found[int(entry.name)] = parent
+    return sum(1 for parent in found.values() if parent not in found)
+
+
 def main(argv):
+    # A switch for the owner of the checkout: `touch .agent/PAUSE` stops agents started with
+    # `next` from taking new issues (running ones finish); `rm .agent/PAUSE` resumes.
+    if (ROOT / ".agent" / "PAUSE").exists() and "--list" not in argv:
+        sys.exit("paused: .agent/PAUSE exists, no new issue handed out")
+    # A ceiling on agents running from this checkout: `echo 8 > .agent/MAX_AGENTS`. An agent
+    # that asks for its next issue while more than that many launchers are running gets none,
+    # so the number falls to the ceiling as agents finish, without stopping any mid-proof.
+    cap_file = ROOT / ".agent" / "MAX_AGENTS"
+    if cap_file.exists() and "--list" not in argv:
+        cap, running = int(cap_file.read_text().split()[0]), launchers_running()
+        if running > cap:
+            sys.exit(f"at capacity: {running} launchers running, .agent/MAX_AGENTS is {cap}")
     label = argv[0] if argv else "proof"
     free, busy = [], collections.Counter()
     taken_already = in_review()

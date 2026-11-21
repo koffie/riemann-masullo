@@ -203,7 +203,43 @@ theorem hardySobolevCutoff_spec {A : Type*} [MeasurableSpace A] {μ : Measure A}
     {U : Set A} (hU : MeasurableSet U) :
     ∃ P : Lp ℂ 2 μ →L[ℂ] Lp ℂ 2 μ, IsClosed (range P) ∧
       ∀ f, P (P f) = P f ∧ P f = hardySobolevCutoff hU f ∧
-        (P f : A → ℂ) =ᵐ[μ] U.indicator f := by sorry
+        (P f : A → ℂ) =ᵐ[μ] U.indicator f := by
+  have hae (f : Lp ℂ 2 μ) : (hardySobolevCutoff hU f : A → ℂ) =ᵐ[μ] U.indicator f :=
+    MemLp.coeFn_toLp _
+  let L : Lp ℂ 2 μ →ₗ[ℂ] Lp ℂ 2 μ :=
+    { toFun := hardySobolevCutoff hU
+      map_add' := fun f g ↦ by
+        refine Lp.ext ?_
+        filter_upwards [hae (f + g), hae f, hae g, Lp.coeFn_add f g,
+          Lp.coeFn_add (hardySobolevCutoff hU f) (hardySobolevCutoff hU g)] with x h1 h2 h3 h4 h5
+        rw [h1, h5, Pi.add_apply, h2, h3]
+        by_cases hx : x ∈ U
+        · simp only [Set.indicator_of_mem hx]
+          exact h4
+        · simp only [Set.indicator_of_notMem hx, add_zero]
+      map_smul' := fun c f ↦ by
+        refine Lp.ext ?_
+        filter_upwards [hae (c • f), hae f, Lp.coeFn_smul c f,
+          Lp.coeFn_smul c (hardySobolevCutoff hU f)] with x h1 h2 h3 h4
+        rw [RingHom.id_apply, h1, h4, Pi.smul_apply, h2]
+        by_cases hx : x ∈ U <;> simp [hx, h3] }
+  have hbound (f : Lp ℂ 2 μ) : ‖L f‖ ≤ 1 * ‖f‖ := by
+    rw [one_mul]
+    refine Lp.norm_le_norm_of_ae_le ?_
+    filter_upwards [hae f] with x hx
+    exact hx ▸ norm_indicator_le_norm_self _ _
+  obtain ⟨P, hP⟩ : ∃ P : Lp ℂ 2 μ →L[ℂ] Lp ℂ 2 μ, ∀ f, P f = hardySobolevCutoff hU f :=
+    ⟨L.mkContinuous 1 hbound, fun _ ↦ rfl⟩
+  have hidem (f : Lp ℂ 2 μ) : P (P f) = P f := by
+    rw [hP (P f), hP f]
+    refine Lp.ext ?_
+    filter_upwards [hae (hardySobolevCutoff hU f), hae f] with x h1 h2
+    rw [h1]
+    by_cases hx : x ∈ U <;> simp [hx, h2]
+  refine ⟨P, ?_, fun f ↦ ⟨hidem f, hP f, hP f ▸ hae f⟩⟩
+  convert isClosed_eq P.continuous continuous_id using 1
+  ext f
+  exact ⟨fun ⟨g, hg⟩ ↦ hg ▸ hidem g, fun h ↦ ⟨f, h⟩⟩
 
 /-- Paper: Theorem 9.2.1.2(1), p. 404. The closure of exponential-decay tests
 supported strictly above the cutoff is the range of the cutoff projection.
@@ -248,7 +284,115 @@ theorem hardySobolevCutoff_exact {A : Type*} [MeasurableSpace A] (μ : Measure A
       (∀ f, (i f).val = f.val) ∧
       (∀ f, (p f).val = hardySobolevCutoff
         (μ := μ) (hx measurableSet_Ici : MeasurableSet (x ⁻¹' Ici 0)) f.val) ∧
-      Injective i ∧ IsClosed (range i) ∧ Exact i p ∧ Surjective p ∧ IsOpenMap p := by sorry
+      Injective i ∧ IsClosed (range i) ∧ Exact i p ∧ Surjective p ∧ IsOpenMap p := by
+  intro E S
+  have key (U : Set ℝ) (hU : MeasurableSet U) :
+      ∃ K : Submodule ℂ (Lp ℂ 2 μ), IsClosed (K : Set (Lp ℂ 2 μ)) ∧
+        ∀ f : Lp ℂ 2 μ, f ∈ K ↔ (f : A → ℂ) =ᵐ[μ] (x ⁻¹' U).indicator (f : A → ℂ) := by
+    obtain ⟨P, -, hP⟩ := hardySobolevCutoff_spec (μ := μ) (hx hU)
+    refine ⟨LinearMap.eqLocus (P : Lp ℂ 2 μ →ₗ[ℂ] Lp ℂ 2 μ) LinearMap.id, ?_,
+      fun f ↦ ⟨fun h ↦ ?_, fun h ↦ ?_⟩⟩
+    · exact isClosed_eq P.continuous continuous_id
+    · have h' : P f = f := h
+      have h2 := (hP f).2.2
+      rw [h'] at h2
+      exact h2
+    · exact Lp.ext ((hP f).2.2.trans h.symm)
+  obtain ⟨L, hLc, hL⟩ := key (Icc c 0) measurableSet_Icc
+  obtain ⟨M, -, hM⟩ := key (Ici c) measurableSet_Ici
+  obtain ⟨R, -, hR⟩ := key (Ici 0) measurableSet_Ici
+  obtain ⟨P, -, hP⟩ := hardySobolevCutoff_spec (μ := μ) (hx (measurableSet_Ici (a := (0 : ℝ))))
+  have hnull : ∀ᵐ a ∂μ, a ∉ x ⁻¹' {0} := measure_eq_zero_iff_ae_notMem.1 _hzero
+  have hLM : ∀ f : L, f.val ∈ M := by
+    intro f
+    refine (hM _).2 ?_
+    filter_upwards [(hL f.val).1 f.2] with a ha
+    by_cases h : a ∈ x ⁻¹' Ici c
+    · exact (Set.indicator_of_mem h _).symm
+    · have h2 : a ∉ x ⁻¹' Icc c 0 := fun h' ↦ h (show c ≤ x a ∧ x a ≤ 0 from h').1
+      exact ha.trans ((Set.indicator_of_notMem h2 _).trans (Set.indicator_of_notMem h _).symm)
+  have hRM : ∀ r : R, r.val ∈ M := by
+    intro r
+    refine (hM _).2 ?_
+    filter_upwards [(hR r.val).1 r.2] with a ha
+    by_cases h : a ∈ x ⁻¹' Ici c
+    · exact (Set.indicator_of_mem h _).symm
+    · have h2 : a ∉ x ⁻¹' Ici 0 := fun h' ↦ h (_hc.trans (show 0 ≤ x a from h'))
+      exact ha.trans ((Set.indicator_of_notMem h2 _).trans (Set.indicator_of_notMem h _).symm)
+  have hPR : ∀ f : M, P f.val ∈ R := by
+    intro f
+    refine (hR _).2 ?_
+    have h1 := (hP (P f.val)).2.2
+    rw [(hP f.val).1] at h1
+    exact h1
+  obtain ⟨i, hi⟩ : ∃ i : L →L[ℂ] M, ∀ f, (i f).val = f.val :=
+    ⟨L.subtypeL.codRestrict M hLM, fun _ ↦ rfl⟩
+  obtain ⟨p, hp⟩ : ∃ p : M →L[ℂ] R, ∀ f, (p f).val = P f.val :=
+    ⟨(P.comp M.subtypeL).codRestrict R hPR, fun _ ↦ rfl⟩
+  obtain ⟨j, hj⟩ : ∃ j : R →L[ℂ] M, ∀ r, (j r).val = r.val :=
+    ⟨R.subtypeL.codRestrict M hRM, fun _ ↦ rfl⟩
+  have hpj : ∀ r : R, p (j r) = r := fun r ↦ Subtype.ext ((hp _).trans
+    ((congrArg (fun g ↦ P g) (hj r)).trans
+      (Lp.ext ((hP r.val).2.2.trans ((hR r.val).1 r.2).symm))))
+  have hinj : Injective i := fun f g h ↦
+    Subtype.ext ((hi f).symm.trans ((congrArg (fun m : M ↦ (m : Lp ℂ 2 μ)) h).trans (hi g)))
+  have hrange : IsClosed (range i) := by
+    have hr : range i = (fun m : M ↦ (m : Lp ℂ 2 μ)) ⁻¹' (L : Set (Lp ℂ 2 μ)) := by
+      ext m
+      constructor
+      · rintro ⟨f, rfl⟩
+        have h1 : (i f).val ∈ L := by
+          rw [hi]
+          exact f.2
+        exact h1
+      · intro h
+        exact ⟨⟨m.val, h⟩, Subtype.ext (hi _)⟩
+    rw [hr]
+    exact hLc.preimage continuous_subtype_val
+  have hexact : Exact i p := by
+    intro y
+    constructor
+    · intro h0
+      have h0' : P y.val = 0 := (hp y).symm.trans (congrArg (fun r : R ↦ (r : Lp ℂ 2 μ)) h0)
+      have hz : ((P y.val : Lp ℂ 2 μ) : A → ℂ) =ᵐ[μ] 0 := by
+        rw [h0']
+        exact Lp.coeFn_zero ℂ 2 μ
+      have hyL : y.val ∈ L := by
+        refine (hL _).2 ?_
+        filter_upwards [(hM y.val).1 y.2, (hP y.val).2.2, hz] with a h1 h2 h3
+        by_cases ha : a ∈ x ⁻¹' Icc c 0
+        · exact (Set.indicator_of_mem ha _).symm
+        · refine Eq.trans ?_ (Set.indicator_of_notMem ha _).symm
+          by_cases hc' : a ∈ x ⁻¹' Ici c
+          · have h0a : 0 ≤ x a := (le_total 0 (x a)).resolve_right
+              fun hle ↦ ha (show x a ∈ Icc c 0 from ⟨hc', hle⟩)
+            exact (Set.indicator_of_mem (show a ∈ x ⁻¹' Ici 0 from h0a) _).symm.trans
+              (h2.symm.trans h3)
+          · exact h1.trans (Set.indicator_of_notMem hc' _)
+      exact ⟨⟨y.val, hyL⟩, Subtype.ext (hi _)⟩
+    · rintro ⟨f, rfl⟩
+      have hPf0 : P f.val = 0 := by
+        refine Lp.ext ?_
+        filter_upwards [(hL f.val).1 f.2, (hP f.val).2.2, hnull, Lp.coeFn_zero ℂ 2 μ]
+          with a h1 h2 h3 h4
+        refine h2.trans (Eq.trans ?_ h4.symm)
+        by_cases ha : a ∈ x ⁻¹' Ici 0
+        · have ha' : a ∉ x ⁻¹' Icc c 0 := fun h ↦
+            h3 (show x a = 0 from le_antisymm (show c ≤ x a ∧ x a ≤ 0 from h).2 ha)
+          exact (Set.indicator_of_mem ha _).trans (h1.trans (Set.indicator_of_notMem ha' _))
+        · exact Set.indicator_of_notMem ha _
+      exact Subtype.ext ((hp _).trans ((congrArg (fun g ↦ P g) (hi f)).trans hPf0))
+  have hopen : IsOpenMap p := by
+    refine IsOpenMap.of_sections fun m ↦ ⟨fun r ↦ m + j (r - p m), ?_, ?_, fun r ↦ ?_⟩
+    · have hc : Continuous fun r : R ↦ m + j (r - p m) :=
+        continuous_const.add (j.continuous.comp (continuous_id.sub continuous_const))
+      exact hc.continuousAt
+    · show m + j (p m - p m) = m
+      rw [sub_self, map_zero, add_zero]
+    · show p (m + j (r - p m)) = r
+      rw [map_add, hpj, add_sub_cancel]
+  exact ⟨L, M, R, i, p, Set.ext hL, Set.ext hM, Set.ext hR, hi,
+    fun f ↦ (hp f).trans (hP f.val).2.1, hinj, hrange, hexact, fun r ↦ ⟨j r, hpj r⟩, hopen⟩
 
 -- TODO(paper-gap): Corollary 9.2.1.3 omits the one-sided support hypothesis used
 -- in its proof. The uniform Hardy bound at order N also exceeds the printed
@@ -399,7 +543,8 @@ def intervalSobolevDensity (a b s x : ℝ) : ℝ :=
 density is one for every base interval and degree.
 Deviation: Sanity check at logarithmic coordinate zero. -/
 theorem intervalSobolevDensity_at_unit (a b s : ℝ) :
-    intervalSobolevDensity a b s 0 = 1 := by sorry
+    intervalSobolevDensity a b s 0 = 1 := by
+  simp [intervalSobolevDensity]
 
 /-- Paper: Proposition 9.2.1.8, p. 410. The compact-interval space has the positive
 endpoint density, and its dual model uses the reciprocal density.
@@ -417,7 +562,14 @@ Deviation: Sanity check tying the density to §9.1. -/
 theorem intervalSobolev_zero_eq_sobolevMeasure {G : Type*} [CommGroup G] [TopologicalSpace G]
     [MeasurableSpace G] (m : G →ₜ* ℝ≥0ˣ) (μ : Measure G) (s : ℝ) :
     (μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity 0 0 s (logModule m x))) =
-      sobolevMeasure μ (modulatedSobolevWeight m) s := by sorry
+      sobolevMeasure μ (modulatedSobolevWeight m) s := by
+  unfold sobolevMeasure
+  congr 1
+  funext x
+  have hw : ((modulatedSobolevWeight m x : ℝ≥0) : ℝ) ^ 2 = Real.log ((m x).val : ℝ) ^ 2 :=
+    sq_abs _
+  rw [hw]
+  simp [intervalSobolevDensity]
 
 /-- Paper: Proposition 9.2.2.11, p. 417, with Corollary 10.2.2.3, p. 447. For the base interval
 {0} the reciprocal-density measure is the Sobolev measure of degree −s of Proposition 9.1.2.5.
@@ -425,7 +577,15 @@ Deviation: Sanity check tying the dual density to §9.1. -/
 theorem intervalSobolev_zero_dual_eq_sobolevMeasure {G : Type*} [CommGroup G]
     [TopologicalSpace G] [MeasurableSpace G] (m : G →ₜ* ℝ≥0ˣ) (μ : Measure G) (s : ℝ) :
     (μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity 0 0 s (logModule m x))⁻¹) =
-      sobolevMeasure μ (modulatedSobolevWeight m) (-s) := by sorry
+      sobolevMeasure μ (modulatedSobolevWeight m) (-s) := by
+  unfold sobolevMeasure
+  congr 1
+  funext x
+  have hw : ((modulatedSobolevWeight m x : ℝ≥0) : ℝ) ^ 2 = Real.log ((m x).val : ℝ) ^ 2 :=
+    sq_abs _
+  have h : (0 : ℝ) ≤ 1 + Real.log ((m x).val : ℝ) ^ 2 := by positivity
+  rw [hw, neg_div, Real.rpow_neg h]
+  simp [intervalSobolevDensity]
 
 /-- Paper: Definition 9.2.1.1, p. 404. The b-line density and the density of the base
 interval {b} in degree 2N bound each other, so the two spaces have the same elements and
@@ -452,6 +612,139 @@ theorem lineSobolevDensity_le_interval (b : ℝ) (N : ℕ) (x : ℝ) :
 -- TODO(paper-gap): The proposed test pairing on all of S_J × S_J can
 -- diverge, and S_J need not be contained in the reciprocal-density space.
 
+/-- The compact-interval density is positive. -/
+private theorem intervalSobolevDensity_pos (a b s t : ℝ) : 0 < intervalSobolevDensity a b s t :=
+  mul_pos (lt_max_of_lt_left (Real.exp_pos _)) (Real.rpow_pos_of_pos (by positivity) _)
+
+/-- The compact-interval density is continuous. -/
+private theorem continuous_intervalSobolevDensity' (a b s : ℝ) :
+    Continuous (intervalSobolevDensity a b s) := by
+  unfold intervalSobolevDensity
+  refine Continuous.mul (by fun_prop) (Continuous.rpow_const (by fun_prop) fun t ↦ Or.inl ?_)
+  positivity
+
+/-- In weighted L², the squared norm is the integral of the squared modulus against
+the density. -/
+private theorem weightedL2_norm_eq {X : Type*} [MeasurableSpace X] (ν : Measure X)
+    {ρ : X → ℝ} (hρ : Measurable ρ) (hpos : ∀ x, 0 < ρ x)
+    (f : Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ x))) :
+    Integrable (fun x ↦ ‖f x‖ ^ 2 * ρ x) ν ∧ ‖f‖ = Real.sqrt (∫ x, ‖f x‖ ^ 2 * ρ x ∂ν) := by
+  have hdens : Measurable (fun x ↦ ENNReal.ofReal (ρ x)) := hρ.ennreal_ofReal
+  have hflt : ∀ᵐ x ∂ν, ENNReal.ofReal (ρ x) < ∞ := ae_of_all _ fun _ ↦ ENNReal.ofReal_lt_top
+  have hint_sq : Integrable (fun x ↦ ‖(f : X → ℂ) x‖ ^ 2)
+      (ν.withDensity fun x ↦ ENNReal.ofReal (ρ x)) :=
+    (memLp_two_iff_integrable_sq_norm (Lp.aestronglyMeasurable f)).1 (Lp.memLp f)
+  refine ⟨((integrable_withDensity_iff hdens hflt).1 hint_sq).congr
+    (ae_of_all _ fun x ↦ by simp only [ENNReal.toReal_ofReal (hpos x).le]), ?_⟩
+  rw [norm_eq_sqrt_re_inner (𝕜 := ℂ) (x := f)]
+  refine congrArg Real.sqrt ?_
+  rw [L2.inner_def (f := f) (g := f), ← integral_re (L2.integrable_inner f f)]
+  simp_rw [inner_self_eq_norm_sq]
+  rw [integral_withDensity_eq_integral_toReal_smul hdens hflt]
+  refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+  simp only [smul_eq_mul, ENNReal.toReal_ofReal (hpos x).le, mul_comm]
+
+/-- The unweighted product pairing identifies the strong dual of a weighted L² space with
+the L² space for the reciprocal density. -/
+private theorem weightedL2_dual {X : Type*} [MeasurableSpace X] (ν : Measure X)
+    {ρ₁ ρ₂ : X → ℝ} (hρ₁ : Measurable ρ₁) (hρ₂ : Measurable ρ₂)
+    (hpos₁ : ∀ x, 0 < ρ₁ x) (hpos₂ : ∀ x, 0 < ρ₂ x) (hrecip : ∀ x, ρ₁ x * ρ₂ x = 1) :
+    ∃! T : StrongDual ℂ (Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ₁ x))) ≃ₗᵢ[ℂ]
+        Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ₂ x)),
+      ∀ Λ f, Integrable (fun x ↦ f x * T Λ x) ν ∧ Λ f = ∫ x, f x * T Λ x ∂ν := by
+  let E₁ := Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ₁ x))
+  let E₂ := Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ₂ x))
+  have hdens₁ : Measurable (fun x ↦ ENNReal.ofReal (ρ₁ x)) := hρ₁.ennreal_ofReal
+  have hflt₁ : ∀ᵐ x ∂ν, ENNReal.ofReal (ρ₁ x) < ∞ := ae_of_all _ fun _ ↦ ENNReal.ofReal_lt_top
+  have hbase {ρ : X → ℝ} (hρ : Measurable ρ) (hpos : ∀ x, 0 < ρ x) :
+      ν ≪ ν.withDensity fun x ↦ ENNReal.ofReal (ρ x) :=
+    withDensity_absolutelyContinuous' hρ.ennreal_ofReal.aemeasurable
+      (ae_of_all _ fun x ↦ (ENNReal.ofReal_pos.mpr (hpos x)).ne')
+  have hweighted (ρ : X → ℝ) : (ν.withDensity fun x ↦ ENNReal.ofReal (ρ x)) ≪ ν :=
+    withDensity_absolutelyContinuous _ _
+  -- Conjugation times the density maps one weighted space isometrically onto the other.
+  have hmap {ρ ρ' : X → ℝ} (hρ : Measurable ρ) (hρ' : Measurable ρ') (hpos : ∀ x, 0 < ρ x)
+      (hpos' : ∀ x, 0 < ρ' x) (hr : ∀ x, ρ x * ρ' x = 1)
+      (f : Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ x))) :
+      ∃ g : Lp ℂ 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ' x)),
+        (g : X → ℂ) =ᵐ[ν] (fun x ↦ (ρ x : ℂ) * star (f x)) ∧ ‖g‖ = ‖f‖ := by
+    let u : X → ℂ := fun x ↦ (ρ x : ℂ) * star (f x)
+    have hsq (x : X) : ‖u x‖ ^ 2 * ρ' x = ‖f x‖ ^ 2 * ρ x := by
+      calc
+        _ = ‖f x‖ ^ 2 * (ρ x * (ρ x * ρ' x)) := by
+          dsimp only [u]
+          rw [norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_pos (hpos x), norm_star]
+          ring
+        _ = _ := by rw [hr, mul_one]
+    have hmeas : AEStronglyMeasurable u (ν.withDensity fun x ↦ ENNReal.ofReal (ρ' x)) :=
+      (Complex.measurable_ofReal.comp hρ).aestronglyMeasurable.mul
+        (((Lp.aestronglyMeasurable f).mono_ac (hbase hρ hpos)).mono_ac (hweighted ρ')).star
+    have hmem : MemLp u 2 (ν.withDensity fun x ↦ ENNReal.ofReal (ρ' x)) := by
+      apply (memLp_two_iff_integrable_sq_norm hmeas).2
+      apply (integrable_withDensity_iff hρ'.ennreal_ofReal
+        (ae_of_all _ fun _ ↦ ENNReal.ofReal_lt_top)).2
+      refine (weightedL2_norm_eq ν hρ hpos f).1.congr (ae_of_all _ fun x ↦ ?_)
+      change ‖f x‖ ^ 2 * ρ x = ‖u x‖ ^ 2 * (ENNReal.ofReal (ρ' x)).toReal
+      rw [ENNReal.toReal_ofReal (hpos' x).le, hsq]
+    have hcoe : (hmem.toLp u : X → ℂ) =ᵐ[ν] u := (hbase hρ' hpos').ae_eq hmem.coeFn_toLp
+    refine ⟨hmem.toLp u, hcoe, ?_⟩
+    rw [(weightedL2_norm_eq ν hρ' hpos' _).2, (weightedL2_norm_eq ν hρ hpos f).2]
+    congr 1
+    apply integral_congr_ae
+    filter_upwards [hcoe] with x hx
+    rw [hx, hsq]
+  choose S hS hSnorm using hmap hρ₁ hρ₂ hpos₁ hpos₂ hrecip
+  choose S' hS' _ using hmap hρ₂ hρ₁ hpos₂ hpos₁ (fun x ↦ (mul_comm _ _).trans (hrecip x))
+  let C : E₁ →ₗᵢ⋆[ℂ] E₂ :=
+    { toFun := S
+      map_add' := fun f g ↦ Lp.ext <| (hweighted ρ₂).ae_eq <| by
+        filter_upwards [hS (f + g), hS f, hS g,
+          (hbase hρ₁ hpos₁).ae_eq (Lp.coeFn_add f g),
+          (hbase hρ₂ hpos₂).ae_eq (Lp.coeFn_add (S f) (S g))] with x hfg hf hg hx hsum
+        rw [hfg, hsum, Pi.add_apply, hf, hg, hx, Pi.add_apply, star_add, mul_add]
+      map_smul' := fun c f ↦ Lp.ext <| (hweighted ρ₂).ae_eq <| by
+        filter_upwards [hS (c • f), hS f, (hbase hρ₁ hpos₁).ae_eq (Lp.coeFn_smul c f),
+          (hbase hρ₂ hpos₂).ae_eq (Lp.coeFn_smul ((starRingEnd ℂ) c) (S f))]
+          with x hcf hf hx hsmul
+        rw [hcf, hsmul, Pi.smul_apply, hf, hx, Pi.smul_apply]
+        simp only [starRingEnd_apply, smul_eq_mul, star_mul', mul_left_comm]
+      norm_map' := hSnorm }
+  have hSurj : Function.Surjective C := by
+    intro g
+    refine ⟨S' g, Lp.ext ((hweighted ρ₂).ae_eq ?_)⟩
+    change (S (S' g) : X → ℂ) =ᵐ[ν] g
+    filter_upwards [hS (S' g), hS' g] with x hSx hS'x
+    have hstar : star (ρ₂ x : ℂ) = (ρ₂ x : ℂ) := Complex.conj_ofReal _
+    rw [hSx, hS'x, star_mul', hstar, star_star, ← mul_assoc, ← Complex.ofReal_mul, hrecip,
+      Complex.ofReal_one, one_mul]
+  let R := InnerProductSpace.toDual ℂ E₁
+  let T : StrongDual ℂ E₁ ≃ₗᵢ[ℂ] E₂ := R.symm.trans (LinearIsometryEquiv.ofSurjective C hSurj)
+  have hPair (Λ : StrongDual ℂ E₁) (f : E₁) :
+      Integrable (fun x ↦ f x * T Λ x) ν ∧ Λ f = ∫ x, f x * T Λ x ∂ν := by
+    let g := R.symm Λ
+    have hprod : (fun x ↦ f x * T Λ x) =ᵐ[ν]
+        fun x ↦ (ENNReal.ofReal (ρ₁ x)).toReal • inner ℂ (g x) (f x) := by
+      filter_upwards [hS g] with x hx
+      change f x * S g x = _
+      rw [hx, ENNReal.toReal_ofReal (hpos₁ x).le, RCLike.inner_apply, starRingEnd_apply]
+      simp only [Complex.real_smul, mul_left_comm]
+    refine ⟨?_, ?_⟩
+    · exact ((integrable_withDensity_iff_integrable_smul' hdens₁ hflt₁).1
+        (L2.integrable_inner g f)).congr hprod.symm
+    · calc
+        Λ f = inner ℂ g f := InnerProductSpace.toDual_symm_apply.symm
+        _ = ∫ x, inner ℂ (g x) (f x) ∂(ν.withDensity fun x ↦ ENNReal.ofReal (ρ₁ x)) :=
+          L2.inner_def g f
+        _ = ∫ x, (ENNReal.ofReal (ρ₁ x)).toReal • inner ℂ (g x) (f x) ∂ν :=
+          integral_withDensity_eq_integral_toReal_smul hdens₁ hflt₁ _
+        _ = ∫ x, f x * T Λ x ∂ν := integral_congr_ae hprod.symm
+  refine ⟨T, hPair, fun T' hT' ↦ LinearIsometryEquiv.ext fun Λ ↦ ?_⟩
+  apply T.symm.injective
+  rw [T.symm_apply_apply]
+  apply ContinuousLinearMap.ext
+  intro f
+  rw [(hPair (T.symm (T' Λ)) f).2, T.apply_symm_apply, (hT' Λ f).2]
+
 /-- Paper: Proposition 9.2.1.8, p. 409. The strong dual of the scalar compact-interval
 space is represented isometrically by integration against the reciprocal-density space.
 Deviation: The duality is stated on the weighted L² spaces. The pairing on all of
@@ -461,7 +754,11 @@ theorem scalarIntervalSobolev_dual (a b s : ℝ) (_hab : a ≤ b) (_hs : 0 ≤ s
     ∃! T : StrongDual ℂ (CompactIntervalSobolev volume id a b s) ≃ₗᵢ[ℂ]
         CompactIntervalSobolev volume id a b s true,
       ∀ Λ f, Integrable (fun x ↦ f x * T Λ x) volume ∧
-        Λ f = ∫ x, f x * T Λ x := by sorry
+        Λ f = ∫ x, f x * T Λ x :=
+  weightedL2_dual volume (continuous_intervalSobolevDensity' a b s).measurable
+    (continuous_intervalSobolevDensity' a b s).measurable.inv
+    (intervalSobolevDensity_pos a b s) (fun x ↦ inv_pos.mpr (intervalSobolevDensity_pos a b s x))
+    (fun x ↦ mul_inv_cancel₀ (intervalSobolevDensity_pos a b s x).ne')
 
 -- TODO(paper-gap): The topology generated by individual interior line norms in
 -- (9.2.2.2) is strictly coarser than the uniform Hardy norm in (9.2.2.1).
@@ -507,6 +804,56 @@ theorem scalarIntervalSobolev_mellin_norm_bounds (a b : ℝ) (_hab : a ≤ b) (N
         MemLp (fun y : ℝ ↦ iteratedDeriv k F (verticalPoint σ y)) 2 volume) ∧
         w ≤ C * (q a + q b) ∧ q a + q b ≤ D * w := by sorry
 
+/-- On a right half-line the supremum over pairs of abscissas equals the supremum over pairs
+whose first abscissa is the left endpoint. -/
+private theorem intervalSobolevENorm_Ici {A : Type*} [MeasurableSpace A] (μ : Measure A)
+    (logNorm : A → ℝ) (a s : ℝ) (f : A → ℂ) :
+    intervalSobolevENorm μ logNorm (Ici a) s f =
+      ⨆ σ : Ici a, eLpNorm f 2 (μ.withDensity fun x ↦
+        ENNReal.ofReal (intervalSobolevDensity a σ s (logNorm x))) := by
+  unfold intervalSobolevENorm
+  refine le_antisymm (iSup₂_le fun a' b' ↦ ?_)
+    (iSup_le fun σ ↦ le_iSup₂_of_le (⟨a, self_mem_Ici⟩ : Ici a) σ le_rfl)
+  have hσ : max (a' : ℝ) b' ∈ Ici a := le_max_of_le_left a'.2
+  refine le_iSup_of_le (⟨_, hσ⟩ : Ici a) (eLpNorm_mono_measure _ (withDensity_mono
+    (Eventually.of_forall fun g ↦ ENNReal.ofReal_le_ofReal ?_)))
+  have key : ∀ c : ℝ, a ≤ c → c ≤ max (a' : ℝ) b' → ∀ x : ℝ, Real.exp (2 * c * x) ≤
+      max (Real.exp (2 * a * x)) (Real.exp (2 * max (a' : ℝ) b' * x)) := by
+    intro c hac hc x
+    rcases le_total 0 x with hx | hx
+    · exact le_max_of_le_right
+        (Real.exp_le_exp.2 (by nlinarith [mul_le_mul_of_nonneg_right hc hx]))
+    · exact le_max_of_le_left
+        (Real.exp_le_exp.2 (by nlinarith [mul_le_mul_of_nonpos_right hac hx]))
+  unfold intervalSobolevDensity
+  exact mul_le_mul_of_nonneg_right
+    (max_le (key _ a'.2 (le_max_left _ _) _) (key _ b'.2 (le_max_right _ _) _)) (by positivity)
+
+/-- On a left half-line the supremum over pairs of abscissas equals the supremum over pairs
+whose second abscissa is the right endpoint. -/
+private theorem intervalSobolevENorm_Iic {A : Type*} [MeasurableSpace A] (μ : Measure A)
+    (logNorm : A → ℝ) (b s : ℝ) (f : A → ℂ) :
+    intervalSobolevENorm μ logNorm (Iic b) s f =
+      ⨆ σ : Iic b, eLpNorm f 2 (μ.withDensity fun x ↦
+        ENNReal.ofReal (intervalSobolevDensity σ b s (logNorm x))) := by
+  unfold intervalSobolevENorm
+  refine le_antisymm (iSup₂_le fun a' b' ↦ ?_)
+    (iSup_le fun σ ↦ le_iSup₂_of_le σ (⟨b, self_mem_Iic⟩ : Iic b) le_rfl)
+  have hσ : min (a' : ℝ) b' ∈ Iic b := min_le_of_left_le a'.2
+  refine le_iSup_of_le (⟨_, hσ⟩ : Iic b) (eLpNorm_mono_measure _ (withDensity_mono
+    (Eventually.of_forall fun g ↦ ENNReal.ofReal_le_ofReal ?_)))
+  have key : ∀ c : ℝ, min (a' : ℝ) b' ≤ c → c ≤ b → ∀ x : ℝ, Real.exp (2 * c * x) ≤
+      max (Real.exp (2 * min (a' : ℝ) b' * x)) (Real.exp (2 * b * x)) := by
+    intro c hc hcb x
+    rcases le_total 0 x with hx | hx
+    · exact le_max_of_le_right
+        (Real.exp_le_exp.2 (by nlinarith [mul_le_mul_of_nonneg_right hcb hx]))
+    · exact le_max_of_le_left
+        (Real.exp_le_exp.2 (by nlinarith [mul_le_mul_of_nonpos_right hc hx]))
+  unfold intervalSobolevDensity
+  exact mul_le_mul_of_nonneg_right
+    (max_le (key _ (min_le_left _ _) a'.2 _) (key _ (min_le_right _ _) b'.2 _)) (by positivity)
+
 /-- Paper: Lemma 9.2.2.2(3)(a), p. 412. For a right half-line the endpoint
 supremum uses the left endpoint and an arbitrary point in the interval.
 Deviation: The identity is extended-valued, since the supremum can be infinite. -/
@@ -514,7 +861,8 @@ theorem scalarIntervalSobolev_enorm_Ici (a s : ℝ) (_hs : 0 ≤ s)
     (f : PositiveRealExponentialDecay univ) :
     intervalSobolevENorm volume id (Ici a) s f.val =
       ⨆ σ : Ici a, eLpNorm f.val 2 (volume.withDensity fun x ↦
-        ENNReal.ofReal (intervalSobolevDensity a σ s x)) := by sorry
+        ENNReal.ofReal (intervalSobolevDensity a σ s x)) :=
+  intervalSobolevENorm_Ici volume id a s f.val
 
 /-- Paper: Lemma 9.2.2.2(3)(b), p. 412. For a left half-line the endpoint
 supremum uses an arbitrary point in the interval and the right endpoint.
@@ -523,7 +871,8 @@ theorem scalarIntervalSobolev_enorm_Iic (b s : ℝ) (_hs : 0 ≤ s)
     (f : PositiveRealExponentialDecay univ) :
     intervalSobolevENorm volume id (Iic b) s f.val =
       ⨆ σ : Iic b, eLpNorm f.val 2 (volume.withDensity fun x ↦
-        ENNReal.ofReal (intervalSobolevDensity σ b s x)) := by sorry
+        ENNReal.ofReal (intervalSobolevDensity σ b s x)) :=
+  intervalSobolevENorm_Iic volume id b s f.val
 
 /-- Paper: Definition 9.2.2.1, p. 412. A nonzero smooth test supported on a
 compact subset of the positive logarithmic axis has infinite norm for a right half-line.
@@ -531,7 +880,78 @@ Deviation: This is a counterexample to the finiteness of the proposed norm. -/
 theorem scalarIntervalSobolev_enorm_Ici_eq_top (a s : ℝ) (_hs : 0 ≤ s)
     (f : PositiveRealExponentialDecay univ) (_hf : f.val ≠ 0)
     (_hcompact : HasCompactSupport f.val) (_hsupport : tsupport f.val ⊆ Ioi 0) :
-    intervalSobolevENorm volume id (Ici a) s f.val = ∞ := by sorry
+    intervalSobolevENorm volume id (Ici a) s f.val = ∞ := by
+  have hcont : Continuous f.val := by
+    have h : ⇑(logExponentialDecayTwist univ ⟨0, mem_univ 0⟩ f) = f.val := by
+      funext x
+      simpa only [Subtype.coe_mk, zero_mul, Real.exp_zero, Complex.ofReal_one, one_mul] using
+        logExponentialDecayTwist_apply univ ⟨0, mem_univ (0 : ℝ)⟩ f x
+    rw [← h]
+    exact SchwartzMap.continuous _
+  obtain ⟨x₀, hx₀⟩ : ∃ x₀, f.val x₀ ≠ 0 := by
+    by_contra h
+    exact _hf (funext fun x ↦ not_not.1 fun hx ↦ h ⟨x, hx⟩)
+  have hx₀pos : 0 < x₀ := _hsupport (subset_tsupport _ hx₀)
+  obtain ⟨c, hc, hcx⟩ : ∃ c : ℝ, 0 < c ∧ c < ‖f.val x₀‖ :=
+    ⟨_, half_pos (norm_pos_iff.2 hx₀), half_lt_self (norm_pos_iff.2 hx₀)⟩
+  -- An open set of positive measure on which `f` and the coordinate stay away from zero.
+  obtain ⟨U, hUo, hx₀U, hUc, hUx⟩ : ∃ U : Set ℝ, IsOpen U ∧ x₀ ∈ U ∧
+      (∀ x ∈ U, c < ‖f.val x‖) ∧ ∀ x ∈ U, x₀ / 2 < x :=
+    ⟨{x | c < ‖f.val x‖} ∩ Ioi (x₀ / 2), (isOpen_lt continuous_const hcont.norm).inter isOpen_Ioi,
+      ⟨hcx, half_lt_self hx₀pos⟩, fun x hx ↦ hx.1, fun x hx ↦ hx.2⟩
+  have hUpos : volume U ≠ 0 := (hUo.measure_pos volume ⟨x₀, hx₀U⟩).ne'
+  have hε : ENNReal.ofReal c ≠ 0 := (ENNReal.ofReal_pos.2 hc).ne'
+  -- Chebyshev's inequality for the pair `(a, σ)` bounds an exponential in `σ` by the supremum.
+  have hbound : ∀ σ : ℝ, max a 0 ≤ σ → ENNReal.ofReal (Real.exp (σ * x₀)) * volume U ≤
+      (ENNReal.ofReal c)⁻¹ ^ (2 : ℝ≥0∞).toReal *
+        intervalSobolevENorm volume id (Ici a) s f.val ^ (2 : ℝ≥0∞).toReal := by
+    intro σ hσ
+    have hσa : a ≤ σ := (le_max_left _ _).trans hσ
+    have hσ0 : 0 ≤ σ := (le_max_right _ _).trans hσ
+    have hle : eLpNorm f.val 2 (volume.withDensity fun x ↦
+        ENNReal.ofReal (intervalSobolevDensity a σ s x)) ≤
+        intervalSobolevENorm volume id (Ici a) s f.val := by
+      unfold intervalSobolevENorm
+      exact le_iSup₂_of_le (⟨a, self_mem_Ici⟩ : Ici a) (⟨σ, hσa⟩ : Ici a) le_rfl
+    have hdens : ∀ x ∈ U, ENNReal.ofReal (Real.exp (σ * x₀)) ≤
+        ENNReal.ofReal (intervalSobolevDensity a σ s x) := by
+      intro x hx
+      have h1 : (1 : ℝ) ≤ (1 + x ^ 2) ^ (s / 2) :=
+        Real.one_le_rpow (by nlinarith [sq_nonneg x]) (by positivity)
+      have h2 : Real.exp (σ * x₀) ≤ Real.exp (2 * σ * x) :=
+        Real.exp_le_exp.2 (by nlinarith [mul_le_mul_of_nonneg_left (hUx x hx).le hσ0])
+      refine ENNReal.ofReal_le_ofReal ?_
+      unfold intervalSobolevDensity
+      exact (h2.trans (le_max_right _ _)).trans
+        (le_mul_of_one_le_right (le_max_of_le_right (Real.exp_pos _).le) h1)
+    calc ENNReal.ofReal (Real.exp (σ * x₀)) * volume U
+        = ∫⁻ _ in U, ENNReal.ofReal (Real.exp (σ * x₀)) := (setLIntegral_const _ _).symm
+      _ ≤ ∫⁻ x in U, ENNReal.ofReal (intervalSobolevDensity a σ s x) :=
+          setLIntegral_mono' hUo.measurableSet hdens
+      _ = (volume.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity a σ s x)) U :=
+          (withDensity_apply _ hUo.measurableSet).symm
+      _ ≤ (volume.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity a σ s x))
+            {x | ENNReal.ofReal c ≤ ‖f.val x‖ₑ} := measure_mono fun x hx ↦ by
+          rw [mem_ofPred_eq, ← ofReal_norm]
+          exact ENNReal.ofReal_le_ofReal (hUc x hx).le
+      _ ≤ (ENNReal.ofReal c)⁻¹ ^ (2 : ℝ≥0∞).toReal * eLpNorm f.val 2 (volume.withDensity fun x ↦
+            ENNReal.ofReal (intervalSobolevDensity a σ s x)) ^ (2 : ℝ≥0∞).toReal :=
+          meas_ge_le_mul_pow_eLpNorm_eNorm _ two_ne_zero ENNReal.ofNat_ne_top hε
+            fun h ↦ absurd h ENNReal.ofReal_ne_top
+      _ ≤ _ := by gcongr
+  by_contra htop
+  have hBtop : (ENNReal.ofReal c)⁻¹ ^ (2 : ℝ≥0∞).toReal *
+      intervalSobolevENorm volume id (Ici a) s f.val ^ (2 : ℝ≥0∞).toReal ≠ ∞ :=
+    ENNReal.mul_ne_top (ENNReal.rpow_ne_top_of_nonneg (by simp) (ENNReal.inv_ne_top.2 hε))
+      (ENNReal.rpow_ne_top_of_nonneg (by simp) htop)
+  obtain ⟨K, hK, hKle⟩ : ∃ K : ℝ≥0∞, K ≠ ∞ ∧
+      ∀ σ : ℝ, max a 0 ≤ σ → ENNReal.ofReal (Real.exp (σ * x₀)) ≤ K :=
+    ⟨_, ENNReal.div_ne_top hBtop hUpos, fun σ hσ ↦
+      (ENNReal.le_div_iff_mul_le (Or.inl hUpos) (Or.inr hBtop)).2 (hbound σ hσ)⟩
+  have hlt : K.toReal < Real.exp (max (max a 0) (K.toReal / x₀) * x₀) := by
+    have h := (div_le_iff₀ hx₀pos).1 (le_max_right (max a 0) (K.toReal / x₀))
+    linarith [Real.add_one_le_exp (max (max a 0) (K.toReal / x₀) * x₀)]
+  exact absurd (hKle _ (le_max_left _ _)) (not_le.2 ((ENNReal.lt_ofReal_iff_toReal_lt hK).2 hlt))
 
 -- TODO(paper-gap): Lemma 9.2.2.2(3) treats the infinite supremum as a finite
 -- norm and identifies it with the topology of individual line norms.
@@ -867,7 +1287,8 @@ theorem modulatedIntervalSobolev_enorm_Ici (a s : ℝ) (_hs : 0 ≤ s)
     let μ := canonicalModulatedHaar m hm
     intervalSobolevENorm μ (logModule m) (Ici a) s f.val =
       ⨆ σ : Ici a, eLpNorm f.val 2 (μ.withDensity fun g ↦
-        ENNReal.ofReal (intervalSobolevDensity a σ s (logModule m g))) := by sorry
+        ENNReal.ofReal (intervalSobolevDensity a σ s (logModule m g))) :=
+  intervalSobolevENorm_Ici _ (logModule m) a s f.val
 
 /-- Paper: Lemma 9.2.2.10(3)(b), p. 417. The left half-line supremum can
 be indexed using one varying abscissa and the right endpoint.
@@ -877,7 +1298,8 @@ theorem modulatedIntervalSobolev_enorm_Iic (b s : ℝ) (_hs : 0 ≤ s)
     let μ := canonicalModulatedHaar m hm
     intervalSobolevENorm μ (logModule m) (Iic b) s f.val =
       ⨆ σ : Iic b, eLpNorm f.val 2 (μ.withDensity fun g ↦
-        ENNReal.ofReal (intervalSobolevDensity σ b s (logModule m g))) := by sorry
+        ENNReal.ofReal (intervalSobolevDensity σ b s (logModule m g))) :=
+  intervalSobolevENorm_Iic _ (logModule m) b s f.val
 
 -- TODO(paper-gap): As in Proposition 9.2.1.8, the test pairing and the
 -- reciprocal-density norm are not defined on all the stated inputs.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run one agent on one issue in its own worktree, and hand in its work.
 #
-#   scripts/agent.sh <prover|digester|scout> <issue number|next> [options]
+#   scripts/agent.sh <prover|digester|scout|sweeper> <issue number|next> [options]
 #
 # With no mode option it does three steps: set up, run the agent, hand in. To drive the agent
 # yourself (for example an interactive Codex or Claude session), do the outer two separately:
@@ -42,7 +42,7 @@ set -euo pipefail
 # waits on its agent for a long time, and the file may be edited or updated meanwhile.
 main() {
 
-usage="usage: agent.sh <prover|digester|scout> <issue|next> [--setup|--handin] [--cli codex|claude] [--model M] [--effort E] [--dry-run] [--force]"
+usage="usage: agent.sh <prover|digester|scout|sweeper> <issue|next> [--setup|--handin] [--cli codex|claude] [--model M] [--effort E] [--dry-run] [--force]"
 role=${1:?$usage}
 target=${2:?$usage}
 shift 2
@@ -62,6 +62,7 @@ done
 case $role in
   prover) label=proof ;;
   digester) label=section ;;
+  sweeper) label=sweep ;;       # one agent closes out a whole file; see scripts/sweep.sh
   scout) label="" ;;
   *) echo "unknown role $role" >&2; exit 2 ;;
 esac
@@ -185,6 +186,40 @@ ${review:-(none)}"
   git worktree add -q -B "$branch" "$wt" "$base"
   mkdir -p "$wt/.lake" "$wt/.agent"
   ln -sfn "$main/.lake/packages" "$wt/.lake/packages"   # share the built Mathlib
+  # Start from a build of the library, so that nothing is compiled here before the agent
+  # starts. A change low in the import graph rebuilds everything above it and main moves all
+  # the time, so a copy of the main checkout's build is soon stale, and agents started side by
+  # side would each rebuild the same modules. Instead one shared worktree, "seed", is kept
+  # built under a lock. It is brought up to main when its build is more than ten minutes old;
+  # otherwise the agent starts from the commit the seed is at (a few merges behind main,
+  # which costs nothing: the pull request is checked against main anyway) and copies its
+  # build. Lake checks every module against its sources, so a stale or half-written copy
+  # costs a rebuild of that module, nothing worse.
+  if [ ! -e "$wt/.lake/build" ]; then
+    seed="$(dirname "$wt")/seed"; from="$main/.lake/build"
+    if [ "$role" != scout ] && [ -z "$pr" ]; then
+      (
+        flock 8
+        if [ ! -d "$seed" ]; then
+          git worktree add -q --detach "$seed" "$base" && mkdir -p "$seed/.lake" &&
+            ln -sfn "$main/.lake/packages" "$seed/.lake/packages" &&
+            { [ ! -d "$main/.lake/build" ] || cp -a --reflink=auto "$main/.lake/build" "$seed/.lake/build"; }
+        fi
+        built=$(stat -c %Y "$seed/.lake/built-at" 2>/dev/null || echo 0)
+        if [ $(( $(date +%s) - built )) -gt 600 ]; then
+          git -C "$seed" checkout -q --detach "$base" &&
+            (cd "$seed" && lake build RiemannMasullo >/dev/null 2>&1) && touch "$seed/.lake/built-at"
+        fi
+        if [ -e "$seed/.lake/built-at" ]; then
+          git -C "$wt" reset -q --hard "$(git -C "$seed" rev-parse HEAD)" &&
+            { cp -a --reflink=auto "$seed/.lake/build" "$wt/.lake/build" 2>/dev/null || rm -rf "$wt/.lake/build"; }
+        fi
+      ) 8>"$main/.agent/seed.lock" || true
+    fi
+    if [ ! -e "$wt/.lake/build" ] && [ -d "$from" ]; then
+      cp -a --reflink=auto "$from" "$wt/.lake/build" 2>/dev/null || rm -rf "$wt/.lake/build"
+    fi
+  fi
   printf '%s\n' "$prompt" >"$wt/.agent/PROMPT.md"
   # Record every declaration's signature before the agent touches anything. It is kept outside
   # the worktree so the agent cannot alter it. This also builds the project once for the agent.
@@ -274,7 +309,7 @@ $baddefs
   fi
   title="$role: #$n"; body=""
   if [ -s .agent/PR.md ]; then title=$(head -n 1 .agent/PR.md | sed 's/^#* *//'); body=$(tail -n +2 .agent/PR.md); fi
-  [ "$role" = prover ] && link="Closes #$n" || link="Part of #$n"
+  case $role in prover|sweeper) link="Closes #$n" ;; *) link="Part of #$n" ;; esac
   git commit -q -m "$title" -m "$link"
   # GitHub now and then rejects a push for no reason of ours ("remote rejected ... (failed)").
   for attempt in 1 2 3; do
