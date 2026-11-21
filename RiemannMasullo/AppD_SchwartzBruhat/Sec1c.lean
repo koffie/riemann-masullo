@@ -1440,7 +1440,9 @@ def schwartzBruhatCosetIntegral (f : SchwartzBruhat G) : SchwartzBruhat (G ⧸ K
 Schwartz–Bruhat coset integral is the integral along the translate by x. -/
 theorem schwartzBruhatCosetIntegral_mk (f : SchwartzBruhat G) (x : G) :
     schwartzBruhatCosetIntegral K μK hK f (QuotientGroup.mk x) =
-      ∫ k : K, f (x * k.val) ∂μK := by sorry
+      ∫ k : K, f (x * k.val) ∂μK := by
+  show lcaCosetIntegral K μK f (QuotientGroup.mk x) = _
+  exact lcaCosetIntegral_mk K μK f x ((lcaCosetIntegral_mem_schwartzBruhat K μK hK f).1 x)
 
 include hHaar hRegular in
 /-- Paper: Theorem D.1.7.1(1), p. 776. The coset integral is obtained by integrating
