@@ -44,6 +44,9 @@ import Mathlib.MeasureTheory.Constructions.Polish.StronglyMeasurable
 import Mathlib.Analysis.Normed.Operator.Extend
 import Mathlib.Analysis.InnerProductSpace.Projection.Submodule
 import Mathlib.MeasureTheory.Measure.WithDensity
+import Mathlib.MeasureTheory.Measure.Decomposition.RadonNikodym
+import RiemannMasullo.ForMathlib.MeasureTheory.Integral.ProdRegular
+import RiemannMasullo.ForMathlib.MeasureTheory.Measure.RegularDomination
 
 /-!
 # Fourier analysis and Schwartz spaces of elementary abelian Lie groups
@@ -1130,6 +1133,265 @@ theorem exists_lcaAutocorrelation_measure (f : C_c(G, ℂ)) :
         lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x := by
   sorry
 
+open scoped CompactlySupported Pointwise in
+/-- The autocorrelation has compact support, and its Fourier integral is the
+squared modulus of the Fourier integral of the original function. -/
+private theorem lcaFourier_autocorrelation (f : C_c(G, ℂ)) :
+    HasCompactSupport (lcaConvolution μ f (fun y ↦ star (f y⁻¹))) ∧
+    ∀ χ, lcaFourier μ (lcaConvolution μ f (fun y ↦ star (f y⁻¹))) χ =
+      (‖lcaFourier μ f χ‖ ^ 2 : ℝ) := by
+  let K := tsupport f
+  have hK : IsCompact K := f.hasCompactSupport
+  have hout (x y : G) (hx : x ∉ K * K⁻¹) : f y * star (f (x⁻¹ * y)) = 0 := by
+    by_contra h
+    have hy : y ∈ K := subset_tsupport f fun hy ↦ h (by simp [hy])
+    have hz : x⁻¹ * y ∈ K := subset_tsupport f fun hz ↦ h (by simp [hz])
+    apply hx
+    refine ⟨y, hy, (x⁻¹ * y)⁻¹, by simpa, ?_⟩
+    simp [mul_inv_rev]
+  constructor
+  · refine HasCompactSupport.intro (hK.mul hK.inv) fun x hx ↦ ?_
+    simp only [lcaConvolution, mul_inv_rev, inv_inv, hout x _ hx, integral_zero]
+  intro χ
+  let k (x y : G) := f y * star (f (x⁻¹ * y)) * star (χ x : ℂ)
+  have hk : Continuous (Function.uncurry k) :=
+    ((f.continuous.comp continuous_snd).mul
+      (f.continuous.comp (continuous_fst.inv.mul continuous_snd)).star).mul
+      ((continuous_subtype_val.comp χ.continuous).comp continuous_fst).star
+  have hkK : HasCompactSupport (Function.uncurry k) := by
+    refine HasCompactSupport.intro ((hK.mul hK.inv).prod hK) ?_
+    rintro ⟨x, y⟩ h
+    change f y * star (f (x⁻¹ * y)) * star (χ x : ℂ) = 0
+    by_cases hx : x ∈ K * K⁻¹
+    · rw [image_eq_zero_of_notMem_tsupport (fun hy ↦ h ⟨hx, hy⟩), zero_mul, zero_mul]
+    · rw [hout x y hx, zero_mul]
+  have hrow (x : G) : lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x *
+      star (χ x : ℂ) = ∫ y, k x y ∂μ := by
+    simp only [k, lcaConvolution, mul_inv_rev, inv_inv, integral_mul_const]
+  have hcol (y : G) : (∫ x, k x y ∂μ) =
+      f y * star (χ y : ℂ) * star (lcaFourier μ f χ) := by
+    calc
+      _ = ∫ z, k (y * z⁻¹) y ∂μ := by
+        rw [integral_inv_eq_self (fun z ↦ k (y * z) y) μ,
+          integral_mul_left_eq_self (fun z ↦ k z y) y]
+      _ = ∫ z, (f y * star (χ y : ℂ)) * star (f z * star (χ z : ℂ)) ∂μ := by
+        apply integral_congr_ae
+        exact .of_forall fun z ↦ by
+          have hχ : (χ (y * z⁻¹) : ℂ) = (χ y : ℂ) * star (χ z : ℂ) := by
+            simp only [map_mul, Circle.coe_mul, map_inv, Circle.coe_inv_eq_conj, Complex.star_def]
+          simp only [k, hχ, mul_inv_rev, inv_inv, inv_mul_cancel_right, star_mul, star_star]
+          ring
+      _ = _ := (integral_const_mul _ _).trans
+        (congrArg (fun z : ℂ ↦ (f y * star (χ y : ℂ)) * z)
+          (integral_conj (f := fun z ↦ f z * star (χ z : ℂ))))
+  calc
+    _ = ∫ x, ∫ y, k x y ∂μ ∂μ := by simp only [lcaFourier, hrow]
+    _ = ∫ y, ∫ x, k x y ∂μ ∂μ := integral_integral_swap_of_hasCompactSupport hk hkK
+    _ = _ := by
+      simp only [hcol, integral_mul_const]
+      change lcaFourier μ f χ * star (lcaFourier μ f χ) = _
+      rw [Complex.star_def, Complex.mul_conj, Complex.normSq_eq_norm_sq]
+
+/-- A Fourier density under a finite regular spectral measure corresponds to
+convolution with the Fourier–Stieltjes transform of that measure. -/
+private theorem integral_lcaFourier_mul_char
+    (τ : Measure (PontryaginDual G)) [IsFiniteMeasure τ] [τ.Regular]
+    {u : G → ℂ} (hu : Continuous u) (huK : HasCompactSupport u) (x : G) :
+    (∫ χ, lcaFourier μ u χ * (χ x : ℂ) ∂τ) =
+      lcaConvolution μ u (fun z ↦ ∫ χ, (χ z : ℂ) ∂τ) x := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  obtain ⟨S, hS, hτ⟩ := exists_isSigmaCompact_ae_mem τ
+  let K := tsupport u
+  have hK : IsCompact K := huK
+  have hKm : MeasurableSet K := hK.isClosed.measurableSet
+  let : Fact (μ K < ⊤) := ⟨hK.measure_lt_top⟩
+  let k (p : G × PontryaginDual G) := u p.1 * (p.2 (p.1⁻¹ * x) : ℂ)
+  have he : Continuous (fun p : G × PontryaginDual G ↦ p.2 (p.1⁻¹ * x)) :=
+    (continuous_eval (F := C(G, Circle))).comp
+      (((ContinuousMonoidHom.isInducing_toContinuousMap G Circle).continuous.comp
+        continuous_snd).prodMk (continuous_fst.inv.mul continuous_const))
+  have hk : Continuous k := (hu.comp continuous_fst).mul (continuous_subtype_val.comp he)
+  let q := (K ×ˢ S).indicator k
+  have hq : Measurable q := measurable_indicator_prod_of_isSigmaCompact hk hK.isSigmaCompact hS
+  obtain ⟨C, hC⟩ : ∃ C, ∀ y, ‖u y‖ ≤ C := hu.bounded_above_of_compact_support huK
+  have hInt : Integrable q ((μ.restrict K).prod τ) := by
+    apply Integrable.of_bound hq.aestronglyMeasurable C
+    exact .of_forall fun p ↦ by
+      by_cases hp : p ∈ K ×ˢ S
+      · simpa [q, hp, k, norm_mul] using hC p.1
+      · simpa [q, hp] using (norm_nonneg (u p.1)).trans (hC p.1)
+  have hrow : ∀ᵐ y ∂μ.restrict K, (∫ χ, q (y, χ) ∂τ) =
+      u y * ∫ χ, (χ (y⁻¹ * x) : ℂ) ∂τ := by
+    filter_upwards [ae_restrict_mem hKm] with y hy
+    rw [← integral_const_mul]
+    apply integral_congr_ae
+    filter_upwards [hτ] with χ hχ
+    exact indicator_of_mem (s := K ×ˢ S) (a := (y, χ)) ⟨hy, hχ⟩ k
+  have hcol : ∀ᵐ χ ∂τ, (∫ y in K, q (y, χ) ∂μ) = lcaFourier μ u χ * (χ x : ℂ) := by
+    filter_upwards [hτ] with χ hχ
+    let r (y : G) := u y * star (χ y : ℂ) * (χ x : ℂ)
+    calc
+      _ = ∫ y in K, r y ∂μ := by
+        refine setIntegral_congr_fun hKm fun y hy ↦ ?_
+        rw [show q (y, χ) = k (y, χ) from
+          indicator_of_mem (s := K ×ˢ S) (a := (y, χ)) ⟨hy, hχ⟩ k]
+        simp only [k, r, map_mul, Circle.coe_mul, map_inv, Circle.coe_inv_eq_conj,
+          Complex.star_def, mul_assoc]
+      _ = ∫ y, r y ∂μ := setIntegral_eq_integral_of_forall_compl_eq_zero <| fun y hy ↦ by
+        have hz : u y = 0 := image_eq_zero_of_notMem_tsupport hy
+        simp only [r, hz, zero_mul]
+      _ = _ := integral_mul_const _ _
+  calc
+    _ = ∫ χ, ∫ y in K, q (y, χ) ∂μ ∂τ := integral_congr_ae (hcol.mono fun _ h ↦ h.symm)
+    _ = ∫ y in K, ∫ χ, q (y, χ) ∂τ ∂μ :=
+      (integral_integral_swap (f := fun y χ ↦ q (y, χ)) hInt).symm
+    _ = _ := (integral_congr_ae hrow).trans
+      (setIntegral_eq_integral_of_forall_compl_eq_zero
+        (fun y hy ↦ by simp [image_eq_zero_of_notMem_tsupport hy]))
+
+/-- A finite regular measure on the dual is determined by its integrals against
+the evaluation characters. -/
+private theorem lcaSpectral_measure_ext
+    (τ₁ τ₂ : Measure (PontryaginDual G)) [IsFiniteMeasure τ₁] [τ₁.Regular]
+    [IsFiniteMeasure τ₂] [τ₂.Regular]
+    (h : ∀ x : G, (∫ χ, (χ x : ℂ) ∂τ₁) = ∫ χ, (χ x : ℂ) ∂τ₂) : τ₁ = τ₂ := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let τ := τ₁ + τ₂
+  let h₁ : τ₁ ≪ τ := Measure.AbsolutelyContinuous.rfl.add_right _
+  let h₂ : τ₂ ≪ τ := Measure.AbsolutelyContinuous.rfl.add_right' _
+  let : τ.InnerRegular := inferInstanceAs (τ₁ + τ₂).InnerRegular
+  let : τ.Regular := inferInstance
+  let d₁ (χ : PontryaginDual G) : ℂ := (τ₁.rnDeriv τ χ).toReal
+  let d₂ (χ : PontryaginDual G) : ℂ := (τ₂.rnDeriv τ χ).toReal
+  have hInt₁ : Integrable d₁ τ := by
+    simpa only [d₁, Complex.real_smul, mul_one] using
+      (integrable_rnDeriv_smul_iff (f := fun _ ↦ (1 : ℂ)) h₁).2 (integrable_const _)
+  have hInt₂ : Integrable d₂ τ := by
+    simpa only [d₂, Complex.real_smul, mul_one] using
+      (integrable_rnDeriv_smul_iff (f := fun _ ↦ (1 : ℂ)) h₂).2 (integrable_const _)
+  have hc (x : G) : Continuous (fun χ : PontryaginDual G ↦ (χ x : ℂ)) :=
+    continuous_subtype_val.comp (pontryaginDual_eval (G := G) x).continuous
+  have hEq : (d₁ - d₂) =ᵐ[τ] 0 := by
+    refine ae_eq_zero_of_integral_mul_circle_eq_zero
+      (fun χ : PontryaginDual G ↦ χ.toMonoidHom)
+      (fun x ↦ (pontryaginDual_eval (G := G) x).continuous)
+      (fun χ ψ heq ↦ PontryaginDual.ext fun x ↦ congrArg (fun e : G →* Circle ↦ e x) heq)
+      (hInt₁.sub hInt₂) fun x ↦ ?_
+    change (∫ χ, (d₁ χ - d₂ χ) * (χ x : ℂ) ∂τ) = 0
+    simp only [sub_mul]
+    rw [integral_sub
+      (hInt₁.mul_bdd (hc x).aestronglyMeasurable (.of_forall fun χ ↦ (Circle.norm_coe _).le))
+      (hInt₂.mul_bdd (hc x).aestronglyMeasurable (.of_forall fun χ ↦ (Circle.norm_coe _).le))]
+    simp only [d₁, d₂, ← Complex.real_smul, integral_rnDeriv_smul, h₁, h₂, h,
+      sub_self]
+  rw [← Measure.withDensity_rnDeriv_eq τ₁ τ h₁, ← Measure.withDensity_rnDeriv_eq τ₂ τ h₂]
+  apply withDensity_congr_ae
+  filter_upwards [hEq, Measure.rnDeriv_lt_top τ₁ τ, Measure.rnDeriv_lt_top τ₂ τ] with χ he ht₁ ht₂
+  have hr := Complex.ofReal_injective (sub_eq_zero.mp he)
+  rw [← ENNReal.ofReal_toReal ht₁.ne, ← ENNReal.ofReal_toReal ht₂.ne, hr]
+
+open scoped CompactlySupported in
+/-- The translate of one spectral measure and the other spectral measure agree after
+weighting each by the squared Fourier magnitude of the other function. -/
+private theorem lcaAutocorrelation_weighted_translate
+    (f g : C_c(G, ℂ)) (ρ σ : Measure (PontryaginDual G))
+    [IsFiniteMeasure ρ] [ρ.Regular] [IsFiniteMeasure σ] [σ.Regular]
+    (hρ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂ρ) =
+      lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x)
+    (hσ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂σ) =
+      lcaConvolution μ g (fun y ↦ star (g y⁻¹)) x)
+    (a : PontryaginDual G) :
+    (ρ.map (a * ·)).withDensity (fun χ ↦ ‖lcaFourier μ g χ‖ₑ ^ 2) =
+      σ.withDensity (fun χ ↦ ‖lcaFourier μ f (a⁻¹ * χ)‖ₑ ^ 2) := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let A (h : C_c(G, ℂ)) := lcaConvolution μ h (fun y ↦ star (h y⁻¹))
+  have hAc (h : C_c(G, ℂ)) : Continuous (A h) := by
+    apply continuous_lcaConvolution_L2 μ (h.continuous.memLp_of_hasCompactSupport h.hasCompactSupport)
+    exact (h.continuous.comp continuous_inv).star.memLp_of_hasCompactSupport
+      ((h.hasCompactSupport.comp_homeomorph (Homeomorph.inv G)).comp_left (star_zero ℂ))
+  let u (x : G) := (a x : ℂ) * A f x
+  have huc : Continuous u := (continuous_subtype_val.comp a.continuous).mul (hAc f)
+  have huK : HasCompactSupport u := (lcaFourier_autocorrelation μ f).1.mul_left
+  let e := Homeomorph.mulLeft a
+  let τ := ρ.map e
+  let : IsFiniteMeasure τ := ρ.isFiniteMeasure_map e
+  let : τ.Regular := Measure.Regular.map e
+  have hτ (x : G) : (∫ χ, (χ x : ℂ) ∂τ) = u x := by
+    rw [show τ = Measure.map e.toMeasurableEquiv ρ from rfl,
+      integral_map_equiv]
+    change (∫ χ, ((a x * χ x : Circle) : ℂ) ∂ρ) = u x
+    simp only [Circle.coe_mul, integral_const_mul, hρ, u, A]
+  have hF (χ : PontryaginDual G) : lcaFourier μ u χ =
+      (‖lcaFourier μ f (a⁻¹ * χ)‖ ^ 2 : ℝ) := by
+    rw [← (lcaFourier_autocorrelation μ f).2 (a⁻¹ * χ)]
+    apply integral_congr_ae
+    exact .of_forall fun y ↦ by
+      change (a y : ℂ) * A f y * star (χ y : ℂ) =
+        A f y * star ((a⁻¹ * χ) y : ℂ)
+      have hinv : ((a⁻¹ * χ) y : ℂ) = star (a y : ℂ) * (χ y : ℂ) := by
+        change (((a y)⁻¹ * χ y : Circle) : ℂ) = _
+        rw [Circle.coe_mul, Circle.coe_inv_eq_conj, Complex.star_def]
+      rw [hinv, star_mul, star_star]
+      ring
+  let w (h : C_c(G, ℂ)) (χ : PontryaginDual G) : ℝ≥0 := ‖lcaFourier μ h χ‖₊ ^ 2
+  have hw (h : C_c(G, ℂ)) : Continuous (w h) :=
+    (continuous_lcaFourier μ h.integrable).nnNorm.pow 2
+  have hw' : Continuous (fun χ ↦ w f (a⁻¹ * χ)) :=
+    (hw f).comp (continuous_const.mul continuous_id)
+  have hBound (h : C_c(G, ℂ)) (χ : PontryaginDual G) :
+      (w h χ : ℝ≥0∞) ≤ ENNReal.ofReal ((∫ x, ‖h x‖ ∂μ) ^ 2) := by
+    rw [← ENNReal.ofReal_coe_nnreal]
+    exact ENNReal.ofReal_le_ofReal
+      (pow_le_pow_left₀ (norm_nonneg _) (norm_lcaFourier_le_integral_norm μ h χ) 2)
+  have hReg (v : Measure (PontryaginDual G)) [IsFiniteMeasure v] [v.Regular]
+      (p : PontryaginDual G → ℝ≥0∞) (C : ℝ) (hp : ∀ χ, p χ ≤ ENNReal.ofReal C) :
+      IsFiniteMeasure (v.withDensity p) ∧ (v.withDensity p).Regular := by
+    let c := Real.toNNReal C
+    let cv := c • v
+    have hle : v.withDensity p ≤ cv := by
+      change _ ≤ (ENNReal.ofReal C) • v
+      rw [← withDensity_const]
+      exact withDensity_mono (.of_forall hp)
+    let : IsFiniteMeasure cv := inferInstanceAs (IsFiniteMeasure (c • v))
+    let : cv.Regular := inferInstanceAs (c • v).Regular
+    exact ⟨isFiniteMeasure_of_le cv hle, regular_of_le_finite_regular _ cv hle⟩
+  obtain ⟨h₁fin, h₁reg⟩ := hReg τ (fun χ ↦ (w g χ : ℝ≥0∞)) _ (hBound g)
+  obtain ⟨h₂fin, h₂reg⟩ := hReg σ (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞)) _
+    (fun χ ↦ hBound f (a⁻¹ * χ))
+  let := h₁fin
+  let := h₁reg
+  let := h₂fin
+  let := h₂reg
+  suffices heq : τ.withDensity (fun χ ↦ (w g χ : ℝ≥0∞)) =
+      σ.withDensity (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞)) by
+    have he : (e : PontryaginDual G → PontryaginDual G) = (a * ·) := rfl
+    simpa only [τ, he, w, ENNReal.coe_pow, eNorm_eq_nnNorm] using heq
+  apply lcaSpectral_measure_ext
+  intro x
+  rw [integral_withDensity_eq_integral_smul (hw g).measurable,
+    integral_withDensity_eq_integral_smul hw'.measurable]
+  have hl (χ : PontryaginDual G) :
+      w g χ • (χ x : ℂ) = lcaFourier μ (A g) χ * (χ x : ℂ) := by
+    rw [(lcaFourier_autocorrelation μ g).2 χ]
+    simp [w, NNReal.smul_def, Complex.real_smul]
+  have hr (χ : PontryaginDual G) :
+      w f (a⁻¹ * χ) • (χ x : ℂ) = lcaFourier μ u χ * (χ x : ℂ) := by
+    rw [hF]
+    simp [w, NNReal.smul_def, Complex.real_smul]
+  simp_rw [hl, hr]
+  rw [integral_lcaFourier_mul_char μ τ (hAc g) (lcaFourier_autocorrelation μ g).1,
+    integral_lcaFourier_mul_char μ σ huc huK, funext hτ, funext hσ]
+  let q (y : G) := A g y * u (y⁻¹ * x)
+  have hcomm (y : G) : q (x * y⁻¹) = u y * A g (y⁻¹ * x) := by
+    simp only [q, mul_inv_rev, inv_inv, inv_mul_cancel_right]
+    rw [mul_comm x y⁻¹, mul_comm]
+  change (∫ y, q y ∂μ) = ∫ y, u y * A g (y⁻¹ * x) ∂μ
+  rw [← integral_mul_left_eq_self q x]
+  calc
+    (∫ y, q (x * y) ∂μ) = ∫ y, q (x * y⁻¹) ∂μ :=
+      (integral_inv_eq_self (fun y ↦ q (x * y)) μ).symm
+    _ = _ := integral_congr_ae (.of_forall hcomm)
+
 open scoped CompactlySupported in
 /-- Averaging the weighted spectral measures of two autocorrelations over dual
 translations gives this identity on each measurable set. For a dual character `a`,
@@ -1150,7 +1412,99 @@ theorem lcaAutocorrelation_measure_mul_lintegral
     {s : Set (PontryaginDual G)} (hs : MeasurableSet s) :
     (∫⁻ χ, ‖lcaFourier μ f χ‖ₑ ^ 2 ∂η) * σ s =
       ρ univ * (∫⁻ χ in s, ‖lcaFourier μ g χ‖ₑ ^ 2 ∂η) := by
-  sorry
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let w (h : C_c(G, ℂ)) (χ : PontryaginDual G) : ℝ≥0 := ‖lcaFourier μ h χ‖₊ ^ 2
+  have hw (h : C_c(G, ℂ)) : Continuous (w h) :=
+    (continuous_lcaFourier μ h.integrable).nnNorm.pow 2
+  have hwMeas (h : C_c(G, ℂ)) : Measurable (fun χ ↦ (w h χ : ℝ≥0∞)) :=
+    (ENNReal.continuous_coe.comp (hw h)).measurable
+  have hCarrier (h : C_c(G, ℂ)) :
+      ∃ S : Set (PontryaginDual G), IsSigmaCompact S ∧ Function.support (w h) ⊆ S := by
+    obtain ⟨F, hF⟩ := lcaFourier_zeroAtInfty μ h.integrable
+    have hlim : Tendsto (w h) (cocompact (PontryaginDual G)) (𝓝 0) := by
+      simpa only [w, ← hF, nnNorm_zero, zero_pow (by decide : (2 : ℕ) ≠ 0)] using
+        (zero_at_infty F).nnNorm.pow 2
+    obtain ⟨ε, -, hε, hεlim⟩ := exists_seq_strictAnti_tendsto' (zero_lt_one : (0 : ℝ≥0) < 1)
+    let K (n : ℕ) := {χ | ε n ≤ w h χ}
+    have hK (n : ℕ) : IsCompact (K n) := by
+      obtain ⟨L, hL, hLK⟩ := mem_cocompact.mp (hlim (Iio_mem_nhds (hε n).1))
+      exact hL.of_isClosed_subset (isClosed_le continuous_const (hw h)) (by
+        intro χ hχ
+        by_contra hn
+        exact (not_lt_of_ge hχ) (hLK hn))
+    refine ⟨⋃ n, K n, ⟨K, hK, rfl⟩, fun χ hχ ↦ ?_⟩
+    have hh : ∀ᶠ n in atTop, ε n < w h χ :=
+      hεlim (Iio_mem_nhds (pos_iff_ne_zero.mpr hχ))
+    obtain ⟨n, hn⟩ := hh.exists
+    exact mem_iUnion.mpr ⟨n, le_of_lt hn⟩
+  obtain ⟨S, hS, hfS⟩ := hCarrier f
+  obtain ⟨T, hT, hgT⟩ := hCarrier g
+  let I := ∫⁻ χ, (w f χ : ℝ≥0∞) ∂η
+  let ν₁ := I • σ
+  let ν₂ := ρ univ • η.withDensity (fun χ ↦ (w g χ : ℝ≥0∞))
+  -- Average the translated identity against each compactly supported continuous test.
+  have hTests (p : C_c(PontryaginDual G, ℝ≥0)) :
+      (∫⁻ χ, (p χ : ℝ≥0∞) ∂ν₁) = ∫⁻ χ, (p χ : ℝ≥0∞) ∂ν₂ := by
+    let v (χ : PontryaginDual G) := w g χ * p χ
+    have hv : Continuous v := (hw g).mul p.continuous
+    have hvT : Function.support v ⊆ T := fun χ hχ ↦ hgT (mul_ne_zero_iff.mp hχ).1
+    have hp : Measurable (fun χ ↦ (p χ : ℝ≥0∞)) :=
+      (ENNReal.continuous_coe.comp p.continuous).measurable
+    have hpoint (a : PontryaginDual G) :
+        (∫⁻ χ, (w f (a⁻¹ * χ) : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂σ) =
+          ∫⁻ χ, (v (a * χ) : ℝ≥0∞) ∂ρ := by
+      have h := congrArg (fun m : Measure (PontryaginDual G) ↦ ∫⁻ χ, (p χ : ℝ≥0∞) ∂m)
+        (lcaAutocorrelation_weighted_translate μ f g ρ σ hρ hσ a).symm
+      simp only [eNorm_eq_nnNorm, ← ENNReal.coe_pow] at h
+      change (∫⁻ χ, (p χ : ℝ≥0∞) ∂σ.withDensity (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞))) =
+        ∫⁻ χ, (p χ : ℝ≥0∞) ∂(ρ.map (a * ·)).withDensity (fun χ ↦ (w g χ : ℝ≥0∞)) at h
+      have hshift : Measurable (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞)) :=
+        (hwMeas f).comp (continuous_const.mul continuous_id).measurable
+      rw [lintegral_withDensity_eq_lintegral_mul _ hshift hp,
+        lintegral_withDensity_eq_lintegral_mul _ (hwMeas g) hp] at h
+      have hm : Measurable (fun χ ↦ (v χ : ℝ≥0∞)) :=
+        (ENNReal.continuous_coe.comp hv).measurable
+      calc
+        _ = ∫⁻ χ, (v χ : ℝ≥0∞) ∂(ρ.map (a * ·)) := by
+          simpa only [Pi.mul_apply, v, ENNReal.coe_mul] using h
+        _ = _ := lintegral_map hm (continuous_const.mul continuous_id).measurable
+    rw [lintegral_smul_measure, lintegral_smul_measure, smul_eq_mul, smul_eq_mul,
+      lintegral_withDensity_eq_lintegral_mul _ (hwMeas g) hp]
+    calc
+      I * (∫⁻ χ, (p χ : ℝ≥0∞) ∂σ) =
+          ∫⁻ a, ∫⁻ χ, (w f (a * χ) : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂σ ∂η :=
+        (lintegral_lintegral_mul_translate η σ (hw f) p.continuous hS hfS).symm
+      _ = ∫⁻ a, ∫⁻ χ, (w f (a⁻¹ * χ) : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂σ ∂η :=
+        (lintegral_inv_eq_self (fun a ↦ ∫⁻ χ, (w f (a * χ) : ℝ≥0∞) *
+          (p χ : ℝ≥0∞) ∂σ)).symm
+      _ = ∫⁻ a, ∫⁻ χ, (v (a * χ) : ℝ≥0∞) ∂ρ ∂η := lintegral_congr hpoint
+      _ = ρ univ * ∫⁻ χ, (w g χ : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂η := by
+        simpa only [ENNReal.coe_one, mul_one, lintegral_const, one_mul, v, ENNReal.coe_mul] using
+          (lintegral_lintegral_mul_translate η ρ hv
+            (v := fun _ ↦ (1 : ℝ≥0)) continuous_const hT hvT).trans (mul_comm _ _)
+  let C := Real.toNNReal ((∫ x, ‖g x‖ ∂μ) ^ 2)
+  have hBound (χ : PontryaginDual G) : (w g χ : ℝ≥0∞) ≤ C := by
+    rw [← ENNReal.ofReal_coe_nnreal]
+    exact ENNReal.ofReal_le_ofReal
+      (pow_le_pow_left₀ (norm_nonneg _) (norm_lcaFourier_le_integral_norm μ g χ) 2)
+  let ν := η.withDensity (fun χ ↦ (w g χ : ℝ≥0∞))
+  have hνle : ν ≤ C • η := by
+    change _ ≤ (C : ℝ≥0∞) • η
+    rw [← withDensity_const]
+    exact withDensity_mono (.of_forall hBound)
+  let : IsFiniteMeasureOnCompacts ν := ⟨fun K hK ↦ (hνle K).trans_lt
+    (hK.measure_lt_top (μ := C • η))⟩
+  let : ν.InnerRegular := innerRegular_withDensity_of_le_of_isSigmaCompact η hBound hT
+    (fun χ hχ ↦ hgT (by simpa using hχ))
+  let : ν₂.InnerRegular := inferInstanceAs (ρ univ • ν).InnerRegular
+  let : IsLocallyFiniteMeasure ν₂ := ν.isLocallyFiniteMeasure_smul (measure_ne_top ρ univ)
+  let : σ.InnerRegular := inferInstance
+  let : ν₁.InnerRegular := inferInstanceAs (I • σ).InnerRegular
+  -- Local finiteness of the weighted Haar measure suffices to identify both measures.
+  have hEq := congrArg (fun m : Measure (PontryaginDual G) ↦ m s)
+    (measure_eq_of_lintegral_eq_on_compactlySupported_nnreal ν₁ ν₂ hTests)
+  simpa only [ν₁, ν₂, I, w, smul_apply, smul_eq_mul, withDensity_apply _ hs,
+    ENNReal.coe_pow, eNorm_eq_nnNorm] using hEq
 
 omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] [μ.Regular] in
 open scoped CompactlySupported in
