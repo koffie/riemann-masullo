@@ -1654,7 +1654,30 @@ annihilator of its open annihilator (Lemma D.1.4.6(1)), and by duality the annih
 of an open subgroup of the dual is compact (Lemma D.1.4.6(4)). -/
 theorem IsBruhatGoodSubgroup.isCompact [IsTopologicalGroup G] [T2Space G]
     [LocallyCompactSpace G] {k : Subgroup G} (hk : IsBruhatGoodSubgroup k) :
-    IsCompact (k : Set G) := by sorry
+    IsCompact (k : Set G) := by
+  obtain ⟨hkc, hko, -⟩ := hk
+  have hJ := isCompact_lcaAnnihilator (G := PontryaginDual G) (lcaAnnihilator k) hko
+  have hpre : (k : Set G) = pontryaginDual_eval ⁻¹'
+      (lcaAnnihilator (lcaAnnihilator k) : Set (PontryaginDual (PontryaginDual G))) := by
+    conv_lhs => rw [← lcaDualAnnihilator_annihilator k hkc]
+    ext x
+    simp only [SetLike.mem_coe, Set.mem_preimage, mem_lcaDualAnnihilator_iff,
+      mem_lcaAnnihilator_iff]
+    rfl
+  rw [hpre]
+  exact isClosedEmbedding_pontryaginDual_eval.isCompact_preimage hJ
+
+omit hTop hT2 hLC in
+/-- Compact generation passes to the target of a continuous, open and surjective
+homomorphism. -/
+theorem isCompactlyGeneratedGroup_of_surjective {X : Type*} [CommGroup X] [TopologicalSpace X]
+    (f : X →* G) (hf : Continuous f) (hfo : IsOpenMap f) (hs : Function.Surjective f)
+    (h : IsCompactlyGeneratedGroup X) : IsCompactlyGeneratedGroup G := by
+  obtain ⟨U, hU, hUc, hGen⟩ := h
+  refine ⟨f '' U, ?_, hUc.image hf, ?_⟩
+  · have := hfo.image_mem_nhds hU
+    rwa [map_one] at this
+  · rw [← MonoidHom.map_closure, hGen, Subgroup.map_top_of_surjective f hs]
 
 /-- Paper: Theorem D.1.7.1, p. 776. The images of the two subgroups of a structural
 pair in the quotient by a closed subgroup form a structural pair of the quotient.
@@ -1665,7 +1688,86 @@ theorem BruhatStructuralPair.exists_quotient (hK : IsClosed (K : Set G))
     ∃ b : BruhatStructuralPair (G ⧸ K),
       b.val.1 = a.val.1.map (QuotientGroup.mk' K) ∧
         OrderDual.ofDual b.val.2 = (OrderDual.ofDual a.val.2).map (QuotientGroup.mk' K) := by
-  sorry
+  obtain ⟨hHo, hHcg, hCgood, hCH⟩ := a.property
+  have : IsClosed (K : Set G) := hK
+  have hCc := hCgood.isCompact
+  let q := QuotientGroup.mk' K
+  have hqo : IsOpenMap q := QuotientGroup.isOpenMap_coe
+  have hqc : Continuous q := QuotientGroup.continuous_mk
+  refine ⟨⟨(a.val.1.map q, OrderDual.toDual ((OrderDual.ofDual a.val.2).map q)),
+    ?_, ?_, ?_, ?_⟩, rfl, rfl⟩
+  · change IsOpen ((a.val.1.map q : Subgroup (G ⧸ K)) : Set (G ⧸ K))
+    rw [Subgroup.coe_map]
+    exact hqo _ hHo
+  · -- The open subgroup of the quotient is compactly generated.
+    let f := q.subgroupMap a.val.1
+    have hfc : Continuous f := (hqc.comp continuous_subtype_val).subtype_mk _
+    have hfo : IsOpenMap f := by
+      intro O hO
+      have hO' : IsOpen (q '' (Subtype.val '' O)) := hqo _ (hHo.isOpenMap_subtype_val _ hO)
+      convert hO'.preimage continuous_subtype_val using 1
+      ext y
+      constructor
+      · rintro ⟨o, ho, rfl⟩
+        exact ⟨o.val, ⟨o, ho, rfl⟩, rfl⟩
+      · rintro ⟨_, ⟨o, ho, rfl⟩, hy⟩
+        exact ⟨o, ho, Subtype.ext hy⟩
+    exact isCompactlyGeneratedGroup_of_surjective f hfc hfo
+      (q.subgroupMap_surjective a.val.1) hHcg
+  · -- The image of the good subgroup is good.
+    have hCq : IsCompact (((OrderDual.ofDual a.val.2).map q : Subgroup (G ⧸ K)) : Set (G ⧸ K)) := by
+      rw [Subgroup.coe_map]
+      exact hCc.image hqc
+    refine ⟨hCq.isClosed, isOpen_lcaAnnihilator _ hCq, ?_⟩
+    obtain ⟨ε, hε⟩ := lcaQuotientDual_equiv_annihilator K hK
+    set C := OrderDual.ofDual a.val.2
+    obtain ⟨-, hCo, hCcg⟩ := hCgood
+    have : LocallyCompactSpace (lcaAnnihilator C) :=
+      hCo.isOpenEmbedding_subtypeVal.locallyCompactSpace
+    let M : Subgroup (lcaAnnihilator C) := (lcaAnnihilator K).comap (lcaAnnihilator C).subtype
+    have hKc : IsClosed (lcaAnnihilator K : Set (PontryaginDual G)) := by
+      have : (lcaAnnihilator K : Set (PontryaginDual G)) =
+          (PontryaginDual.map (⟨K.subtype, continuous_subtype_val⟩ : K →ₜ* G)) ⁻¹' {1} := rfl
+      rw [this]
+      exact isClosed_singleton.preimage (PontryaginDual.map _).continuous
+    have hMc : IsClosed (M : Set (lcaAnnihilator C)) := hKc.preimage continuous_subtype_val
+    have hM := isCompactlyGeneratedGroup_closedSubgroup hCcg M hMc
+    refine isCompactlyGeneratedGroup_of_continuousMulEquiv ?_ hM
+    have hto : ∀ ψ : M, ε.symm ⟨ψ.val.val, ψ.2⟩ ∈ lcaAnnihilator (C.map q) := by
+      intro ψ
+      rw [mem_lcaAnnihilator_iff]
+      rintro ⟨_, c, hc, rfl⟩
+      have h1 := hε (ε.symm ⟨ψ.val.val, ψ.2⟩) c
+      rw [ContinuousMulEquiv.apply_symm_apply] at h1
+      change (ε.symm ⟨ψ.val.val, ψ.2⟩) (QuotientGroup.mk c) = 1
+      rw [← h1]
+      exact (mem_lcaAnnihilator_iff C _).mp ψ.val.2 ⟨c, hc⟩
+    have hinv₁ : ∀ χ : lcaAnnihilator (C.map q), (ε χ.val).val ∈ lcaAnnihilator C := by
+      intro χ
+      rw [mem_lcaAnnihilator_iff]
+      intro c
+      rw [hε]
+      exact (mem_lcaAnnihilator_iff _ _).mp χ.2 ⟨q c, c, c.2, rfl⟩
+    exact
+      { toFun := fun ψ ↦ ⟨ε.symm ⟨ψ.val.val, ψ.2⟩, hto ψ⟩
+        invFun := fun χ ↦ ⟨⟨(ε χ.val).val, hinv₁ χ⟩, (ε χ.val).2⟩
+        left_inv := fun ψ ↦ by
+          apply Subtype.ext; apply Subtype.ext
+          simp
+        right_inv := fun χ ↦ by
+          apply Subtype.ext
+          change ε.symm ⟨(ε χ.val).val, (ε χ.val).2⟩ = χ.val
+          simp
+        map_mul' := fun ψ₁ ψ₂ ↦ by
+          apply Subtype.ext
+          simp only [Subgroup.coe_mul]
+          rw [← map_mul]
+          rfl
+        continuous_toFun := (ε.symm.continuous.comp
+          ((continuous_subtype_val.comp continuous_subtype_val).subtype_mk _)).subtype_mk _
+        continuous_invFun := ((continuous_subtype_val.comp
+          (ε.continuous.comp continuous_subtype_val)).subtype_mk _).subtype_mk _ }
+  · exact Subgroup.map_mono hCH
 
 /-- Paper: Theorem D.1.7.1, p. 776. When the structural pair `b` of the quotient by `K`
 is the image of the structural pair `a`, the quotient map of `G` induces a continuous,
@@ -1680,7 +1782,81 @@ theorem BruhatStructuralPair.exists_quotient_hom (a : BruhatStructuralPair G)
         (QuotientGroup.mk' ((OrderDual.ofDual a.val.2).comap a.val.1.subtype)) ∧
       ∀ (x : G) (hx : x ∈ a.val.1) (hq : (QuotientGroup.mk x : G ⧸ K) ∈ b.val.1),
         p (QuotientGroup.mk ⟨x, hx⟩) = QuotientGroup.mk ⟨QuotientGroup.mk x, hq⟩ := by
-  sorry
+  obtain ⟨hHo, -, -, hCH⟩ := a.property
+  let H := a.val.1
+  let C := OrderDual.ofDual a.val.2
+  let N := C.comap H.subtype
+  let Nb := (OrderDual.ofDual b.val.2).comap b.val.1.subtype
+  let q := QuotientGroup.mk' K
+  have hqo : IsOpenMap q := QuotientGroup.isOpenMap_coe
+  have hqc : Continuous q := QuotientGroup.continuous_mk
+  let f₀ : H →* b.val.1 := (q.comp H.subtype).codRestrict b.val.1 fun h ↦ by
+    rw [hb₁]; exact ⟨h.val, h.2, rfl⟩
+  have hf₀ : ∀ h : H, (f₀ h).val = q h.val := fun h ↦ rfl
+  have hf₀c : Continuous f₀ := (hqc.comp continuous_subtype_val).subtype_mk _
+  have hf₀o : IsOpenMap f₀ := by
+    intro O hO
+    have hO' : IsOpen (q '' (Subtype.val '' O)) := hqo _ (hHo.isOpenMap_subtype_val _ hO)
+    convert hO'.preimage continuous_subtype_val using 1
+    ext y
+    constructor
+    · rintro ⟨o, ho, rfl⟩
+      exact ⟨o.val, ⟨o, ho, rfl⟩, rfl⟩
+    · rintro ⟨_, ⟨o, ho, rfl⟩, hy⟩
+      exact ⟨o, ho, Subtype.ext hy⟩
+  have hf₀s : Function.Surjective f₀ := by
+    rintro ⟨y, hy⟩
+    rw [hb₁] at hy
+    obtain ⟨x, hx, rfl⟩ := hy
+    exact ⟨⟨x, hx⟩, rfl⟩
+  let f₁ : H →* b.quotient := (QuotientGroup.mk' Nb).comp f₀
+  have hN : N ≤ f₁.ker := by
+    intro h hh
+    rw [MonoidHom.mem_ker, MonoidHom.comp_apply, QuotientGroup.mk'_apply,
+      QuotientGroup.eq_one_iff, Subgroup.mem_comap, Subgroup.coe_subtype, hf₀, hb₂]
+    exact ⟨h.val, hh, rfl⟩
+  let p : a.quotient →* b.quotient := QuotientGroup.lift N f₁ hN
+  have hpmk : ∀ h : H, p (QuotientGroup.mk h) = QuotientGroup.mk (f₀ h) := fun h ↦ rfl
+  have hcomp : (p ∘ (QuotientGroup.mk : H → a.quotient)) = (QuotientGroup.mk' Nb) ∘ f₀ :=
+    funext hpmk
+  refine ⟨p, ?_, ?_, ?_, ?_, ?_⟩
+  · refine (QuotientGroup.isQuotientMap_mk N).continuous_iff.mpr ?_
+    rw [hcomp]
+    exact QuotientGroup.continuous_mk.comp hf₀c
+  · intro U hU
+    have hU' : p '' U = ((QuotientGroup.mk' Nb) ∘ f₀) '' ((QuotientGroup.mk : H → a.quotient) ⁻¹' U) := by
+      rw [← hcomp, Set.image_comp, Set.image_preimage_eq _ (QuotientGroup.mk_surjective)]
+    rw [hU', Set.image_comp]
+    exact QuotientGroup.isOpenMap_coe _ (hf₀o _ (hU.preimage QuotientGroup.continuous_mk))
+  · intro z
+    obtain ⟨y, rfl⟩ := QuotientGroup.mk_surjective z
+    obtain ⟨h, rfl⟩ := hf₀s y
+    exact ⟨QuotientGroup.mk h, rfl⟩
+  · ext y
+    obtain ⟨h, rfl⟩ := QuotientGroup.mk_surjective y
+    rw [MonoidHom.mem_ker, hpmk, QuotientGroup.eq_one_iff, Subgroup.mem_comap,
+      Subgroup.coe_subtype, hf₀, hb₂]
+    constructor
+    · rintro ⟨c, hc, hch⟩
+      have hk : c⁻¹ * h.val ∈ K := QuotientGroup.eq.mp hch
+      have hkH : c⁻¹ * h.val ∈ H := H.mul_mem (H.inv_mem (hCH hc)) h.2
+      refine ⟨⟨c⁻¹ * h.val, hkH⟩, hk, ?_⟩
+      rw [QuotientGroup.mk'_apply, QuotientGroup.eq]
+      change (c⁻¹ * h.val)⁻¹ * h.val ∈ C
+      simpa using hc
+    · rintro ⟨k, hk, hkh⟩
+      rw [QuotientGroup.mk'_apply, QuotientGroup.eq] at hkh
+      refine ⟨(k⁻¹ * h).val, hkh, ?_⟩
+      change (QuotientGroup.mk ((k⁻¹ * h : H) : G) : G ⧸ K) = QuotientGroup.mk h.val
+      rw [QuotientGroup.eq]
+      have : ((k⁻¹ * h : H) : G)⁻¹ * h.val = k.val := by
+        simp only [Subgroup.coe_mul, Subgroup.coe_inv, mul_inv_rev, inv_inv]
+        rw [mul_assoc, mul_comm (k : G), inv_mul_cancel_left]
+      rw [this]
+      exact hk
+  · intro x hx hq
+    rw [hpmk]
+    rfl
 
 -- TODO(paper-gap): The proof of D.1.7.1 cites Lemma D.1.6.18 for the elementary case,
 -- but that lemma only averages over compact subgroups. The kernel below can be
