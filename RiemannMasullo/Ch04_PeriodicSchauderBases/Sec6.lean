@@ -125,13 +125,21 @@ def modulatedIsotypicDifferenceProduct (I : Set ℝ) (hInt : OrdConnected I) (h0
   (modulatedDifferenceProduct m hm hms I hInt ⟨0, h0⟩ S).restrict
     (modulatedDifferenceProduct_mem_isotype (m := m) (hm := hm) (hms := hms) (ω := ω) I hInt h0 S)
 
+-- Avoid the unused-section-variable linter traversing the large decay-space types.
+set_option linter.unusedSectionVars false in
 /-- Paper: Equation (4.6.1.3), p. 210. Forgetting the isotype condition
 recovers the same difference product on the ambient decay space. -/
 theorem modulatedIsotypicDifferenceProduct_apply_coe
     (I : Set ℝ) (hInt : OrdConnected I) (h0 : 0 ∈ I) (S : List G)
     (f : modulatedDecayIsotype m I h0 ω) :
     (modulatedIsotypicDifferenceProduct (m := m) (hm := hm) (hms := hms) (ω := ω) I hInt h0 S f).val =
-      modulatedDifferenceProduct m hm hms I hInt ⟨0, h0⟩ S f.val := by sorry
+      modulatedDifferenceProduct m hm hms I hInt ⟨0, h0⟩ S f.val := by
+  have h := ContinuousLinearMap.coe_restrict_apply
+    (modulatedDifferenceProduct_mem_isotype (m := m) (hm := hm) (hms := hms)
+      (ω := ω) I hInt h0 S) f
+  unfold modulatedIsotypicDifferenceProduct
+  unfold modulatedDifferenceProduct modulatedCyclicDifference at h ⊢
+  exact h
 
 local notation "P[" w "," s "]" =>
   (modulatedIsotypicDifferenceProduct (m := m) (hm := hm) (hms := hms) (ω := w)

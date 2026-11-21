@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch02_AdelicTheta.Sec2b
 public import RiemannMasullo.Ch03_IdelicZeta.Sec1
 
+import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
 import Mathlib.Algebra.Module.ZLattice.Summable
@@ -902,10 +903,10 @@ private theorem sAdeleStage_arch_decay_seminorm (a : BruhatStructuralPair Gₛ)
         congrArg (fun z : ℂ ↦ ‖z‖ * ‖arch x.1‖ ^ M) hval
       _ ≤ (c • q) s := by simpa only [norm_zero, zero_mul] using apply_nonneg (c • q) s
 
-/-- Paper: Proposition 2.3.1.2(3), p. 100. The large-norm decay constant
-and threshold can be chosen uniformly for a bounded set of test functions. -/
-theorem sLocalAdelicTheta_decay_bounded (B : Set ℬₛ) (hB : IsVonNBounded ℂ B) (N : ℕ) :
-    ∃ C T : ℝ, 0 < C ∧ 0 < T ∧ ∀ f ∈ B, ∀ g : Iₛ, T < normℝ g →
+/-- The uniform decay bound for a bounded set of test functions also holds at norm one. -/
+private theorem sLocalAdelicTheta_decay_bounded_of_one_le
+    (B : Set ℬₛ) (hB : IsVonNBounded ℂ B) (N : ℕ) :
+    ∃ C : ℝ, 0 < C ∧ ∀ f ∈ B, ∀ g : Iₛ, 1 ≤ normℝ g →
       ‖sLocalAdelicTheta F S f g‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
   let p (g : {g : Iₛ // 1 ≤ normℝ g}) : Seminorm ℂ ℬₛ :=
     let c : NNReal := ⟨(normℝ g.val) ^ N, pow_nonneg (NNReal.coe_nonneg _) _⟩
@@ -946,19 +947,29 @@ theorem sLocalAdelicTheta_decay_bounded (B : Set ℬₛ) (hB : IsVonNBounded ℂ
         Continuous (p ∘ schwartzBruhatStageInclusion a e)} := ⟨q, hstage⟩
   refine (((withGeneratingSeminorms_spec _ _).isVonNBounded_iff_seminorm_bounded.mp hB) i).elim
     fun C hC ↦ ?_
-  refine ⟨C, 1, hC.1, zero_lt_one, fun f hf g hg ↦ ?_⟩
-  have hweight := ((hp ⟨g, hg.le⟩ f).ge.trans (hq ⟨g, hg.le⟩ f)).trans (hC.2 f hf).le
+  refine ⟨C, hC.1, fun f hf g hg ↦ ?_⟩
+  have hweight := ((hp ⟨g, hg⟩ f).ge.trans (hq ⟨g, hg⟩ f)).trans (hC.2 f hf).le
   simpa only [div_eq_mul_inv] using
-    (le_div_iff₀ (pow_pos (zero_lt_one.trans hg) N)).mpr hweight
+    (le_div_iff₀ (pow_pos (zero_lt_one.trans_le hg) N)).mpr hweight
 
 end UniformDecay
+
+/-- Paper: Proposition 2.3.1.2(3), p. 100. The large-norm decay constant
+and threshold can be chosen uniformly for a bounded set of test functions. -/
+theorem sLocalAdelicTheta_decay_bounded (B : Set ℬₛ) (hB : IsVonNBounded ℂ B) (N : ℕ) :
+    ∃ C T : ℝ, 0 < C ∧ 0 < T ∧ ∀ f ∈ B, ∀ g : Iₛ, T < normℝ g →
+      ‖sLocalAdelicTheta F S f g‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+  refine (sLocalAdelicTheta_decay_bounded_of_one_le F S B hB N).elim fun C hC ↦ ?_
+  exact ⟨C, 1, hC.1, zero_lt_one, fun f hf g hg ↦ hC.2 f hf g hg.le⟩
 
 /-- Paper: Proposition 2.3.1.2(4), p. 100. The bounded-set decay estimate
 holds above S-idelic norm one with a uniform constant. -/
 theorem sLocalAdelicTheta_decay_bounded_threshold_one
     (B : Set ℬₛ) (hB : IsVonNBounded ℂ B) (N : ℕ) :
     ∃ C : ℝ, 0 < C ∧ ∀ f ∈ B, ∀ g : Iₛ, 1 < normℝ g →
-      ‖sLocalAdelicTheta F S f g‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by sorry
+      ‖sLocalAdelicTheta F S f g‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+  refine (sLocalAdelicTheta_decay_bounded_of_one_le F S B hB N).elim fun C hC ↦ ?_
+  exact ⟨C, hC.1, fun f hf g hg ↦ hC.2 f hf g hg.le⟩
 
 local instance normOneSIdeleQuotientMeasurableSpace (F : Type*) [Field F] [NumberField F]
     (S : Finset (HeightOneSpectrum (𝓞 F))) :
@@ -1015,11 +1026,115 @@ theorem sLocalHomogeneousAdelicTheta_integrand_bounded [Measure.IsHaarMeasure μ
   simp only [norm_mul, Circle.norm_coe, mul_one]
   exact (hB (g, h) ⟨hg, mem_univ h⟩).trans (le_max_left _ _)
 
+/-- Uniform convergence on a set, together with integrability of the terms,
+implies convergence of the integrals over that set for a finite measure. -/
+private theorem tendsto_setIntegral_of_tendstoUniformlyOn {ι α : Type*}
+    [MeasurableSpace α] {μ : Measure α} [IsFiniteMeasure μ]
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
+    {F : ι → α → E} {u : α → E} {s : Set α} {l : Filter ι}
+    (hu : TendstoUniformlyOn F u l s) (hFi : ∀ i, IntegrableOn (F i) s μ)
+    (hui : IntegrableOn u s μ) :
+    Tendsto (fun i ↦ ∫ x in s, F i x ∂μ) l (𝓝 (∫ x in s, u x ∂μ)) := by
+  have hμs : μ s < ⊤ :=
+    lt_of_le_of_lt (measure_mono (subset_univ s)) (measure_lt_top μ univ)
+  have key : ∀ d : ℝ, 0 < d → ∀ᶠ i in l,
+      ‖∫ x in s, F i x ∂μ - ∫ x in s, u x ∂μ‖ ≤ d := by
+    intro d hd
+    have hc : (0 : ℝ) < max (μ.real s) 1 := by positivity
+    have hle := (Metric.tendstoUniformlyOn_iff).mp hu (d / max (μ.real s) 1) (div_pos hd hc)
+    filter_upwards [hle] with i hi
+    have h1 : ‖∫ x in s, (F i - u) x ∂μ‖ ≤ d := by
+      refine le_trans (norm_setIntegral_le_of_norm_le_const
+        (C := d / max (μ.real s) 1) hμs fun x hx ↦ ?_) ?_
+      · calc ‖(F i - u) x‖ = ‖u x - F i x‖ := norm_sub_rev _ _
+          _ = dist (u x) (F i x) := (dist_eq_norm _ _).symm
+          _ ≤ d / max (μ.real s) 1 := (hi x hx).le
+      · refine le_trans (mul_le_mul_of_nonneg_left (le_max_left (μ.real s) 1)
+          (by positivity)) (le_of_eq (div_mul_cancel₀ d hc.ne'))
+    rw [show (∫ x in s, (F i - u) x ∂μ) =
+      (∫ x in s, F i x ∂μ - ∫ x in s, u x ∂μ) from integral_sub (hFi i) hui] at h1
+    exact h1
+  refine tendsto_def.mpr fun U hU ↦ ?_
+  obtain ⟨r, hr, hrb⟩ := Metric.mem_nhds_iff.mp hU
+  refine (key (r / 2) (by positivity)).mono fun i hi ↦ hrb ?_
+  rw [Metric.mem_ball, dist_eq_norm]
+  linarith
+
 /-- Paper: Proposition 2.3.1.4(1), p. 105. Integrating the character-weighted
 theta function gives a continuous function on the S-idele classes. -/
 theorem sLocalHomogeneousAdelicTheta_continuous [Measure.IsHaarMeasure μ]
     (ω : PontryaginDual J₁) (f : ℬₛ) :
-    Continuous (fun g : Jₛ ↦ ∫ h, classIntegrand ω f g h ∂μ) := by sorry
+    Continuous (fun g : Jₛ ↦ ∫ h, classIntegrand ω f g h ∂μ) := by
+  classical
+  -- The norm-one classes form a compact group.
+  haveI hcomp : CompactSpace J₁ := by
+    have hker : (MonoidHom.ker (sIdeleQuotientNorm F S) : Set Jₛ) =
+        (sIdeleQuotientNorm F S) ⁻¹' {1} := by
+      ext g
+      simp [MonoidHom.mem_ker]
+    exact isCompact_iff_compactSpace.mp (by
+      rw [hker]
+      exact (isProperMap_sIdeleQuotientNorm F S).isCompact_preimage isCompact_singleton)
+  haveI : IsFiniteMeasure μ := ⟨isCompact_univ.measure_lt_top⟩
+  -- The uncurried integrand is continuous.
+  have hΦ : Continuous fun p : Jₛ × J₁ ↦
+      sLocalAdelicThetaOnClasses F S f (p.1 * p.2.val) * (ω p.2 : ℂ) :=
+    Continuous.mul
+      ((map_continuous (sLocalAdelicThetaOnClasses F S f)).comp
+        (continuous_fst.mul (continuous_subtype_val.comp continuous_snd)))
+      (continuous_subtype_val.comp ((map_continuous ω).comp continuous_snd))
+  -- Currying turns continuity on the product into a continuous curve in C(J₁, ℂ).
+  have hΘ : Continuous
+      ((ContinuousMap.curry (ContinuousMap.mk
+        (fun p : Jₛ × J₁ ↦ sLocalAdelicThetaOnClasses F S f (p.1 * p.2.val) * (ω p.2 : ℂ)) hΦ :
+        C(Jₛ × J₁, ℂ)) : Jₛ → C(J₁, ℂ))) :=
+    map_continuous (ContinuousMap.curry (ContinuousMap.mk _ hΦ))
+  refine continuous_iff_continuousAt.mpr fun g₀ ↦ ?_
+  -- Hence the integrands converge uniformly in the parameter.
+  have htu : TendstoUniformlyOn
+      (fun (g : Jₛ) (h : J₁) ↦ sLocalAdelicThetaOnClasses F S f (g * h.val) * (ω h : ℂ))
+      (fun h : J₁ ↦ sLocalAdelicThetaOnClasses F S f (g₀ * h.val) * (ω h : ℂ))
+      (𝓝 g₀) univ := by
+    have hlim := ContinuousMap.tendsto_iff_tendstoUniformly
+      (F := ((ContinuousMap.curry (ContinuousMap.mk
+        (fun p : Jₛ × J₁ ↦ sLocalAdelicThetaOnClasses F S f (p.1 * p.2.val) * (ω p.2 : ℂ)) hΦ :
+        C(Jₛ × J₁, ℂ)) : Jₛ → C(J₁, ℂ))))
+      (f := ContinuousMap.curry (ContinuousMap.mk
+        (fun p : Jₛ × J₁ ↦ sLocalAdelicThetaOnClasses F S f (p.1 * p.2.val) * (ω p.2 : ℂ)) hΦ)
+        g₀)
+      (p := 𝓝 g₀)
+    have hcont : Tendsto ((ContinuousMap.curry (ContinuousMap.mk
+        (fun p : Jₛ × J₁ ↦ sLocalAdelicThetaOnClasses F S f (p.1 * p.2.val) * (ω p.2 : ℂ)) hΦ :
+        C(Jₛ × J₁, ℂ)) : Jₛ → C(J₁, ℂ))) (𝓝 g₀)
+        (𝓝 ((ContinuousMap.curry (ContinuousMap.mk
+        (fun p : Jₛ × J₁ ↦ sLocalAdelicThetaOnClasses F S f (p.1 * p.2.val) * (ω p.2 : ℂ)) hΦ :
+        C(Jₛ × J₁, ℂ)) : Jₛ → C(J₁, ℂ)) g₀)) :=
+      hΘ.tendsto g₀
+    exact (tendstoUniformlyOn_univ).mpr (hlim.mp hcont)
+  -- Integrability of every integrand on the compact group.
+  have hint (g : Jₛ) : Integrable
+      (fun h : J₁ ↦ sLocalAdelicThetaOnClasses F S f (g * h.val) * (ω h : ℂ)) μ := by
+    haveI : BorelSpace J₁ := ⟨rfl⟩
+    have hAt : Continuous fun h : J₁ ↦
+        sLocalAdelicThetaOnClasses F S f (g * h.val) * (ω h : ℂ) := by
+      refine Continuous.mul
+        ((map_continuous (sLocalAdelicThetaOnClasses F S f)).comp
+          (continuous_const (y := g) |>.mul continuous_subtype_val)) ?_
+      exact continuous_subtype_val.comp ((map_continuous ω).comp continuous_id)
+    have hmeas : AEStronglyMeasurable
+        (fun h : J₁ ↦ sLocalAdelicThetaOnClasses F S f (g * h.val) * (ω h : ℂ)) μ :=
+      hAt.measurable.aestronglyMeasurable
+    obtain ⟨M, hM⟩ :=
+      IsCompact.exists_bound_of_continuousOn isCompact_univ hAt.continuousOn
+    exact (integrable_const M).mono' hmeas
+      (Eventually.of_forall fun h ↦ hM h (Set.mem_univ h))
+  refine ContinuousAt.congr_of_eventuallyEq
+    (f := fun g : Jₛ ↦ ∫ x in univ, sLocalAdelicThetaOnClasses F S f (g * x.val) * (ω x : ℂ) ∂μ)
+    ?_ ?_
+  · exact tendsto_setIntegral_of_tendstoUniformlyOn (s := univ) htu
+      (fun g ↦ (integrableOn_univ).mpr (hint g)) (integrableOn_univ.mpr (hint g₀))
+  · filter_upwards with g
+    simp [Measure.restrict_univ]
 
 variable [Measure.IsHaarMeasure μ]
 
@@ -1027,7 +1142,31 @@ variable [Measure.IsHaarMeasure μ]
 defines a complex-linear map in the test function. -/
 theorem sLocalHomogeneousAdelicTheta_isLinear (ω : PontryaginDual J₁) :
     IsLinearMap ℂ (fun f : ℬₛ ↦ (⟨fun g ↦ ∫ h, classIntegrand ω f g h ∂μ,
-      sLocalHomogeneousAdelicTheta_continuous F S μ ω f⟩ : C(Jₛ, ℂ))) := by sorry
+      sLocalHomogeneousAdelicTheta_continuous F S μ ω f⟩ : C(Jₛ, ℂ))) := by
+  have linearIntegral {E X Y H : Type _} [AddCommMonoid E] [Module ℂ E]
+      [TopologicalSpace X] [TopologicalSpace Y] [MeasurableSpace H]
+      (ν : Measure H) (p : X → Y) (hp : Surjective p) (θ : E →ₗ[ℂ] C(X, ℂ))
+      (desc : E → C(Y, ℂ)) (hdesc : ∀ f x, desc f (p x) = θ f x)
+      (shift : Y → H → Y) (weight : H → ℂ)
+      (hint : ∀ f g, Integrable (fun h ↦ desc f (shift g h) * weight h) ν)
+      (hcont : ∀ f, Continuous (fun g ↦ ∫ h, desc f (shift g h) * weight h ∂ν)) :
+      IsLinearMap ℂ (fun f ↦ (⟨fun g ↦ ∫ h, desc f (shift g h) * weight h ∂ν,
+        hcont f⟩ : C(Y, ℂ))) := by
+    refine ⟨fun f₁ f₂ ↦ ContinuousMap.ext fun g ↦ ?_, fun c f ↦ ContinuousMap.ext fun g ↦ ?_⟩
+    · refine (integral_congr_ae (Eventually.of_forall fun (h : H) ↦ ?_)).trans
+        (integral_add (hint f₁ g) (hint f₂ g))
+      obtain ⟨x, hx⟩ := hp (shift g h)
+      simp only [← hx, hdesc, θ.map_add, ContinuousMap.add_apply, add_mul]
+    · refine (integral_congr_ae (Eventually.of_forall fun (h : H) ↦ ?_)).trans
+        (integral_smul c (fun h ↦ desc f (shift g h) * weight h))
+      obtain ⟨x, hx⟩ := hp (shift g h)
+      simp only [← hx, hdesc, θ.map_smul, ContinuousMap.smul_apply, smul_mul_assoc]
+  exact linearIntegral (E := ℬₛ) (X := Iₛ) (Y := Jₛ) (H := J₁)
+    μ classOf QuotientGroup.mk_surjective
+    (sLocalAdelicTheta F S) (sLocalAdelicThetaOnClasses F S) (sLocalAdelicThetaOnClasses_mk F S)
+    (fun g h ↦ g * h.val) (fun h ↦ (ω h : ℂ))
+    (sLocalHomogeneousAdelicTheta_integrable F S μ ω)
+    (sLocalHomogeneousAdelicTheta_continuous F S μ ω)
 
 /-- Paper: Definition 2.3.1.3, p. 104. Homogeneous S-local theta integrates
 theta at the class product `g * h` against the character on norm-one classes.
@@ -1052,14 +1191,58 @@ Its pullback to the S-ideles has the corresponding pulled-back character. -/
 theorem sLocalHomogeneousAdelicTheta_homogeneous (ω : PontryaginDual J₁)
     (f : ℬₛ) (h : J₁) (g : Jₛ) :
     sLocalHomogeneousAdelicTheta F S μ ω f (h.val⁻¹ * g) =
-      (ω h : ℂ) * sLocalHomogeneousAdelicTheta F S μ ω f g := by sorry
+      (ω h : ℂ) * sLocalHomogeneousAdelicTheta F S μ ω f g := by
+  have : BorelSpace J₁ := ⟨rfl⟩
+  simp only [sLocalHomogeneousAdelicTheta, IsLinearMap.mk'_apply, ContinuousMap.coe_mk]
+  rw [← integral_mul_left_eq_self (μ := μ) (classIntegrand ω f (h.val⁻¹ * g)) h,
+    ← integral_const_mul]
+  refine integral_congr_ae (.of_forall fun k ↦ ?_)
+  have hproduct : (h.val⁻¹ * g) * (h * k).val = g * k.val := by
+    change (h.val⁻¹ * g) * (h.val * k.val) = g * k.val
+    rw [mul_comm h.val⁻¹ g, mul_assoc, inv_mul_cancel_left]
+  change sLocalAdelicThetaOnClasses F S f ((h.val⁻¹ * g) * (h * k).val) * (ω (h * k) : ℂ) =
+    (ω h : ℂ) * (sLocalAdelicThetaOnClasses F S f (g * k.val) * (ω k : ℂ))
+  rw [hproduct, map_mul ω h k, Circle.coe_mul (ω h) (ω k), mul_left_comm]
 
 /-- Paper: Proposition 2.3.1.4(2), p. 105. Homogeneous S-local theta decays
 at every positive inverse power as the S-idelic norm tends to infinity. -/
 theorem sLocalHomogeneousAdelicTheta_decay_large (ω : PontryaginDual J₁)
     (f : ℬₛ) (N : ℕ) (hN : 1 ≤ N) :
     ∃ C T : ℝ, 0 < C ∧ 0 < T ∧ ∀ g : Iₛ, T < normℝ g →
-      ‖sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by sorry
+      ‖sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+  have integralDecay {X Y H : Type _} [Group Y] [MeasurableSpace H]
+      (ν : Measure H) [IsFiniteMeasure ν] [NeZero ν]
+      (q : X → Y) (hq : Surjective q)
+      (m : Y →* ℝ≥0ˣ) (n : X → ℝ≥0ˣ) (hm : ∀ g, m (q g) = n g)
+      (p : H → Y) (hp : ∀ h, m (p h) = 1) (χ : H → ℂ) (hχ : ∀ h, ‖χ h‖ = 1)
+      (θ : X → ℂ) (φ : Y → ℂ) (hφ : ∀ g, φ (q g) = θ g)
+      (ψ : X → ℂ) (hψ : ∀ g, ψ g = ∫ h, φ (q g * p h) * χ h ∂ν)
+      (hθ : ∃ A T : ℝ, 0 < A ∧ 0 < T ∧ ∀ g, T < valueℝ (n g) →
+        ‖θ g‖ ≤ A * (valueℝ (n g) ^ N)⁻¹) :
+      ∃ C T : ℝ, 0 < C ∧ 0 < T ∧ ∀ g, T < valueℝ (n g) →
+        ‖ψ g‖ ≤ C * (valueℝ (n g) ^ N)⁻¹ := by
+    obtain ⟨A, T, hA, hT, hdecay⟩ := hθ
+    refine ⟨A * ν.real univ, T, mul_pos hA measureReal_univ_pos, hT, fun g hg ↦ ?_⟩
+    have hbound (h : H) : ‖φ (q g * p h) * χ h‖ ≤ A * (valueℝ (n g) ^ N)⁻¹ := by
+      obtain ⟨k, hk⟩ := hq (q g * p h)
+      have hnorm : n k = n g := by rw [← hm k, hk, map_mul, hp, mul_one, hm]
+      simp only [norm_mul, hχ, mul_one, ← hk, hφ, ← hnorm]
+      exact hdecay k (hnorm.symm ▸ hg)
+    rw [hψ g]
+    simpa only [mul_right_comm A (valueℝ (n g) ^ N)⁻¹ (ν.real univ)] using
+      norm_integral_le_of_norm_le_const (μ := ν) (.of_forall hbound)
+  have decay := @sLocalAdelicTheta_decay_large F ‹Field F› ‹NumberField F›
+  have decayOnS := decay (by exact S)
+  have decayForF := decayOnS (by exact f)
+  have : CompactSpace J₁ := isCompact_iff_compactSpace.mp
+    ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  have : IsFiniteMeasure μ := CompactSpace.isFiniteMeasure (μ := μ)
+  exact integralDecay (X := Iₛ) (Y := Jₛ) (H := J₁) μ classOf QuotientGroup.mk_surjective
+    (sIdeleQuotientNorm F S) (sIdeleNorm F S) (sIdeleQuotientNorm_mk F S)
+    Subtype.val (fun h ↦ h.property) (fun h ↦ (ω h : ℂ)) (fun h ↦ Circle.norm_coe (ω h))
+    (sLocalAdelicTheta F S f) (sLocalAdelicThetaOnClasses F S f)
+    (sLocalAdelicThetaOnClasses_mk F S f)
+    (fun g ↦ sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)) (fun _ ↦ rfl) (decayForF N hN)
 
 /-- Paper: Proposition 2.3.1.4(3), p. 105. The large-norm decay constants
 for homogeneous S-local theta are uniform on a bounded set of test functions.
@@ -1068,14 +1251,79 @@ range is supplied by part (4) and Proposition 2.3.1.2(3). -/
 theorem sLocalHomogeneousAdelicTheta_decay_bounded (ω : PontryaginDual J₁)
     (B : Set ℬₛ) (hB : IsVonNBounded ℂ B) (N : ℕ) :
     ∃ C T : ℝ, 0 < C ∧ 0 < T ∧ ∀ f ∈ B, ∀ g : Iₛ, T < normℝ g →
-      ‖sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by sorry
+      ‖sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+  refine (sLocalAdelicTheta_decay_bounded F S B hB N).elim fun C hC ↦ ?_
+  refine hC.elim fun T hbound ↦ ?_
+  let : CompactSpace J₁ :=
+    isCompact_iff_compactSpace.mp
+      ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  let : IsFiniteMeasure μ := ⟨isCompact_univ.measure_lt_top⟩
+  have hμ : 0 < μ.real univ :=
+    ENNReal.toReal_pos (isOpen_univ.measure_pos μ univ_nonempty).ne' (measure_ne_top μ _)
+  refine ⟨C * μ.real univ, T, mul_pos hbound.1 hμ, hbound.2.1, fun f hf g hg ↦ ?_⟩
+  have hpoint (h : J₁) : ‖classIntegrand ω f (classOf g) h‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+    obtain ⟨k, hk⟩ := QuotientGroup.mk_surjective (classOf g * h.val)
+    have hh : sIdeleQuotientNorm F S h.val = 1 := h.property
+    have hnorm : sIdeleNorm F S k = sIdeleNorm F S g := by
+      rw [← sIdeleQuotientNorm_mk F S k, hk, map_mul, hh, mul_one, sIdeleQuotientNorm_mk]
+    have hnormℝ : normℝ k = normℝ g := congrArg valueℝ hnorm
+    have hkT : T < normℝ k := by rwa [hnormℝ]
+    have hvalue : sLocalAdelicThetaOnClasses F S f (classOf g * h.val) =
+        sLocalAdelicTheta F S f k :=
+      (congrArg (fun c : Jₛ ↦ sLocalAdelicThetaOnClasses F S f c) hk.symm).trans
+        (sLocalAdelicThetaOnClasses_mk F S f k)
+    calc
+      _ = ‖sLocalAdelicThetaOnClasses F S f (classOf g * h.val)‖ * ‖(ω h : ℂ)‖ :=
+        norm_mul _ _
+      _ = ‖sLocalAdelicTheta F S f k‖ :=
+        (congrArg₂ (· * ·) (congrArg (fun z : ℂ ↦ ‖z‖) hvalue)
+          (Circle.norm_coe (ω h))).trans (mul_one _)
+      _ ≤ C * ((normℝ k) ^ N)⁻¹ := hbound.2.2 f hf k hkT
+      _ = C * ((normℝ g) ^ N)⁻¹ := congrArg (fun r : ℝ ↦ C * (r ^ N)⁻¹) hnormℝ
+  change ‖∫ h, classIntegrand ω f (classOf g) h ∂μ‖ ≤ _
+  calc
+    _ ≤ (C * ((normℝ g) ^ N)⁻¹) * μ.real univ :=
+      norm_integral_le_of_norm_le_const (μ := μ) (Eventually.of_forall hpoint)
+    _ = (C * μ.real univ) * ((normℝ g) ^ N)⁻¹ := mul_right_comm _ _ _
 
 /-- Paper: Proposition 2.3.1.4(4), p. 105. The uniform decay estimate
 for homogeneous theta holds above S-idelic norm one. -/
 theorem sLocalHomogeneousAdelicTheta_decay_bounded_threshold_one (ω : PontryaginDual J₁)
     (B : Set ℬₛ) (hB : IsVonNBounded ℂ B) (N : ℕ) :
     ∃ C : ℝ, 0 < C ∧ ∀ f ∈ B, ∀ g : Iₛ, 1 < normℝ g →
-      ‖sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by sorry
+      ‖sLocalHomogeneousAdelicTheta F S μ ω f (classOf g)‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+  refine (sLocalAdelicTheta_decay_bounded_threshold_one F S B hB N).elim fun C hbound ↦ ?_
+  let : CompactSpace J₁ :=
+    isCompact_iff_compactSpace.mp
+      ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  let : IsFiniteMeasure μ := ⟨isCompact_univ.measure_lt_top⟩
+  have hμ : 0 < μ.real univ :=
+    ENNReal.toReal_pos (isOpen_univ.measure_pos μ univ_nonempty).ne' (measure_ne_top μ _)
+  refine ⟨C * μ.real univ, mul_pos hbound.1 hμ, fun f hf g hg ↦ ?_⟩
+  have hpoint (h : J₁) : ‖classIntegrand ω f (classOf g) h‖ ≤ C * ((normℝ g) ^ N)⁻¹ := by
+    obtain ⟨k, hk⟩ := QuotientGroup.mk_surjective (classOf g * h.val)
+    have hh : sIdeleQuotientNorm F S h.val = 1 := h.property
+    have hnorm : sIdeleNorm F S k = sIdeleNorm F S g := by
+      rw [← sIdeleQuotientNorm_mk F S k, hk, map_mul, hh, mul_one, sIdeleQuotientNorm_mk]
+    have hnormℝ : normℝ k = normℝ g := congrArg valueℝ hnorm
+    have hkT : 1 < normℝ k := by rwa [hnormℝ]
+    have hvalue : sLocalAdelicThetaOnClasses F S f (classOf g * h.val) =
+        sLocalAdelicTheta F S f k :=
+      (congrArg (fun c : Jₛ ↦ sLocalAdelicThetaOnClasses F S f c) hk.symm).trans
+        (sLocalAdelicThetaOnClasses_mk F S f k)
+    calc
+      _ = ‖sLocalAdelicThetaOnClasses F S f (classOf g * h.val)‖ * ‖(ω h : ℂ)‖ :=
+        norm_mul _ _
+      _ = ‖sLocalAdelicTheta F S f k‖ :=
+        (congrArg₂ (· * ·) (congrArg (fun z : ℂ ↦ ‖z‖) hvalue)
+          (Circle.norm_coe (ω h))).trans (mul_one _)
+      _ ≤ C * ((normℝ k) ^ N)⁻¹ := hbound.2 f hf k hkT
+      _ = C * ((normℝ g) ^ N)⁻¹ := congrArg (fun r : ℝ ↦ C * (r ^ N)⁻¹) hnormℝ
+  change ‖∫ h, classIntegrand ω f (classOf g) h ∂μ‖ ≤ _
+  calc
+    _ ≤ (C * ((normℝ g) ^ N)⁻¹) * μ.real univ :=
+      norm_integral_le_of_norm_le_const (μ := μ) (Eventually.of_forall hpoint)
+    _ = (C * μ.real univ) * ((normℝ g) ^ N)⁻¹ := mul_right_comm _ _ _
 
 end HomogeneousTheta
 
@@ -1094,11 +1342,64 @@ one-parameter subgroup gives a Schwartz–Bruhat function. -/
 theorem sAdeleDirectionalDeriv_mem (f : ℬₛ) :
     orbitDeriv f ∈ schwartzBruhatSubmodule (Multiplicative Aₛ) := by sorry
 
+/-- Inserting an S-idele and multiplying an adele integral outside S preserves integrality
+outside S, so evaluating the global extension reduces to evaluating on the S-coordinates. -/
+private theorem sAdeleSchwartzToGlobal_mul_sIdeleInsertion
+    (f : ℬₛ) (g : Iₛ) (y : integralAdelesOutside F S) :
+    sAdeleSchwartzToGlobal F S f (Multiplicative.ofAdd ((sIdeleInsertion F S g).val * y.val)) =
+        f (Multiplicative.ofAdd (g.val * adeleProjection F S y.val)) := by
+  classical
+  have hInsertion := sIdeleInsertion_apply F S g
+  have hy := y.property
+  simp only [integralAdelesOutside, Subring.mem_iInf] at hy
+  have hInt (v : HeightOneSpectrum (𝓞 F)) (hv : v ∉ S) :
+      ((sIdeleInsertion F S g).val * y.val).2 v ∈ v.adicCompletionIntegers F := by
+    change (sIdeleInsertion F S g).val.2 v * y.val.2 v ∈ v.adicCompletionIntegers F
+    rw [hInsertion.2.2 v hv, one_mul]
+    exact hy v hv
+  have hProj : adeleProjection F S (sIdeleInsertion F S g).val = g.val := by
+    apply Prod.ext
+    · exact hInsertion.1
+    · funext v
+      exact hInsertion.2.1 v
+  rw [sAdeleSchwartzToGlobal_apply F S f, ite_eq_left hInt, map_mul (adeleProjection F S), hProj]
+
+/-- Paper: Lemma 2.3.2.1, p. 105. The orbit of an S-adelic test function
+along the one-parameter subgroup is differentiable at zero in the logarithmic parameter. -/
+private theorem sAdeleOrbit_differentiableAt (f : ℬₛ) (x : Multiplicative Aₛ) :
+    DifferentiableAt ℝ (fun s : ℝ ↦ f (Multiplicative.ofAdd ((γ (expUnit s)).val * x.toAdd))) 0 := by
+  have hLift (x : Multiplicative Aₛ) :
+      ∃ y : integralAdelesOutside F S, Multiplicative.ofAdd (adeleProjection F S y.val) = x := by
+    obtain ⟨e, -, -, he⟩ := integralAdelesOutside_factors F S
+    refine ⟨e.symm (x.toAdd, 0), congrArg Multiplicative.ofAdd ?_⟩
+    exact (he _).1.symm.trans (congrArg Prod.fst (e.apply_symm_apply _))
+  obtain ⟨y, rfl⟩ := hLift x
+  let Γ : ℝ≥0ˣ →ₜ* IdeleGroup (𝓞 F) F :=
+    ⟨(sIdeleInsertion F S).comp γ.toMonoidHom,
+      (isClosedEmbedding_sIdeleInsertion F S).continuous.comp γ.continuous⟩
+  let u (s : ℝ) := sAdeleSchwartzToGlobal F S f
+    (Multiplicative.ofAdd ((sIdeleInsertion F S (γ (expUnit s))).val * y.val))
+  let v (s : ℝ) := f (Multiplicative.ofAdd ((γ (expUnit s)).val * adeleProjection F S y.val))
+  have hp (s : ℝ) : u s = v s :=
+    sAdeleSchwartzToGlobal_mul_sIdeleInsertion F S f (γ (expUnit s)) y
+  have hu : DifferentiableAt ℝ u 0 :=
+    adeleOrbit_differentiableAt Γ (sAdeleSchwartzToGlobal F S f) (Multiplicative.ofAdd y.val)
+  change DifferentiableAt ℝ v 0
+  exact (funext hp) ▸ hu
+
 /-- Paper: Lemma 2.3.2.1, p. 106. Taking the directional derivative
 is complex linear on the S-local test space. -/
 theorem sAdeleDirectionalDeriv_isLinear :
-    IsLinearMap ℂ (fun f : ℬₛ ↦ (⟨orbitDeriv f, sAdeleDirectionalDeriv_mem F S γ f⟩ : ℬₛ)) :=
-  by sorry
+    IsLinearMap ℂ (fun f : ℬₛ ↦ (⟨orbitDeriv f, sAdeleDirectionalDeriv_mem F S γ f⟩ : ℬₛ)) := by
+  constructor
+  · intro f g
+    apply Subtype.ext
+    funext x
+    exact deriv_add (sAdeleOrbit_differentiableAt F S γ f x) (sAdeleOrbit_differentiableAt F S γ g x)
+  · intro c f
+    apply Subtype.ext
+    funext x
+    exact deriv_fun_const_smul_field c _
 
 /-- Paper: Equation (2.3.2.1), p. 105. The directional derivative differentiates
 the test function along the given one-parameter subgroup at the identity.

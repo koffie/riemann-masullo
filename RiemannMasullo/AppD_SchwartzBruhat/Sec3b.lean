@@ -142,9 +142,6 @@ private theorem isBruhatContDiff_of_modulationWeight
       exact (Complex.ofRealCLM.contDiff.comp ((hLog.mul (contDiff_const (c := -a))).exp)).mul
         (hSmooth e z b)
 
--- TODO(paper-gap): In the proof of Remark D.3.4.1 the product rule differentiates
--- the weight times the function. The weight's derivative has coefficient a * r.
-
 /-- Paper: Remark D.3.4.1, p. 815. A function of prescribed exponential decay
 is Bruhat smooth whenever the exponent interval is nonempty. -/
 theorem modulatedExponentialDecay_mem_bruhatSmooth (hne : I.Nonempty)
@@ -157,13 +154,86 @@ theorem modulatedExponentialDecay_mem_bruhatSmooth (hne : I.Nonempty)
   refine (Submodule.mem_iInf _).2 fun p ↦ ?_
   exact isBruhatContDiff_of_modulationWeight m (hs p)
 
+/-- Paper: Remark D.3.4.1, p. 815. First-order differentiation preserves each
+exponential decay condition by the product rule for the modulation weight.
+Deviation: If the modulation along the subgroup is exp(rt), the derivative
+of the weight at exponent a has coefficient a * r. -/
+private theorem bruhatFirstOrder_mem_modulatedExponentialDecay
+    (b : LCATopologicalLie G) (f : bruhatSmoothSubmodule (G := G))
+    (hf : f.val ∈ modulatedExponentialDecaySubmodule m I) :
+    (bruhatFirstOrder b f).val ∈ modulatedExponentialDecaySubmodule m I := by
+  refine (Submodule.mem_iInf _).2 fun a ↦ Submodule.mem_comap.2 ?_
+  let w (x : G) : ℝ := ((m x).val : ℝ) ^ (a : ℝ)
+  have hPos (x : G) : 0 < ((m x).val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+  let logOrbit : ℝ →+ ℝ := AddMonoidHom.mk'
+    (fun t ↦ Real.log ((m (b (Multiplicative.ofAdd t))).val : ℝ)) (by
+      intro s t
+      simp only [ofAdd_add, map_mul, Units.val_mul, NNReal.coe_mul]
+      exact Real.log_mul (hPos _).ne' (hPos _).ne')
+  have hLogContinuous : Continuous logOrbit :=
+    (NNReal.continuous_coe.comp (Units.continuous_val.comp
+      (m.continuous.comp (b.continuous.comp continuous_ofAdd)))).log
+      fun _ ↦ (hPos _).ne'
+  have hLog (t : ℝ) : logOrbit t = t * logOrbit 1 := by
+    simpa only [smul_eq_mul, mul_one] using map_real_smul logOrbit hLogContinuous t (1 : ℝ)
+  let c := logOrbit 1 * (a : ℝ)
+  have hOrbit (x : G) (t : ℝ) :
+      w (x * b (Multiplicative.ofAdd t)) = w x * Real.exp (t * c) := by
+    unfold w
+    rw [map_mul, Units.val_mul, NNReal.coe_mul,
+      Real.mul_rpow (hPos x).le (hPos _).le, Real.rpow_def_of_pos (hPos (b _))]
+    change _ * Real.exp (logOrbit t * (a : ℝ)) = _
+    rw [hLog, mul_assoc]
+  have hw (x : G) : HasDerivAt (fun t : ℝ ↦ (w (x * b (Multiplicative.ofAdd t)) : ℂ))
+      ((w x * c : ℝ) : ℂ) 0 := by
+    have h := (((hasDerivAt_id (0 : ℝ)).mul_const c).exp.const_mul (w x)).ofReal_comp
+    simpa only [id, zero_mul, Real.exp_zero, one_mul, hOrbit] using h
+  let F := modulationWeight m a f.val
+  have hF : F ∈ schwartzBruhatSubmodule G :=
+    modulationWeight_mem_schwartzBruhat m I a ⟨f.val, hf⟩
+  obtain ⟨A, hA⟩ := bruhatFirstOrder_schwartz b
+  have hDF : bruhatDirectionalDeriv b F ∈ schwartzBruhatSubmodule G := by
+    have hEq : (A ⟨F, hF⟩).val = bruhatDirectionalDeriv b F := funext (hA ⟨F, hF⟩)
+    exact hEq ▸ (A ⟨F, hF⟩).property
+  have hTwist : modulationWeight m a (bruhatFirstOrder b f).val =
+      bruhatDirectionalDeriv b F - (c : ℂ) • F := by
+    funext x
+    have h := ((hw x).fun_mul (hasDerivAt_bruhatDirectionalDeriv b
+      ((mem_bruhatSmoothSubmodule_iff f.val).1 f.property 1) x)).deriv
+    change bruhatDirectionalDeriv b F x =
+      ((w x * c : ℝ) : ℂ) * f.val (x * b (Multiplicative.ofAdd 0)) +
+        (w (x * b (Multiplicative.ofAdd 0)) : ℂ) * bruhatDirectionalDeriv b f.val x at h
+    simp only [ofAdd_zero, map_one, mul_one, Complex.ofReal_mul] at h
+    change (w x : ℂ) * bruhatDirectionalDeriv b f.val x =
+      bruhatDirectionalDeriv b F x - (c : ℂ) * ((w x : ℂ) * f.val x)
+    rw [h]
+    ring
+  rw [hTwist]
+  exact (schwartzBruhatSubmodule G).sub_mem hDF ((schwartzBruhatSubmodule G).smul_mem _ hF)
+
 include hm hms in
 /-- Paper: Remark D.3.4.1, p. 815. Invariant differential operators preserve
 the Schwartz–Bruhat space with decay exponents in the given interval. -/
 theorem modulatedExponentialDecay_invariantDiff (hInt : OrdConnected I) (hne : I.Nonempty)
     (D : bruhatDiffAlgebra G) (f : ModulatedExponentialDecay m I) :
     (D.val ⟨f.val, modulatedExponentialDecay_mem_bruhatSmooth m I hne f⟩).val ∈
-      modulatedExponentialDecaySubmodule m I := by sorry
+      modulatedExponentialDecaySubmodule m I := by
+  refine Algebra.adjoin_induction
+    (p := fun (A : Module.End ℂ (bruhatSmoothSubmodule (G := G))) _ ↦
+      ∀ (g : bruhatSmoothSubmodule (G := G)),
+        g.val ∈ modulatedExponentialDecaySubmodule m I →
+          (A g).val ∈ modulatedExponentialDecaySubmodule m I)
+    ?_ ?_ ?_ ?_ D.property _ f.property
+  · rintro _ ⟨b, rfl⟩ g hg
+    exact bruhatFirstOrder_mem_modulatedExponentialDecay m I b g hg
+  · intro z g hg
+    rw [Module.algebraMap_end_apply, Submodule.coe_smul]
+    exact (modulatedExponentialDecaySubmodule m I).smul_mem z hg
+  · intro A B _ _ hA hB g hg
+    rw [LinearMap.add_apply, Submodule.coe_add]
+    exact (modulatedExponentialDecaySubmodule m I).add_mem (hA g hg) (hB g hg)
+  · intro A B _ _ hA hB g hg
+    exact hA (B g) (hB g hg)
 
 /-- Paper: Theorem D.3.4.2, p. 816. A continuous quasi-character is Bruhat smooth,
 so the operator in the symbol formula can act on it. -/
@@ -232,7 +302,16 @@ theorem modulatedJumpMidpointProfile_eq_average (τ : ℝ≥0ˣ →ₜ* G) (f : 
     (t : S) (g : K) (a b : ℂ)
     (ha : Tendsto (fun u ↦ f (τ u * g.val)) (𝓝[<] t.val) (𝓝 a))
     (hb : Tendsto (fun u ↦ f (τ u * g.val)) (𝓝[>] t.val) (𝓝 b)) :
-    modulatedJumpMidpointProfile m τ f S hleft hright t.val g = (a + b) / 2 := by sorry
+    modulatedJumpMidpointProfile m τ f S hleft hright t.val g = (a + b) / 2 := by
+  unfold modulatedJumpMidpointProfile
+  rw [dif_pos t.property]
+  let e : ℝ≥0ˣ ≃ₜ Set.Ioi (0 : ℝ) := Nonneg.unitsHomeomorphPos ℝ
+  have : OrderTopology ℝ≥0ˣ := ⟨e.isInducing.eq_induced.trans
+    ((show StrictMono e from fun _ _ h ↦ h).induced_topology_eq_preorder
+      (e.surjective.range_eq ▸ Set.ordConnected_univ))⟩
+  have h1 := tendsto_nhds_unique (hleft t g).choose_spec ha
+  have h2 := tendsto_nhds_unique (hright t g).choose_spec hb
+  rw [h1, h2]
 
 -- TODO(paper-gap): Proposition D.3.5.1, (D.3.5.3), reverses the Fourier sign.
 -- For γ = e, χ₀ = 1, and a bump in log coordinates supported in (1/8, 3/8)
@@ -326,8 +405,14 @@ function submodule consists of ordinary smooth compactly supported functions.
 Deviation: Sanity check in the real-line model. -/
 theorem mem_bruhatCompactSupportSubmodule_real_iff (f : Multiplicative ℝ → ℂ) :
     f ∈ bruhatCompactSupportSubmodule (Multiplicative ℝ) ↔
-      ContDiff ℝ ∞ (f ∘ Multiplicative.ofAdd) ∧ HasCompactSupport (f ∘ Multiplicative.ofAdd) :=
-  by sorry
+      ContDiff ℝ ∞ (f ∘ Multiplicative.ofAdd) ∧ HasCompactSupport (f ∘ Multiplicative.ofAdd) := by
+  have hsm : f ∈ bruhatSmoothSubmodule ↔ ContDiff ℝ ∞ (f ∘ Multiplicative.ofAdd) := by
+    rw [mem_bruhatSmoothSubmodule_iff, contDiff_infty]
+    exact forall_congr' fun p ↦ isBruhatContDiff_real_iff p f
+  have hcs : HasCompactSupport f ↔ HasCompactSupport (f ∘ Multiplicative.ofAdd) :=
+    ⟨fun h ↦ h.comp_homeomorph (Homeomorph.ofAdd (X := ℝ)), fun h ↦ by
+      simpa [Function.comp_def] using h.comp_homeomorph (Homeomorph.ofAdd (X := ℝ)).symm⟩
+  exact and_congr hsm hcs
 
 /-- Paper: Lemma D.3.6.1, p. 819. A fixed-support stage consists of
 Schwartz functions on an elementary quotient whose realizations vanish
@@ -362,7 +447,12 @@ elementary stage realizes to a smooth compactly supported function on the group.
 theorem bruhatCompactSupportStage_realization_mem (a : BruhatStructuralPair G)
     (e : ElementaryLCAPresentation a.quotient) (C : Compacts G)
     (f : bruhatCompactSupportStage a e C) :
-    schwartzBruhatStageRealization a e f.val ∈ bruhatCompactSupportSubmodule G := by sorry
+    schwartzBruhatStageRealization a e f.val ∈ bruhatCompactSupportSubmodule G := by
+  refine ⟨?_, C.isCompact.of_isClosed_subset isClosed_closure
+    ((mem_bruhatCompactSupportStage_iff a e C f.val).1 f.property)⟩
+  rw [mem_bruhatSmoothSubmodule_iff]
+  exact schwartzBruhat_isBruhatSmooth
+    (show SchwartzBruhat G from schwartzBruhatStageInclusion a e f.val)
 
 /-- Paper: Lemma D.3.6.1, p. 819. The stage inclusion is the Schwartz
 realization by pullback and extension by zero, with values in the test space. -/
@@ -417,10 +507,12 @@ def bruhatCompactSupportToModulatedExponentialDecay :
     BruhatCompactSupport G →ₗ[ℂ] ModulatedExponentialDecay m I :=
   Submodule.inclusion (bruhatCompactSupport_le_modulatedExponentialDecay m I hm hms)
 
+-- Avoid the unused-section-variable linter traversing the large seminorm-family types.
+set_option linter.unusedSectionVars false in
 /-- Paper: Lemma D.3.6.1, p. 819. Applying the inclusion preserves every
 pointwise value of the test function. -/
 theorem bruhatCompactSupportToModulatedExponentialDecay_apply (f : BruhatCompactSupport G) (x : G) :
-    (bruhatCompactSupportToModulatedExponentialDecay m I hm hms f).val x = f.val x := by sorry
+    (bruhatCompactSupportToModulatedExponentialDecay m I hm hms f).val x = f.val x := rfl
 
 variable [hSC : SecondCountableTopology G] (hInt : OrdConnected I) (hne : I.Nonempty)
 

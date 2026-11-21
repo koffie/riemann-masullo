@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec1d
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 public import Mathlib.Topology.MetricSpace.ProperSpace.Real
+import Mathlib.Topology.Algebra.LinearMapCompletion
 import Mathlib.Topology.Algebra.Module.ContinuousLinearMap.Extend
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
 import RiemannMasullo.ForMathlib.MeasureTheory.Group.Compact
@@ -21,6 +22,9 @@ section SchwartzBruhatAction
 variable {G : Type*} [CommGroup G] [TopologicalSpace G] [hTop : IsTopologicalGroup G]
   [hT2 : T2Space G] [hLC : LocallyCompactSpace G] [hSC : SecondCountableTopology G]
 
+-- The unused-section-variable check repeatedly traverses the instance terms in
+-- SchwartzBruhat. Scope the option to the expensive declarations.
+set_option linter.unusedSectionVars false in
 include hSC in
 /-- Paper: Proposition D.1.9.2, p. 781. The existing left translations
 assemble into an action by continuous linear operators. -/
@@ -50,6 +54,7 @@ given by the left translations on the Schwartz–Bruhat space. -/
 def schwartzBruhatTranslationAction : G →* (SchwartzBruhat G →L[ℂ] SchwartzBruhat G) :=
   Classical.choose (existsUnique_schwartzBruhatTranslationAction (G := G)).exists
 
+set_option linter.unusedSectionVars false in
 /-- Paper: (D.2.1.2), p. 792. The bundled left translation is given
 by evaluation at the inverse translate. -/
 theorem schwartzBruhatTranslationAction_apply (g x : G) (f : SchwartzBruhat G) :
@@ -113,6 +118,7 @@ private theorem continuous_schwartzBruhat_eval (x : G) : Continuous (fun f : S �
   exact (norm_withSeminorms ℂ ℂ).continuous_of_continuous_comp L fun _ ↦
     (withGeneratingSeminorms_spec _ Subtype.val).continuous_seminorm i
 
+set_option linter.unusedSectionVars false in
 omit hm in
 /-- On a compact kernel the character-twisted orbits admit a continuous
 Schwartz–Bruhat Pettis average. -/
@@ -149,6 +155,7 @@ private theorem exists_schwartzBruhatPettisIsotypicAverage (hcompact : CompactSp
   exact (existsUnique_compactActionIsotypicAverage (E := S) μ₁ τ hτ
     schwartzBruhat_bornological (hseq (fun k f ↦ τ k f) hτ) ω).exists
 
+set_option linter.unusedSectionVars false in
 /-- Paper: (D.2.1.1), pp. 792–793. The normalized Pettis average on the
 Schwartz–Bruhat space satisfies the scalar integral formula at each point. -/
 private theorem exists_schwartzBruhatIsotypicProjector_average (ω : PontryaginDual K) :
@@ -187,6 +194,7 @@ private theorem exists_schwartzBruhatIsotypicProjector_average (ω : PontryaginD
   have hmass : μ₁.real univ ≠ 0 := measureReal_univ_ne_zero
   exact ⟨P, hP, by simpa only [P, smul_inv_smul₀ hmass] using hA⟩
 
+set_option linter.unusedSectionVars false in
 /-- Paper: (D.2.1.1), pp. 792–793. The normalized character average exists
 as a continuous linear endomorphism of the Schwartz–Bruhat space. -/
 theorem existsUnique_schwartzBruhatIsotypicProjector (ω : PontryaginDual K) :
@@ -262,6 +270,7 @@ theorem schwartzBruhatIsotypicProjector_apply (ω : PontryaginDual K) (f : S) (x
   exact (hχ.mul ((continuous_schwartzBruhat f).comp hshift)).integrable_of_hasCompactSupport
     (HasCompactSupport.of_compactSpace _)
 
+set_option linter.unusedSectionVars false in
 /-- Paper: (D.2.1.2), p. 792. On an isotypic vector, the normalized average
 recovers the vector. -/
 theorem schwartzBruhatIsotypicProjector_apply_isotype (ω : PontryaginDual K) (f : S)
@@ -411,12 +420,59 @@ variable (ω : PontryaginDual m.toMonoidHom.ker) (Q : E →L[ℂ] E)
 
 local notation "P" => schwartzBruhatIsotypicProjector m hm μ₁ ω
 
+/-- A continuous linear functional evaluates a Pettis integral over the whole
+space as a scalar integral. -/
+private theorem pettisIntegral_univ_eval {X V : Type*} [MeasurableSpace X]
+    [AddCommGroup V] [Module ℂ V] [TopologicalSpace V]
+    {μ : Measure X} {F : X → V} {a : V}
+    (h : HasPettisIntegral (.positive (μ.restrict univ)) F a) (φ : StrongDual ℂ V) :
+    φ a = ∫ x, φ (F x) ∂μ := by
+  obtain ⟨_, he⟩ := h
+  have h := LinearMap.congr_fun he φ
+  change φ a = ∫ x, φ (F x) ∂(μ.restrict univ) at h
+  rwa [Measure.restrict_univ] at h
+
+set_option linter.unusedSectionVars false in
+include hcomm hQ in
+/-- Paper: Lemma D.2.2.1, p. 795. An equivariant continuous linear map
+from the Schwartz–Bruhat space intertwines the normalized Pettis averages. -/
+private theorem schwartzBruhatIsotypicProjector_intertwines (f : S) : i (P f) = Q (i f) := by
+  have : CompactSpace K := isCompact_iff_compactSpace.mp hm.isCompact_ker
+  have : SeparatingDual ℂ E := locallyConvexSpace_separatingDual ℂ E
+  have hmass : μ₁.real univ ≠ 0 := measureReal_univ_ne_zero
+  refine (exists_schwartzBruhatIsotypicProjector_average m hm μ₁ (hμ₁ := hμ₁) ω).elim ?_
+  intro A hA
+  have hUnique := existsUnique_schwartzBruhatIsotypicProjector m hm μ₁ (hμ₁ := hμ₁) ω
+  have hproj : A = P := hUnique.unique hA.1 (Classical.choose_spec hUnique.exists)
+  have havg : i ((μ₁.real univ • A) f) = (μ₁.real univ • Q) (i f) := by
+    apply (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).2
+    intro φ
+    let F (k : K) : ℂ := φ (star (ω k : ℂ) • ρE k (i f))
+    calc
+      φ (i ((μ₁.real univ • A) f)) = ∫ k : K, φ (i (star (ω k : ℂ) • ρS k f)) ∂μ₁ :=
+        pettisIntegral_univ_eval (hA.2 f) (φ.comp i)
+      _ = ∫ k, F k ∂μ₁ := integral_congr_ae (ae_of_all _ fun k ↦ by
+        refine congrArg φ ((i.map_smul (star (ω k : ℂ)) (ρS k f)).trans ?_)
+        exact congrArg (fun v : E ↦ star (ω k : ℂ) • v) (hcomm (k : G) f))
+      _ = φ ((μ₁.real univ • Q) (i f)) := (pettisIntegral_univ_eval (hQ (i f)) φ).symm
+  refine (congrArg (fun L : S →L[ℂ] S ↦ i (L f)) hproj.symm).trans ?_
+  exact smul_right_injective E hmass ((i.map_smul_of_tower (μ₁.real univ) (A f)).symm.trans havg)
+
 include hE hρ heq hi hcomm hQ
 
+-- Retain the existing section hypotheses in the theorem signature.
+set_option linter.unusedSectionVars false in
 /-- Paper: Lemma D.2.2.1(1), p. 795. The kernel of averaging on the target
 pulls back to the kernel of averaging on the source. -/
-theorem schwartzBruhatIsotype_comap_ker : Q.ker.comap i.toLinearMap = (P).ker := by sorry
+theorem schwartzBruhatIsotype_comap_ker : Q.ker.comap i.toLinearMap = (P).ker := by
+  refine Submodule.ext fun f ↦ ?_
+  change Q (i f) = 0 ↔ P f = 0
+  have hf : i (P f) = Q (i f) :=
+    schwartzBruhatIsotypicProjector_intertwines m hm μ₁ ρ i hcomm ω Q hQ f
+  exact ⟨fun h ↦ hi (hf.trans (h.trans i.map_zero.symm)),
+    fun h ↦ hf.symm.trans ((congrArg i h).trans i.map_zero)⟩
 
+set_option linter.unusedSectionVars false in
 /-- Paper: Lemma D.2.2.1(1), p. 795. The injection gives a continuous
 linear injection on the quotients by the averaging kernels. -/
 theorem schwartzBruhatIsotype_quotient_map :
@@ -476,6 +532,7 @@ theorem schwartzBruhatIsotype_comap : (actionIsotype ρE ω).comap i.toLinearMap
   intro k f
   exact hcomm (k : G) f
 
+set_option linter.unusedSectionVars false in
 /-- Paper: Lemma D.2.2.1(3), p. 795. A dense injection induces a
 dense map of isotypic quotients. -/
 theorem schwartzBruhatIsotype_quotient_map_dense (hd : DenseRange i)
@@ -560,6 +617,7 @@ private theorem denseRange_isotype_of_pettisAverage
         (integrable_const_iff.mp hconst).resolve_right hfinite
     exact (show Surjective j from fun u ↦ ⟨0, (j.map_zero).trans (hzero u).symm⟩).denseRange
 
+set_option linter.unusedSectionVars false in
 /-- Paper: Lemma D.2.2.1(3), p. 795. A dense injection induces a
 dense map of isotypic subspaces. -/
 theorem schwartzBruhatIsotype_subspace_map_dense (hd : DenseRange i)
@@ -577,9 +635,11 @@ theorem schwartzBruhatIsotype_subspace_map_dense (hd : DenseRange i)
   have havg : CompactSpace K → ∃ A : S →L[ℂ] S, IsPettisIsotypicAverageOn μ₁ univ ρS ω A :=
     fun hc ↦ exists_schwartzBruhatPettisIsotypicAverage (G := G) m μ₁ hc ω
   have hintertwines (k : K) (f : S) : i (ρS k f) = ρE k (i f) := hcomm (k : G) f
-  exact denseRange_isotype_of_pettisAverage (H := K) (X := S) (Y := E) μ₁ ω ρS ρE hρK
-    (μ₁.real univ • Q) hQ hcompact havg i hi hintertwines hd j hj
+  with_reducible
+    exact denseRange_isotype_of_pettisAverage (H := K) (X := S) (Y := E) μ₁ ω ρS ρE hρK
+      (μ₁.real univ • Q) hQ hcompact havg i hi hintertwines hd j hj
 
+set_option linter.unusedSectionVars false in
 omit hQ hρ heq hcomm in
 /-- Paper: Lemma D.2.2.1(4), p. 795. An endomorphism continuous
 for the topology induced by a dense injection extends uniquely to the
@@ -615,19 +675,6 @@ theorem schwartzBruhat_dense_extension (hd : DenseRange i) (T : S →L[ℂ] S)
     intro x
     obtain ⟨f, rfl⟩ := e.surjective x
     exact (hU f).trans (hF f).symm
-
-omit hE hρ heq hi hcomm hQ in
-/-- A continuous linear functional evaluates a Pettis integral over the whole
-space as a scalar integral. -/
-private theorem pettisIntegral_univ_eval {X V : Type*} [MeasurableSpace X]
-    [AddCommGroup V] [Module ℂ V] [TopologicalSpace V]
-    {μ : Measure X} {F : X → V} {a : V}
-    (h : HasPettisIntegral (.positive (μ.restrict univ)) F a) (φ : StrongDual ℂ V) :
-    φ a = ∫ x, φ (F x) ∂μ := by
-  obtain ⟨_, he⟩ := h
-  have h := LinearMap.congr_fun he φ
-  change φ a = ∫ x, φ (F x) ∂(μ.restrict univ) at h
-  rwa [Measure.restrict_univ] at h
 
 omit hE hρ heq hi hcomm hQ in
 /-- Paper: Lemma D.2.2.1(4), p. 795. Operators that intertwine the projectors
@@ -697,33 +744,14 @@ theorem schwartzBruhatIsotype_extension_intertwines (hd : DenseRange i)
       _ = ρ (α (k : G)) (i (T f)) := hcomm (α (k : G)) (T f)
       _ = ρ (α (k : G)) (U (i f)) := congrArg (ρ (α (k : G))) (hU f).symm
   refine ⟨hUE, ?_⟩
-  let P' := schwartzBruhatIsotypicProjector m hm μ₁ χ
+  intro P'
   have : CompactSpace K := isCompact_iff_compactSpace.mp hm.isCompact_ker
   have : SeparatingDual ℂ E := locallyConvexSpace_separatingDual ℂ E
   have hmass : μ₁.real univ ≠ 0 := measureReal_univ_ne_zero
   have hi_average (ξ : PontryaginDual K) (B : E →L[ℂ] E)
       (hB : IsPettisIsotypicAverageOn μ₁ univ ρE ξ (μ₁.real univ • B)) (f : S) :
-      i (schwartzBruhatIsotypicProjector m hm μ₁ ξ f) = B (i f) := by
-    refine (exists_schwartzBruhatIsotypicProjector_average m hm μ₁ (hμ₁ := hμ₁) ξ).elim ?_
-    intro A hA
-    have hUnique := existsUnique_schwartzBruhatIsotypicProjector m hm μ₁ (hμ₁ := hμ₁) ξ
-    have hproj : A = schwartzBruhatIsotypicProjector m hm μ₁ ξ :=
-      hUnique.unique hA.1 (Classical.choose_spec hUnique.exists)
-    have havg : i ((μ₁.real univ • A) f) = (μ₁.real univ • B) (i f) := by
-      apply (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).2
-      intro φ
-      let F (k : K) : ℂ := φ (star (ξ k : ℂ) • ρE k (i f))
-      calc
-        φ (i ((μ₁.real univ • A) f)) =
-            ∫ k, φ (i (star (ξ k : ℂ) • ρS k f)) ∂μ₁ :=
-          pettisIntegral_univ_eval (hA.2 f) (φ.comp i)
-        _ = ∫ k, F k ∂μ₁ := integral_congr_ae (ae_of_all _ fun k ↦ by
-          refine congrArg φ ((i.map_smul (star (ξ k : ℂ)) (ρS k f)).trans ?_)
-          exact congrArg (fun v : E ↦ star (ξ k : ℂ) • v) (hcomm (k : G) f))
-        _ = φ ((μ₁.real univ • B) (i f)) := (pettisIntegral_univ_eval (hB (i f)) φ).symm
-    refine (congrArg (fun L : S →L[ℂ] S ↦ i (L f)) hproj.symm).trans ?_
-    exact smul_right_injective E hmass
-      ((i.map_smul_of_tower (μ₁.real univ) (A f)).symm.trans havg)
+      i (schwartzBruhatIsotypicProjector m hm μ₁ ξ f) = B (i f) :=
+    schwartzBruhatIsotypicProjector_intertwines m hm μ₁ ρ i hcomm ξ B hB f
   -- The restricted automorphism preserves Haar measure on the compact kernel.
   have hαker (k : K) : α (k : G) ∈ K :=
     (hα (k : G)).trans k.property
@@ -769,9 +797,187 @@ theorem schwartzBruhatIsotype_extension_intertwines (hd : DenseRange i)
       _ = Q' (U (i f)) := hUQ (i f)
       _ = Q' (i (T f)) := congrArg Q' (hU f)
       _ = i (P' (T f)) := (hi_average χ Q' hQ' (T f)).symm
-  exact existsUnique_isotype_quotient_maps P P' T Q Q' U i hTP hUQ hU
+  exact existsUnique_isotype_quotient_maps (X := S) (Y := E) P P' T Q Q' U i hTP hUQ hU
 
 end CoarserTopology
+
+section Transport
+
+variable {A B : Type*} [CommGroup A] [TopologicalSpace A]
+    [CommGroup B] [TopologicalSpace B]
+
+/-- A topological group isomorphism restricts to a subgroup and its image. -/
+private def continuousSubgroupMap (d : A ≃ₜ* B) (U : Subgroup A) :
+    U ≃ₜ* U.map d.toMulEquiv.toMonoidHom where
+  toMulEquiv := d.toMulEquiv.subgroupMap U
+  continuous_toFun := (d.continuous.comp continuous_subtype_val).subtype_mk _
+  continuous_invFun := (d.symm.continuous.comp continuous_subtype_val).subtype_mk _
+
+variable [IsTopologicalGroup A] [T2Space A] [LocallyCompactSpace A]
+    [IsTopologicalGroup B] [T2Space B] [LocallyCompactSpace B]
+
+/-- Transport of structural pairs preserves their open subgroups and good kernels. -/
+private def transportBruhatPair (d : A ≃ₜ* B) (a : BruhatStructuralPair A) :
+    BruhatStructuralPair B := by
+  let U := a.val.1
+  let N := OrderDual.ofDual a.val.2
+  let D := d.toMulEquiv.toMonoidHom
+  let φ := PontryaginDual.map (d.symm : B →ₜ* A)
+  let ψ := PontryaginDual.map (d : A →ₜ* B)
+  let δ : PontryaginDual A ≃ₜ* PontryaginDual B :=
+    { φ with
+      toFun := φ
+      invFun := ψ
+      left_inv := fun χ ↦ PontryaginDual.ext fun x ↦ by
+        change χ (d.symm (d x)) = χ x
+        rw [d.symm_apply_apply]
+      right_inv := fun χ ↦ PontryaginDual.ext fun x ↦ by
+        change χ (d (d.symm x)) = χ x
+        rw [d.apply_symm_apply]
+      continuous_invFun := ψ.continuous }
+  have hann : (lcaAnnihilator N).map δ.toMulEquiv.toMonoidHom = lcaAnnihilator (N.map D) := by
+    ext χ
+    rw [Subgroup.map_equiv_eq_comap_symm', Subgroup.mem_comap, mem_lcaAnnihilator_iff,
+      mem_lcaAnnihilator_iff]
+    constructor
+    · intro h x
+      obtain ⟨y, hy, hxy⟩ := x.property
+      calc
+        χ (x : B) = χ (D y) := (congrArg χ hxy).symm
+        _ = 1 := h ⟨y, hy⟩
+    · intro h x
+      exact h ⟨D x, Subgroup.mem_map_of_mem D x.property⟩
+  refine ⟨(U.map D, OrderDual.toDual (N.map D)), ?_, ?_, ⟨?_, ?_, ?_⟩, ?_⟩
+  · exact d.toHomeomorph.isOpenMap _ a.property.1
+  · exact isCompactlyGeneratedGroup_of_continuousMulEquiv (continuousSubgroupMap d U)
+      a.property.2.1
+  · exact d.toHomeomorph.isClosedMap _ a.property.2.2.1.1
+  · change IsOpen (lcaAnnihilator (N.map D) : Set (PontryaginDual B))
+    rw [← hann]
+    exact δ.toHomeomorph.isOpenMap _ a.property.2.2.1.2.1
+  · change IsCompactlyGeneratedGroup (lcaAnnihilator (N.map D))
+    rw [← hann]
+    exact isCompactlyGeneratedGroup_of_continuousMulEquiv
+      (continuousSubgroupMap δ (lcaAnnihilator N)) a.property.2.2.1.2.2
+  · exact Subgroup.map_mono a.property.2.2.2
+
+/-- Transport of pairs induces the corresponding isomorphism on their quotients. -/
+private def transportBruhatQuotient (d : A ≃ₜ* B) (a : BruhatStructuralPair A) :
+    a.quotient ≃ₜ* (transportBruhatPair d a).quotient := by
+  let b := transportBruhatPair d a
+  let dU : a.val.1 ≃ₜ* b.val.1 := continuousSubgroupMap d a.val.1
+  let N := (OrderDual.ofDual a.val.2).comap a.val.1.subtype
+  let M := (OrderDual.ofDual b.val.2).comap b.val.1.subtype
+  have hNM : N.map dU.toMulEquiv.toMonoidHom = M := by
+    ext y
+    rw [Subgroup.map_equiv_eq_comap_symm', Subgroup.mem_comap]
+    change d.symm (y : B) ∈ OrderDual.ofDual a.val.2 ↔
+      (y : B) ∈ (OrderDual.ofDual a.val.2).map d.toMulEquiv.toMonoidHom
+    exact Subgroup.mem_map_equiv.symm
+  let q := QuotientGroup.congr N M dU.toMulEquiv hNM
+  exact
+    { toMulEquiv := q
+      continuous_toFun := isQuotientMap_quotient_mk'.continuous_iff.mpr
+        (QuotientGroup.continuous_mk.comp dU.continuous)
+      continuous_invFun := isQuotientMap_quotient_mk'.continuous_iff.mpr
+        (QuotientGroup.continuous_mk.comp dU.symm.continuous) }
+
+/-- The transported presentation uses the same elementary coordinates. -/
+private abbrev transportBruhatPresentation (d : A ≃ₜ* B) (a : BruhatStructuralPair A)
+    (e : ElementaryLCAPresentation a.quotient) :
+    ElementaryLCAPresentation (transportBruhatPair d a).quotient :=
+  { e with equiv := (transportBruhatQuotient d a).symm.trans e.equiv }
+
+/-- Pushing a realized stage through a group isomorphism just changes its quotient
+presentation, leaving its elementary Schwartz space unchanged. -/
+private theorem transportBruhatStage (d : A ≃ₜ* B) (a : BruhatStructuralPair A)
+    (e : ElementaryLCAPresentation a.quotient) :
+    (LinearMap.funLeft ℂ ℂ d.symm).comp (schwartzBruhatStageRealization a e) =
+      schwartzBruhatStageRealization (transportBruhatPair d a) (transportBruhatPresentation d a e) := by
+  classical
+  let b := transportBruhatPair d a
+  let q := transportBruhatQuotient d a
+  let e' := transportBruhatPresentation d a e
+  refine LinearMap.ext fun s ↦ funext (d.surjective.forall.mpr ?_)
+  intro x
+  have hmem : d x ∈ b.val.1 ↔ x ∈ a.val.1 := by
+    change d x ∈ a.val.1.map d.toMulEquiv.toMonoidHom ↔ _
+    exact Subgroup.mem_map_iff_mem d.injective
+  change schwartzBruhatStageRealization a e s (d.symm (d x)) =
+    schwartzBruhatStageRealization b e' s (d x)
+  rw [d.symm_apply_apply, schwartzBruhatStageRealization_apply, schwartzBruhatStageRealization_apply]
+  by_cases hx : x ∈ a.val.1
+  · rw [dite_eq_left hx, dite_eq_left (hmem.mpr hx)]
+    have hq : q (QuotientGroup.mk ⟨x, hx⟩) = QuotientGroup.mk ⟨d x, hmem.mpr hx⟩ := rfl
+    change s (Multiplicative.toAdd (e.equiv (QuotientGroup.mk ⟨x, hx⟩))) =
+      s (Multiplicative.toAdd (e.equiv (q.symm (QuotientGroup.mk ⟨d x, hmem.mpr hx⟩))))
+    rw [← hq, q.symm_apply_apply]
+  · rw [dite_eq_right hx, dite_eq_right (hx ∘ hmem.mp)]
+
+set_option maxHeartbeats 400000 in
+/-- Pushing a function through a group isomorphism is continuous for the
+Schwartz–Bruhat topology because it carries each stage into a stage. -/
+private theorem schwartzBruhat_transport (d : A ≃ₜ* B) :
+    ∃ T : SchwartzBruhat A →L[ℂ] SchwartzBruhat B,
+      ∀ (f : SchwartzBruhat A) (y : B), T f y = f (d.symm y) := by
+  let L := LinearMap.funLeft ℂ ℂ d.symm
+  have hL : (schwartzBruhatSubmodule A).map L ≤ schwartzBruhatSubmodule B := by
+    simp only [schwartzBruhatSubmodule, Submodule.map_iSup, iSup_le_iff]
+    intro a e
+    rintro w ⟨_, ⟨s, rfl⟩, rfl⟩
+    exact Submodule.mem_iSup_of_mem (transportBruhatPair d a)
+      (Submodule.mem_iSup_of_mem (transportBruhatPresentation d a e)
+        ⟨s, (LinearMap.congr_fun (transportBruhatStage d a e) s).symm⟩)
+  let T : SchwartzBruhat A →ₗ[ℂ] SchwartzBruhat B :=
+    (L.comp (schwartzBruhatSubmodule A).subtype).codRestrict (schwartzBruhatSubmodule B)
+      (fun f ↦ hL ⟨f, f.property, rfl⟩)
+  refine ⟨⟨T, ?_⟩, fun _ _ ↦ rfl⟩
+  let pB : {p : Seminorm ℂ (schwartzBruhatSubmodule B) //
+      ∀ (b : BruhatStructuralPair B) (e : ElementaryLCAPresentation b.quotient),
+        Continuous (p ∘ schwartzBruhatStageInclusion b e)} →
+          Seminorm ℂ (schwartzBruhatSubmodule B) := Subtype.val
+  refine (withGeneratingSeminorms_spec _ pB).continuous_of_continuous_comp T fun p ↦ ?_
+  let q := p.val.comp T
+  have hq (a : BruhatStructuralPair A) (e : ElementaryLCAPresentation a.quotient) :
+      Continuous (q ∘ schwartzBruhatStageInclusion a e) := by
+    let b := transportBruhatPair d a
+    let e' := transportBruhatPresentation d a e
+    have heq (s : SchwartzBruhatStage e) :
+        schwartzBruhatStageInclusion b e' s = T (schwartzBruhatStageInclusion a e s) :=
+      Subtype.ext (LinearMap.congr_fun (transportBruhatStage d a e) s).symm
+    exact (p.property b e').congr fun s ↦ congrArg (fun f ↦ p.val f) (heq s)
+  let i : {p : Seminorm ℂ (schwartzBruhatSubmodule A) //
+      ∀ (a : BruhatStructuralPair A) (e : ElementaryLCAPresentation a.quotient),
+        Continuous (p ∘ schwartzBruhatStageInclusion a e)} := ⟨q, hq⟩
+  exact (withGeneratingSeminorms_spec _ Subtype.val).continuous_seminorm i
+
+/-- A topological group isomorphism transports Schwartz–Bruhat functions by
+precomposition with its inverse. -/
+private theorem schwartzBruhat_congr (d : A ≃ₜ* B) :
+    ∃ T : SchwartzBruhat A ≃L[ℂ] SchwartzBruhat B,
+      ∀ (f : SchwartzBruhat A) (x : A), T f (d x) = f x := by
+  let T := (schwartzBruhat_transport d).choose
+  have hT := (schwartzBruhat_transport d).choose_spec
+  let U := (schwartzBruhat_transport d.symm).choose
+  have hU := (schwartzBruhat_transport d.symm).choose_spec
+  let E : SchwartzBruhat A ≃L[ℂ] SchwartzBruhat B :=
+    { toLinearMap := T.toLinearMap
+      invFun := U
+      left_inv := fun f ↦ Subtype.ext (funext fun x ↦ calc
+        U (T f) x = T f (d x) := hU (T f) x
+        _ = f (d.symm (d x)) := hT f (d x)
+        _ = f x := congrArg (fun a ↦ f a) (d.symm_apply_apply x))
+      right_inv := fun f ↦ Subtype.ext (funext fun y ↦ calc
+        T (U f) y = U f (d.symm y) := hT (U f) y
+        _ = f (d (d.symm y)) := hU f (d.symm y)
+        _ = f y := congrArg (fun b ↦ f b) (d.apply_symm_apply y))
+      continuous_toFun := T.continuous
+      continuous_invFun := U.continuous }
+  refine ⟨E, fun f x ↦ ?_⟩
+  change T f (d x) = f x
+  exact (hT f (d x)).trans (congrArg (fun a ↦ f a) (d.symm_apply_apply x))
+
+end Transport
 
 section SplitModule
 
@@ -781,6 +987,80 @@ local instance {X : Type*} [AddCommGroup X] [Module ℂ X] {ι : Type*}
     (p : SeminormFamily ℂ X ι) : ContinuousSMul ℂ (WithGeneratingSeminorms X p) :=
   (withGeneratingSeminorms_spec X p).continuousSMul
 
+section TensorTranslation
+
+variable {X Y G : Type*}
+    [CommGroup X] [TopologicalSpace X] [IsTopologicalGroup X] [T2Space X]
+    [LocallyCompactSpace X] [SecondCountableTopology X]
+    [CommGroup Y] [TopologicalSpace Y] [IsTopologicalGroup Y] [T2Space Y]
+    [LocallyCompactSpace Y] [SecondCountableTopology Y]
+    [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] [SecondCountableTopology G]
+
+local notation "HS" => InductiveTensor (SchwartzBruhat X) (SchwartzBruhat Y)
+local notation "S" => SchwartzBruhat G
+
+/-- Point evaluations separate Schwartz–Bruhat functions. -/
+private theorem schwartzBruhat_eval_t2 {A : Type*} [CommGroup A] [TopologicalSpace A] :
+    T2Space (SchwartzBruhat A) :=
+  T2Space.of_injective_continuous
+    (f := fun f : SchwartzBruhat A ↦ (f : A → ℂ)) (fun _ _ h ↦ Subtype.ext h)
+    (continuous_pi continuous_schwartzBruhat_eval)
+
+/-- If a tensor isomorphism multiplies evaluations in product coordinates, it
+intertwines left translation on the completion. -/
+private theorem schwartzBruhat_tensor_intertwines
+    (d : X × Y ≃ₜ* G) (e : Completion HS ≃L[ℂ] S)
+    (he : ∀ (f : SchwartzBruhat X) (h : SchwartzBruhat Y) (k : X) (t : Y),
+        e (Completion.coe' (α := HS) (f ⊗ₜ[ℂ] h)) (d (k, t)) = f k * h t)
+    (k : X) (t : Y) (z : Completion HS) :
+    e (Completion.map (inductiveTensorMap
+      ((schwartzBruhatTranslationAction (G := X)) k).toLinearMap
+      ((schwartzBruhatTranslationAction (G := Y)) t).toLinearMap : HS → HS) z) =
+    schwartzBruhatTranslate (d (k, t)) (e z) := by
+  let A := schwartzBruhatTranslationAction (G := X) k
+  let B := schwartzBruhatTranslationAction (G := Y) t
+  let C := schwartzBruhatTranslationAction (G := G) (d (k, t))
+  let M : HS →ₗ[ℂ] HS := inductiveTensorMap A.toLinearMap B.toLinearMap
+  let j : HS →L[ℂ] Completion HS := Completion.toComplL
+  let F : HS →ₗ[ℂ] S := e.toLinearEquiv.toLinearMap.comp j.toLinearMap
+  have hlin : F.comp M = C.toLinearMap.comp F := by
+    refine TensorProduct.ext' fun f h ↦ ?_
+    refine Subtype.ext (funext (d.surjective.forall.mpr ?_))
+    rintro ⟨a, b⟩
+    have hshift : (d (k, t))⁻¹ * d (a, b) = d (k⁻¹ * a, t⁻¹ * b) :=
+      ((map_mul d (k, t)⁻¹ (a, b)).trans
+        (congrArg (· * d (a, b)) (map_inv d (k, t)))).symm
+    have htensor : M (f ⊗ₜ[ℂ] h) = A f ⊗ₜ[ℂ] B h :=
+      TensorProduct.map_tmul A.toLinearMap B.toLinearMap f h
+    calc
+      e (j (M (f ⊗ₜ[ℂ] h))) (d (a, b)) =
+          e (j (A f ⊗ₜ[ℂ] B h)) (d (a, b)) :=
+        congrArg (fun w : HS ↦ e (j w) (d (a, b))) htensor
+      _ = A f a * B h b := he (A f) (B h) a b
+      _ = f (k⁻¹ * a) * h (t⁻¹ * b) :=
+        congrArg₂ (· * ·) (schwartzBruhatTranslationAction_apply k a f)
+          (schwartzBruhatTranslationAction_apply t b h)
+      _ = e (j (f ⊗ₜ[ℂ] h)) (d (k⁻¹ * a, t⁻¹ * b)) := (he f h _ _).symm
+      _ = e (j (f ⊗ₜ[ℂ] h)) ((d (k, t))⁻¹ * d (a, b)) :=
+        congrArg (fun x : G ↦ e (j (f ⊗ₜ[ℂ] h)) x) hshift.symm
+      _ = C (e (j (f ⊗ₜ[ℂ] h))) (d (a, b)) :=
+        (schwartzBruhatTranslationAction_apply _ _ _).symm
+  let : T2Space (SchwartzBruhat X) := schwartzBruhat_eval_t2
+  let : T2Space (SchwartzBruhat Y) := schwartzBruhat_eval_t2
+  let : T2Space S := schwartzBruhat_eval_t2
+  have hMcont : Continuous M := inductiveTensorMap_continuous A B
+  have hM : UniformContinuous M := uniformContinuous_addMonoidHom_of_continuous hMcont
+  have hcomp : ∀ w : Completion HS, e (Completion.map M w) = C (e w) :=
+    Completion.ext' (e.continuous.comp Completion.continuous_map)
+      (C.continuous.comp e.continuous) fun w ↦
+        (congrArg (fun y : Completion HS ↦ e y) (Completion.map_coe hM w)).trans
+          (LinearMap.congr_fun hlin w)
+  refine (hcomp z).trans (Subtype.ext (funext fun x ↦ ?_))
+  exact schwartzBruhatTranslationAction_apply (d (k, t)) x (e z)
+
+end TensorTranslation
+
 variable {G : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
   [T2Space G] [LocallyCompactSpace G] [SecondCountableTopology G]
   (m : G →ₜ* ℝ≥0ˣ) (hm : IsModulation m)
@@ -789,6 +1069,7 @@ local notation "K" => m.toMonoidHom.ker
 local notation "Γ" => m.toMonoidHom.range
 local notation "S" => SchwartzBruhat G
 local notation "SΓ" => SchwartzBruhat Γ
+local notation "SK" => SchwartzBruhat K
 local notation "HS" => InductiveTensor (SchwartzBruhat K) SΓ
 
 include hm
@@ -811,7 +1092,323 @@ theorem schwartzBruhat_modulation_tensor (τ : Γ →ₜ* G)
         e (Completion.map (inductiveTensorMap
           ((schwartzBruhatTranslationAction (G := K)) k).toLinearMap
           ((schwartzBruhatTranslationAction (G := Γ)) t).toLinearMap : HS → HS) z) =
-        schwartzBruhatTranslate ((k : G) * τ t) (e z) := by sorry
+        schwartzBruhatTranslate ((k : G) * τ t) (e z) := by
+  let : CompactSpace K := isCompact_iff_compactSpace.mp hm.isCompact_ker
+  let : SecondCountableTopology K := TopologicalSpace.Subtype.secondCountableTopology (K : Set G)
+  let : SecondCountableTopology ℝ≥0ˣ :=
+    (Units.isEmbedding_val₀ (G₀ := ℝ≥0)).secondCountableTopology
+  let : SecondCountableTopology Γ := TopologicalSpace.Subtype.secondCountableTopology (Γ : Set ℝ≥0ˣ)
+  let : LocallyCompactSpace Γ := hm.isClosed_range.locallyCompactSpace
+  let d := (hm.exists_prod_equiv τ hτ).choose
+  have hd := (hm.exists_prod_equiv τ hτ).choose_spec
+  let P := (schwartzBruhat_kernel_equiv (G := K) (H := Γ)).choose
+  have hP := (schwartzBruhat_kernel_equiv (G := K) (H := Γ)).choose_spec
+  let T := (schwartzBruhat_congr d).choose
+  have hT := (schwartzBruhat_congr d).choose_spec
+  let e := P.trans T
+  have he (f : SchwartzBruhat K) (h : SΓ) (k : K) (t : Γ) :
+      e (Completion.coe' (α := HS) (f ⊗ₜ[ℂ] h)) (d (k, t)) = f k * h t :=
+    (hT _ (k, t)).trans (hP f h k t)
+  refine ⟨e, fun f h k t ↦ ?_, fun k t z ↦ ?_⟩
+  · exact (congrArg (fun x : G ↦ e (Completion.coe' (α := HS) (f ⊗ₜ[ℂ] h)) x)
+      (hd k t).symm).trans (he f h k t)
+  · exact (schwartzBruhat_tensor_intertwines d e he k t z).trans
+      (congrArg (fun g : G ↦ schwartzBruhatTranslate g (e z)) (hd k t))
+
+omit hm in
+/-- The constant function one is a Schwartz–Bruhat function on a compact group. -/
+private theorem compact_schwartzBruhat_one {H : Type*} [CommGroup H] [TopologicalSpace H]
+    [IsTopologicalGroup H] [T2Space H] [LocallyCompactSpace H] [CompactSpace H] :
+    ∃ c : SchwartzBruhat H, ∀ k, c k = 1 := by
+  have hcompact : IsCompact ((⊤ : Subgroup H) : Set H) := isCompact_univ
+  have : CompactSpace (⊤ : Subgroup H) := isCompact_iff_compactSpace.mp hcompact
+  have : CompactSpace (lcaAnnihilator (⊤ : Subgroup H)) :=
+    isCompact_iff_compactSpace.mp (isCompact_lcaAnnihilator ⊤ isOpen_univ)
+  let a : BruhatStructuralPair H :=
+    ⟨(⊤, OrderDual.toDual ⊤), isOpen_univ,
+      isCompactlyGeneratedGroup_of_compact (G := (⊤ : Subgroup H)),
+      ⟨isClosed_univ, isOpen_lcaAnnihilator ⊤ hcompact,
+        isCompactlyGeneratedGroup_of_compact (G := lcaAnnihilator (⊤ : Subgroup H))⟩, le_rfl⟩
+  have : Subsingleton a.quotient := by
+    change Subsingleton ((⊤ : Subgroup H) ⧸ (⊤ : Subgroup (⊤ : Subgroup H)))
+    exact QuotientGroup.subsingleton_quotient_top
+  let A := Multiplicative (ElementaryLieGroup 0 0 0 PUnit)
+  let : Subsingleton A := inferInstanceAs (Subsingleton (ElementaryLieGroup 0 0 0 PUnit))
+  let f : a.quotient →* A := 1
+  let e₀ : a.quotient ≃* A := MulEquiv.ofBijective f
+    ⟨fun _ _ _ ↦ Subsingleton.elim _ _, fun y ↦ ⟨1, Subsingleton.elim _ y⟩⟩
+  let e : ElementaryLCAPresentation a.quotient :=
+    { realDim := 0
+      torusDim := 0
+      latticeRank := 0
+      finiteFactor := PUnit
+      equiv := { e₀ with
+        continuous_toFun := (continuous_const (y := (1 : A))).congr fun _ ↦ Subsingleton.elim _ _
+        continuous_invFun := (continuous_const (y := (1 : a.quotient))).congr
+          fun _ ↦ Subsingleton.elim _ _ } }
+  let s : SchwartzBruhatStage e := ⟨fun _ ↦ 1, by
+    refine ⟨fun _ _ ↦ contDiff_const, ?_⟩
+    intro idx
+    have hi : idx = (0, 0, 0, 0) := Subsingleton.elim _ _
+    subst idx
+    simp [elementarySchwartzBound_zero]⟩
+  refine ⟨schwartzBruhatStageInclusion a e s, fun k ↦ ?_⟩
+  rw [schwartzBruhatStageInclusion_apply, schwartzBruhatStageRealization_apply,
+    dite_eq_left (show k ∈ a.val.1 from Subgroup.mem_top k)]
+
+/-- Restriction to the splitting section sends Schwartz–Bruhat functions to
+Schwartz–Bruhat functions on the image of the module and is continuous linear. -/
+theorem schwartzBruhat_modulation_section_restriction (τ : Γ →ₜ* G)
+    (hτ : ∀ t, m (τ t) = (t : ℝ≥0ˣ)) :
+    ∃ r : S →L[ℂ] SΓ, ∀ (f : S) (t : Γ), r f t = f (τ t) := by sorry
+
+set_option linter.unusedSectionVars false in
+/-- The tensor isomorphism gives pullback of profiles and restriction to the section. -/
+private theorem schwartzBruhat_modulation_profile_maps (τ : Γ →ₜ* G)
+    (hτ : ∀ t, m (τ t) = (t : ℝ≥0ˣ)) :
+    ∃ (j : SΓ →L[ℂ] S) (r : S →L[ℂ] SΓ),
+      (∀ (f : SΓ) (k : K) (t : Γ), j f ((k : G) * τ t) = f t) ∧
+      ∀ (f : S) (t : Γ), r f t = f (τ t) := by
+  let hcompact : CompactSpace K := isCompact_iff_compactSpace.mp hm.isCompact_ker
+  let : SecondCountableTopology K := TopologicalSpace.Subtype.secondCountableTopology (K : Set G)
+  let : SecondCountableTopology ℝ≥0ˣ :=
+    (Units.isEmbedding_val₀ (G₀ := ℝ≥0)).secondCountableTopology
+  let : SecondCountableTopology Γ := TopologicalSpace.Subtype.secondCountableTopology (Γ : Set ℝ≥0ˣ)
+  let : LocallyCompactSpace Γ := hm.isClosed_range.locallyCompactSpace
+  let : T2Space SK := schwartzBruhat_t2
+  let : T2Space SΓ := schwartzBruhat_t2
+  let hloc : LocallyCompactSpace K := hm.isCompact_ker.isClosed.locallyCompactSpace
+  have hc' : ∃ c : SK, ∀ k : K, c k = 1 := by
+    with_reducible
+      exact @compact_schwartzBruhat_one K inferInstance inferInstance inferInstance inferInstance
+        hloc hcompact
+  obtain ⟨c, hc⟩ := hc'
+  have hTensor := @schwartzBruhat_modulation_tensor G ‹CommGroup G› ‹TopologicalSpace G›
+    ‹IsTopologicalGroup G› ‹T2Space G› ‹LocallyCompactSpace G› ‹SecondCountableTopology G› m hm τ hτ
+  rcases hTensor with ⟨e, he, _⟩
+  let J : SΓ →L[ℂ] HS :=
+    ⟨TensorProduct.mk ℂ SK SΓ c, by
+      exact ((continuous_inductiveTensor_iff (LinearMap.id : HS →ₗ[ℂ] HS)).1 continuous_id).1 c⟩
+  let emb : HS →L[ℂ] Completion HS := by
+    with_reducible exact @Completion.toComplL HS ℂ _ _ _ _ _ _
+  let j : SΓ →L[ℂ] S := by
+    with_reducible exact e.toContinuousLinearMap.comp (emb.comp J)
+  have hRestriction := @schwartzBruhat_modulation_section_restriction G
+    ‹CommGroup G› ‹TopologicalSpace G› ‹IsTopologicalGroup G› ‹T2Space G›
+    ‹LocallyCompactSpace G› ‹SecondCountableTopology G› m hm τ hτ
+  rcases hRestriction with ⟨r, hr⟩
+  refine ⟨j, r, ?_, hr⟩
+  · intro f k t
+    have hJ : J f = c ⊗ₜ[ℂ] f := rfl
+    with_reducible
+      simpa only [j, ContinuousLinearMap.comp_apply, ContinuousLinearEquiv.coe_coe, emb,
+        Completion.coe_toComplL, hJ, hc k, one_mul] using he c f k t
+
+omit hm in
+/-- Profiles that parametrize the projection of a dense subspace give a dense
+embedding into the complete kernel quotient. -/
+private theorem isotype_completion_of_projected_profiles {X Y E : Type*}
+    [AddCommGroup X] [Module ℂ X] [TopologicalSpace X]
+    [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y]
+    [AddCommGroup E] [Module ℂ E] [UniformSpace E] [IsUniformAddGroup E]
+    [T2Space E] [CompleteSpace E] (Q : E →L[ℂ] E) (hQQ : ∀ u, Q (Q u) = Q u)
+    (i : Y →L[ℂ] E) (hi : Injective i) (hd : DenseRange i)
+    (j w : X →L[ℂ] Y) (hw : Injective w) (hFix : ∀ f, Q (i (w f)) = i (w f))
+    (hSurj : ∀ f : Y, ∃ g : X, i (w g) = Q (i f))
+    (M N : Y →L[ℂ] Y)
+    (hM : @Continuous Y E (TopologicalSpace.induced i inferInstance) _ (fun f ↦ i (M f)))
+    (hN : @Continuous Y E (TopologicalSpace.induced i inferInstance) _ (fun f ↦ i (N f)))
+    (hW : ∀ f, M (j f) = w f) (hJ : ∀ f, N (w f) = j f) :
+    let q := Q.ker.mkQL.comp (i.comp w)
+    Injective q ∧ DenseRange q ∧
+      TopologicalSpace.induced (fun f ↦ i (j f)) inferInstance =
+        TopologicalSpace.induced q inferInstance ∧
+      @CompleteSpace (E ⧸ Q.ker) (IsTopologicalAddGroup.rightUniformSpace _) := by
+  have hInduced (L : Y →L[ℂ] Y)
+      (hL : @Continuous Y E (TopologicalSpace.induced i inferInstance) _
+        (fun f ↦ i (L f))) (l : X →L[ℂ] Y) :
+      TopologicalSpace.induced (fun f ↦ i (l f)) inferInstance ≤
+        TopologicalSpace.induced (fun f ↦ i (L (l f))) inferInstance := by
+    have hle : TopologicalSpace.induced i (inferInstance : TopologicalSpace E) ≤
+        TopologicalSpace.induced (fun f ↦ i (L f)) inferInstance :=
+      @Continuous.le_induced Y E (TopologicalSpace.induced i inferInstance) _
+        (fun f ↦ i (L f)) hL
+    calc
+      _ = TopologicalSpace.induced l (TopologicalSpace.induced i inferInstance) :=
+        induced_compose.symm
+      _ ≤ TopologicalSpace.induced l
+          (TopologicalSpace.induced (fun f ↦ i (L f)) inferInstance) :=
+        induced_mono hle
+      _ = _ := induced_compose
+  have hTop : TopologicalSpace.induced (fun f ↦ i (j f)) inferInstance =
+      TopologicalSpace.induced (fun f ↦ i (w f)) inferInstance := by
+    apply le_antisymm
+    · simpa only [hW] using hInduced M hM j
+    · simpa only [hJ] using hInduced N hN w
+  let q := Q.ker.mkQL.comp (i.comp w)
+  let F : (E ⧸ Q.ker) →L[ℂ] E := Q.ker.liftQL Q le_rfl
+  have hleft : LeftInverse Q.ker.mkQL F := by
+    intro z
+    obtain ⟨u, rfl⟩ := Q.ker.mkQ_surjective z
+    change Q.ker.mkQ (Q u) = Q.ker.mkQ u
+    apply (Submodule.Quotient.eq Q.ker).2
+    change Q (Q u - u) = 0
+    rw [map_sub, hQQ, sub_self]
+  have hF : IsInducing F :=
+    (hleft.isEmbedding Q.ker.mkQL.continuous F.continuous).isInducing
+  have hFq (f : X) : F (q f) = i (w f) := hFix f
+  change Injective q ∧ DenseRange q ∧ _ ∧ _
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro f g hfg
+    exact hw (hi ((hFq f).symm.trans ((congrArg F hfg).trans (hFq g))))
+  · have hdq : DenseRange (Q.ker.mkQL ∘ i) :=
+      Q.ker.mkQ_surjective.denseRange.comp hd Q.ker.mkQL.continuous
+    refine Dense.mono ?_ hdq
+    rintro _ ⟨f, rfl⟩
+    obtain ⟨g, hg⟩ := hSurj f
+    refine ⟨g, ?_⟩
+    change Q.ker.mkQL (i (w g)) = Q.ker.mkQL (i f)
+    rw [hg]
+    exact hleft (Q.ker.mkQ (i f))
+  · calc
+      _ = TopologicalSpace.induced (fun f ↦ i (w f)) inferInstance := hTop
+      _ = TopologicalSpace.induced ((F : (E ⧸ Q.ker) → E) ∘ q) inferInstance :=
+        congrArg (fun g : X → E ↦ TopologicalSpace.induced g inferInstance) (funext hFq).symm
+      _ = _ := induced_compose.symm.trans
+        (congrArg (TopologicalSpace.induced (q : X → E ⧸ Q.ker)) hF.eq_induced.symm)
+  · let : UniformSpace (E ⧸ Q.ker) := IsTopologicalAddGroup.rightUniformSpace _
+    have : IsUniformAddGroup (E ⧸ Q.ker) := isUniformAddGroup_of_addCommGroup
+    apply (completeSpace_iff_isComplete_range
+      (AddMonoidHom.isUniformInducing_of_isInducing (f := F) hF)).2
+    have hRange : range F = {u | Q u = u} := by
+      ext u
+      constructor
+      · rintro ⟨z, rfl⟩
+        obtain ⟨v, rfl⟩ := Q.ker.mkQ_surjective z
+        exact hQQ v
+      · intro hu
+        exact ⟨Q.ker.mkQ u, hu⟩
+    rw [hRange]
+    exact (isClosed_eq Q.continuous continuous_id).isComplete
+
+
+omit hm in
+set_option linter.unusedSectionVars false in
+/-- The weighted profile functions are precisely the isotypic Schwartz–Bruhat functions. -/
+private theorem schwartzBruhat_modulation_weighted_profiles
+    (τ : Γ →ₜ* G) (ω : PontryaginDual K)
+    (e : (K × Γ) ≃ₜ* G) (he : ∀ (k : K) (t : Γ), e (k, t) = (k : G) * τ t)
+    (w : SΓ →L[ℂ] S) (r : S →L[ℂ] SΓ)
+    (hw : ∀ (f : SΓ) (k : K) (t : Γ), w f ((k : G) * τ t) = star (ω k : ℂ) * f t)
+    (hr : ∀ (f : S) (t : Γ), r f t = f (τ t)) :
+    (∀ f : SΓ, w f ∈ actionIsotype
+      ((schwartzBruhatTranslationAction (G := G)).comp (Subgroup.subtype K)) ω) ∧
+      (∀ f : S, f ∈ actionIsotype
+        ((schwartzBruhatTranslationAction (G := G)).comp (Subgroup.subtype K)) ω →
+        w (r f) = f) := by
+  let ρS := (schwartzBruhatTranslationAction (G := G)).comp (Subgroup.subtype K)
+  have hCoordinates (x : G) : ∃ (k : K) (t : Γ), x = (k : G) * τ t := by
+    have hx := e.surjective x
+    rcases hx with ⟨⟨k, t⟩, h⟩
+    exact ⟨k, t, h.symm.trans (he k t)⟩
+  have hSmul (c : ℂ) (f : S) (x : G) : (c • f : S) x = c * f x := rfl
+  have hAction (k : K) (f : S) :
+      ρS k f = schwartzBruhatTranslationAction (G := G) (k : G) f := rfl
+  have hCharacter (l k : K) :
+      star (ω (l⁻¹ * k) : ℂ) = (ω l : ℂ) * star (ω k : ℂ) := by
+    calc
+      _ = (ω ((l⁻¹ * k)⁻¹) : ℂ) := by rw [map_inv, Circle.coe_inv_eq_conj, starRingEnd_apply]
+      _ = _ := by
+        rw [mul_inv_rev, inv_inv, map_mul, Circle.coe_mul, map_inv,
+          Circle.coe_inv_eq_conj, starRingEnd_apply, mul_comm]
+  have hwMem (f : SΓ) : w f ∈ actionIsotype ρS ω := by
+    apply (mem_actionIsotype ρS ω (w f)).2
+    intro l
+    refine Subtype.ext (funext fun x ↦ ?_)
+    have hx := hCoordinates x
+    rcases hx with ⟨k, t, hx⟩
+    have hShift : (l : G)⁻¹ * x = ((l⁻¹ * k : K) : G) * τ t := by
+      rw [hx, Subgroup.coe_mul, Subgroup.coe_inv, mul_assoc]
+    have hEval : w f ((l : G)⁻¹ * x) = (ω l : ℂ) * w f x := calc
+      _ = w f (((l⁻¹ * k : K) : G) * τ t) := congrArg (fun u : G ↦ w f u) hShift
+      _ = star (ω (l⁻¹ * k) : ℂ) * f t := hw f (l⁻¹ * k) t
+      _ = (ω l : ℂ) * (star (ω k : ℂ) * f t) := by rw [hCharacter, mul_assoc]
+      _ = _ := congrArg ((ω l : ℂ) * ·) ((congrArg (fun u : G ↦ w f u) hx).trans (hw f k t)).symm
+    have hTranslate := schwartzBruhatTranslationAction_apply (G := G) (l : G) x (w f)
+    exact (congrArg (fun g : S ↦ g x) (hAction l (w f))).trans
+      (hTranslate.trans (hEval.trans (hSmul (ω l : ℂ) (w f) x).symm))
+  have hwSurj (f : S) (hf : f ∈ actionIsotype ρS ω) : w (r f) = f := by
+    refine Subtype.ext (funext fun x ↦ ?_)
+    have hx := hCoordinates x
+    rcases hx with ⟨k, t, hx⟩
+    have hIso := (mem_actionIsotype ρS ω f).1 hf k⁻¹
+    have h := congrArg (fun g : S ↦ g (τ t)) ((hAction k⁻¹ f).symm.trans hIso)
+    have hTranslate := schwartzBruhatTranslationAction_apply (G := G) (↑(k⁻¹) : G) (τ t) f
+    have hEval := hTranslate.symm.trans (h.trans (hSmul (ω k⁻¹ : ℂ) f (τ t)))
+    rw [Subgroup.coe_inv, inv_inv, map_inv, Circle.coe_inv_eq_conj, starRingEnd_apply] at hEval
+    with_reducible
+      exact (congrArg (fun u : G ↦ w (r f) u) hx).trans
+        ((hw (r f) k t).trans ((congrArg (star (ω k : ℂ) * ·) (hr f t)).trans
+          (hEval.symm.trans (congrArg (fun u : G ↦ f u) hx).symm)))
+  exact ⟨hwMem, hwSurj⟩
+
+/-- The source projector has the normalized Pettis formula and takes values in the isotype. -/
+private theorem schwartzBruhat_modulation_source_projector
+    [MeasurableSpace G] [BorelSpace G] (μ₁ : Measure K) [hμ₁ : μ₁.IsHaarMeasure]
+    (ω : PontryaginDual K) :
+    let ρS := (schwartzBruhatTranslationAction (G := G)).comp (Subgroup.subtype K)
+    let P := schwartzBruhatIsotypicProjector m hm μ₁ ω
+    IsPettisIsotypicAverageOn μ₁ univ ρS ω (μ₁.real univ • P) ∧
+      (∀ f : S, P f ∈ actionIsotype ρS ω) ∧
+      (∀ f : S, f ∈ actionIsotype ρS ω → P f = f) := by
+  let ρS := (schwartzBruhatTranslationAction (G := G)).comp (Subgroup.subtype K)
+  let P := schwartzBruhatIsotypicProjector m hm μ₁ ω
+  have hSourceQuotient := @schwartzBruhatIsotypicProjector_quotient_equiv G
+    ‹CommGroup G› ‹TopologicalSpace G› ‹IsTopologicalGroup G› ‹T2Space G›
+    ‹LocallyCompactSpace G› ‹SecondCountableTopology G› ‹MeasurableSpace G› ‹BorelSpace G›
+    m hm μ₁ hμ₁ ω
+  rcases hSourceQuotient with ⟨p, hp⟩
+  have hPmem (f : S) : P f ∈ actionIsotype ρS ω := by
+    let z : actionIsotype ρS ω := p (P.ker.mkQ f)
+    have hz : (z : S) = P f := hp f
+    exact Eq.mp (congrArg (fun u : S ↦ u ∈ actionIsotype ρS ω) hz) z.property
+  have hSourceAverage := @exists_schwartzBruhatIsotypicProjector_average G
+    ‹CommGroup G› ‹TopologicalSpace G› ‹IsTopologicalGroup G› ‹T2Space G›
+    ‹LocallyCompactSpace G› ‹SecondCountableTopology G› ‹MeasurableSpace G› ‹BorelSpace G›
+    m hm μ₁ hμ₁ ω
+  rcases hSourceAverage with ⟨P', hP', hPavg'⟩
+  have hPavg : IsPettisIsotypicAverageOn μ₁ univ ρS ω (μ₁.real univ • P) := by
+    have hUnique := existsUnique_schwartzBruhatIsotypicProjector m hm μ₁ ω
+    have hP'P : P' = P := hUnique.unique hP' (Classical.choose_spec hUnique.exists)
+    exact hP'P ▸ hPavg'
+  have hPfix := @schwartzBruhatIsotypicProjector_apply_isotype G
+    ‹CommGroup G› ‹TopologicalSpace G› ‹IsTopologicalGroup G› ‹T2Space G›
+    ‹LocallyCompactSpace G› ‹SecondCountableTopology G› ‹MeasurableSpace G› ‹BorelSpace G›
+    m hm μ₁ hμ₁ ω
+  exact ⟨hPavg, hPmem, hPfix⟩
+
+omit hm in
+/-- Isotypic averages commute with a continuous equivariant linear map. -/
+private theorem isotype_average_commutes {H X Y : Type*}
+    [Monoid H] [TopologicalSpace H] [MeasurableSpace H]
+    [AddCommGroup X] [Module ℂ X] [TopologicalSpace X]
+    [AddCommGroup Y] [Module ℂ Y] [TopologicalSpace Y] [SeparatingDual ℂ Y]
+    (μ : Measure H) (ω : PontryaginDual H)
+    (σ : H →* (X →L[ℂ] X)) (ρ : H →* (Y →L[ℂ] Y))
+    (P : X →L[ℂ] X) (Q : Y →L[ℂ] Y)
+    (hP : IsPettisIsotypicAverageOn μ univ σ ω P)
+    (hQ : IsPettisIsotypicAverageOn μ univ ρ ω Q)
+    (i : X →L[ℂ] Y) (hi : ∀ k f, i (σ k f) = ρ k (i f)) (f : X) :
+    Q (i f) = i (P f) := by
+  apply (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).2
+  intro φ
+  rw [pettisIntegral_univ_eval (hQ (i f)) φ]
+  have h := pettisIntegral_univ_eval (hP f) (φ.comp i)
+  change φ (i (P f)) =
+    ∫ k : H, φ (i (star (ω k : ℂ) • σ k f)) ∂μ at h
+  rw [h]
+  apply integral_congr_ae (ae_of_all _ fun k ↦ ?_)
+  rw [i.map_smul, hi]
 
 variable {E : Type*} [AddCommGroup E] [Module ℂ E] [UniformSpace E] [IsUniformAddGroup E]
   [T2Space E] [ContinuousSMul ℂ E] [LocallyConvexSpace ℝ E] [hE : CompleteSpace E]
@@ -824,6 +1421,7 @@ variable {E : Type*} [AddCommGroup E] [Module ℂ E] [UniformSpace E] [IsUniform
 
 include hE hμ₁ hρ hi hd hcomm
 
+set_option linter.unusedSectionVars false in
 /-- Paper: Lemma D.2.2.2(2), p. 796. The profile space with the
 topology induced by its pullback to the dense subspace completes,
 via character multiplication, to the isotypic quotient of the target. -/
@@ -845,7 +1443,104 @@ theorem schwartzBruhat_modulation_isotype_completion
       let q : SΓ →L[ℂ] E ⧸ Q.ker := Q.ker.mkQL.comp (i.comp w)
       Injective q ∧ DenseRange q ∧
         TopologicalSpace.induced (fun f ↦ i (j f)) inferInstance =
-          TopologicalSpace.induced q inferInstance ∧ @CompleteSpace (E ⧸ Q.ker) (IsTopologicalAddGroup.rightUniformSpace _) := by sorry
+          TopologicalSpace.induced q inferInstance ∧ @CompleteSpace (E ⧸ Q.ker) (IsTopologicalAddGroup.rightUniformSpace _) := by
+  let : CompactSpace K := isCompact_iff_compactSpace.mp hm.isCompact_ker
+  let ρE := ρ.comp (Subgroup.subtype K)
+  let ρS := (schwartzBruhatTranslationAction (G := G)).comp (Subgroup.subtype K)
+  have hρK : Continuous (fun p : K × E ↦ ρE p.1 p.2) :=
+    hρ.comp ((continuous_subtype_val.comp continuous_fst).prodMk continuous_snd)
+  have hseqK (u : ℕ → E) (v : E) (hu : Tendsto u atTop (𝓝 v)) :
+      TendstoUniformly (fun n k ↦ ρE k (u n)) (fun k ↦ ρE k v) atTop := by
+    intro V hV
+    filter_upwards [hseq u v hu V hV] with n hn k
+    exact hn (k : G)
+  let : LocallyCompactSpace K := hm.isCompact_ker.isClosed.locallyCompactSpace
+  have hAvg : ∃! A : E →L[ℂ] E, IsPettisIsotypicAverageOn μ₁ univ ρE ω A := by
+    with_reducible
+      exact existsUnique_compactActionIsotypicAverage (G := K) (E := E) μ₁ ρE hρK hborn hseqK ω
+  obtain ⟨A, hA, _⟩ := hAvg
+  let Q : E →L[ℂ] E := (μ₁.real univ)⁻¹ • A
+  have hmass : μ₁.real univ ≠ 0 := measureReal_univ_ne_zero
+  have hQ : IsPettisIsotypicAverageOn μ₁ univ ρE ω (μ₁.real univ • Q) := by
+    simpa only [Q, smul_inv_smul₀ hmass] using hA
+  have hIdempotent : Q.comp Q = Q := by
+    with_reducible
+      exact compactActionAverage_idempotent (G := K) (E := E) μ₁ ρE hρK ω A hA
+  have hQQ (u : E) : Q (Q u) = Q u := DFunLike.congr_fun hIdempotent u
+  have hProfiles : ∃ (j : SΓ →L[ℂ] S) (r : S →L[ℂ] SΓ),
+      (∀ (f : SΓ) (k : K) (t : Γ), j f ((k : G) * τ t) = f t) ∧
+      ∀ (f : S) (t : Γ), r f t = f (τ t) := by
+    with_reducible exact schwartzBruhat_modulation_profile_maps (G := G) m hm τ hτ
+  obtain ⟨j, r, hj, hr⟩ := hProfiles
+  have hSplit : ∃ e : (K × Γ) ≃ₜ* G, ∀ (k : K) (t : Γ), e (k, t) = (k : G) * τ t := by
+    with_reducible
+      exact @IsModulation.exists_prod_equiv G ‹CommGroup G› ‹TopologicalSpace G›
+        ‹IsTopologicalGroup G› ‹T2Space G› ‹LocallyCompactSpace G› ‹SecondCountableTopology G›
+        m hm τ hτ
+  obtain ⟨e, he⟩ := hSplit
+  let πK : G →ₜ* K := (ContinuousMonoidHom.fst K Γ).comp
+    (ContinuousMonoidHom.toContinuousMonoidHom e.symm)
+  let χ : PontryaginDual G := PontryaginDual.map πK ω⁻¹
+  have hχ (k : K) (t : Γ) : (χ ((k : G) * τ t) : ℂ) = star (ω k : ℂ) := by
+    have hπ : πK ((k : G) * τ t) = k := by
+      rw [← he k t]
+      exact congrArg Prod.fst (e.symm_apply_apply (k, t))
+    change (ω⁻¹ (πK ((k : G) * τ t)) : ℂ) = _
+    rw [hπ]
+    exact Circle.coe_inv_eq_conj (ω k)
+  have hMul := hmul χ
+  have hMulInv := hmul (χ⁻¹ : PontryaginDual G)
+  rcases hMul with ⟨M, hM, hMcont⟩
+  rcases hMulInv with ⟨N, hN, hNcont⟩
+  have hNM (f : S) : N (M f) = f := by
+    apply Subtype.ext
+    funext x
+    change N (M f) x = f x
+    rw [hN, hM, ← mul_assoc]
+    change (↑((χ x)⁻¹) : ℂ) * (χ x : ℂ) * f x = f x
+    rw [Circle.coe_inv, inv_mul_cancel₀ (Circle.coe_ne_zero (χ x)), one_mul]
+  let w : SΓ →L[ℂ] S := M.comp j
+  have hw (f : SΓ) (k : K) (t : Γ) :
+      w f ((k : G) * τ t) = star (ω k : ℂ) * f t := by
+    change M (j f) ((k : G) * τ t) = _
+    rw [hM, hj, hχ]
+  refine ⟨Q, j, w, hQ, fun f k t ↦ ⟨hj f k t, hw f k t⟩, ?_⟩
+  have hWeighted : (∀ f : SΓ, w f ∈ actionIsotype ρS ω) ∧
+      (∀ f : S, f ∈ actionIsotype ρS ω → w (r f) = f) := by
+    with_reducible
+      exact schwartzBruhat_modulation_weighted_profiles (G := G) m τ ω e he w r hw hr
+  obtain ⟨hwMem, hwSurj⟩ := hWeighted
+  let P := schwartzBruhatIsotypicProjector m hm μ₁ ω
+  have hSource : IsPettisIsotypicAverageOn μ₁ univ ρS ω (μ₁.real univ • P) ∧
+      (∀ f : S, P f ∈ actionIsotype ρS ω) ∧
+      (∀ f : S, f ∈ actionIsotype ρS ω → P f = f) := by
+    with_reducible
+      exact schwartzBruhat_modulation_source_projector (G := G) m hm μ₁ ω
+  obtain ⟨hPavg, hPmem, hPfix⟩ := hSource
+  have : SeparatingDual ℂ E := locallyConvexSpace_separatingDual ℂ E
+  have hCommK (k : K) (g : S) : i (ρS k g) = ρE k (i g) := hcomm (k : G) g
+  have hQP (f : S) : Q (i f) = i (P f) := by
+    have hAcomp : (μ₁.real univ • Q) (i f) = i ((μ₁.real univ • P) f) := by
+      with_reducible
+        exact isotype_average_commutes (H := K) (X := S) (Y := E) μ₁ ω ρS ρE _ _ hPavg hQ i
+          hCommK f
+    exact smul_right_injective E hmass (hAcomp.trans (i.map_smul_of_tower (μ₁.real univ) (P f)))
+  have hfix (f : SΓ) : Q (i (w f)) = i (w f) :=
+    (hQP (w f)).trans (congrArg i (hPfix (w f) (hwMem f)))
+  have hwInj : Injective w := by
+    intro f g hfg
+    apply Subtype.ext
+    funext t
+    have ht := congrArg (fun v : S ↦ v ((1 : K) * τ t)) hfg
+    simpa only [hw f 1 t, hw g 1 t, map_one, Circle.coe_one, star_one, one_mul] using ht
+  have hSurj (f : S) : ∃ g : SΓ, i (w g) = Q (i f) :=
+    ⟨r (P f), (congrArg i (hwSurj (P f) (hPmem f))).trans (hQP f).symm⟩
+  have hW (f : SΓ) : M (j f) = w f := rfl
+  have hJ (f : SΓ) : N (w f) = j f :=
+    (congrArg (fun g : S ↦ N g) (hW f).symm).trans (hNM (j f))
+  with_reducible
+    exact isotype_completion_of_projected_profiles (X := SΓ) (Y := S) Q hQQ i hi hd j w
+      hwInj hfix hSurj M N hMcont hNcont hW hJ
 
 omit hE hρ hi hd hcomm in
 /-- Paper: Corollary D.2.2.3(1), p. 797. For a surjective module,

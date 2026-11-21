@@ -6,13 +6,18 @@ public import RiemannMasullo.AppA_AlgebraicNT.Sec1
 public import Mathlib.Geometry.Manifold.ChartedSpace
 public import Mathlib.Topology.MetricSpace.Ultra.Basic
 public import Mathlib.Topology.Instances.ZMod
+import all RiemannMasullo.AppC_LCTVS.Sec1
 import RiemannMasullo.ForMathlib.Algebra.Module.ZLattice.Quotient
 import RiemannMasullo.ForMathlib.Topology.Algebra.ContinuousMonoidHom
 import RiemannMasullo.ForMathlib.Topology.Algebra.Group.Divisible
+import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDual
+import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
+import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
 import RiemannMasullo.ForMathlib.Analysis.Normed.Module.LocalSubgroup
 import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Complex.CircleLocalHom
 import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual
 import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Compact
+import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
 import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
 import Mathlib.Algebra.Group.Fin.Basic
 import Mathlib.Topology.Connected.TotallyDisconnected
@@ -24,6 +29,7 @@ import Mathlib.Topology.Homotopy.Lifting
 import Mathlib.Topology.Covering.AddCircle
 import Mathlib.Topology.Algebra.Group.OpenMapping
 import Mathlib.Topology.Baire.LocallyCompactRegular
+import Mathlib.Analysis.RCLike.Lemmas
 
 /-!
 # Structure of locally compact abelian groups and their Schwartz–Bruhat spaces
@@ -330,6 +336,249 @@ private theorem pontryaginDual_nhds_one_hasBasis :
   rw [hf.nhds_eq_comap]
   exact ((𝓝 (1 : Circle)).basis_sets.nhds_continuousMapConst (X := G)).comap f
 
+end Structure
+
+section TorusCharts
+
+variable {G : Type*} [CommGroup G] [TopologicalSpace G]
+variable [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+
+omit [T2Space G] in
+open scoped Pointwise in
+/-- A continuous homomorphism to a finite-dimensional torus with discrete kernel has a
+continuous local section over a ball in a linear subspace of the logarithm space. The
+section is a local homomorphism, and the images of small balls are identity neighborhoods. -/
+theorem exists_localSection_of_discrete_torusKernel {ι : Type*} [Fintype ι]
+    (f : G →ₜ* (ι → Circle)) (hf : DiscreteTopology f.toMonoidHom.ker) :
+    ∃ (L : Submodule ℝ (EuclideanSpace ℝ ι)) (ρ : ℝ) (σ : L → G), 0 < ρ ∧ ρ ≤ 1 ∧
+      (∀ v : L, ‖v‖ < ρ → ∀ i, f (σ v) i = Circle.exp ((v : EuclideanSpace ℝ ι) i)) ∧
+      ContinuousOn σ (Metric.ball 0 ρ) ∧
+      (∀ v w : L, ‖v‖ < ρ → ‖w‖ < ρ → ‖v + w‖ < ρ → σ (v + w) = σ v * σ w) ∧
+      (∀ ε > 0, σ '' Metric.ball 0 ε ∈ 𝓝 1) := by
+  classical
+  let ex : EuclideanSpace ℝ ι → (ι → Circle) := fun v i ↦ Circle.exp (v i)
+  have hex : Continuous ex := continuous_pi fun i ↦ Circle.exp.continuous.comp (by fun_prop)
+  have hex0 : ex 0 = 1 := funext fun i ↦ by simp [ex]
+  have hexadd : ∀ v w, ex (v + w) = ex v * ex w := fun v w ↦ funext fun i ↦ by
+    simp [ex, Circle.exp_add]
+  have hexneg : ∀ v, ex (-v) = (ex v)⁻¹ := fun v ↦ funext fun i ↦ by simp [ex]
+  -- A neighborhood meeting the kernel only at the identity.
+  obtain ⟨O, hO, h1O, hOker⟩ : ∃ O : Set G, IsOpen O ∧ (1 : G) ∈ O ∧
+      ∀ x ∈ O, f x = 1 → x = 1 := by
+    have hopen1 : IsOpen ({1} : Set f.toMonoidHom.ker) := isOpen_discrete _
+    obtain ⟨U0, hU0o, hpre⟩ := isOpen_induced_iff.mp hopen1
+    refine ⟨U0, hU0o, ?_, ?_⟩
+    · have : (1 : f.toMonoidHom.ker) ∈ Subtype.val ⁻¹' U0 := by rw [hpre]; rfl
+      simpa using this
+    · intro x hx hfx
+      have hmem : (⟨x, MonoidHom.mem_ker.mpr hfx⟩ : f.toMonoidHom.ker) ∈
+          Subtype.val ⁻¹' U0 := hx
+      rw [hpre] at hmem
+      exact congrArg Subtype.val (Set.mem_singleton_iff.mp hmem)
+  obtain ⟨W, hW, h1W, hWW⟩ := exists_open_nhds_one_mul_subset (hO.mem_nhds h1O)
+  have hWW' : W ∩ W⁻¹ ∈ 𝓝 (1 : G) :=
+    inter_mem (hW.mem_nhds h1W) (inv_mem_nhds_one G (hW.mem_nhds h1W))
+  obtain ⟨V, hV, hVW, hVc⟩ := local_compact_nhds hWW'
+  have hinj : ∀ x ∈ V, ∀ y ∈ V, f x = f y → x = y := by
+    intro x hx y hy hxy
+    have hy' : y⁻¹ ∈ W := (hVW hy).2
+    have hm : x * y⁻¹ ∈ O := hWW (Set.mul_mem_mul (hVW hx).1 hy')
+    have : f (x * y⁻¹) = 1 := by rw [map_mul, map_inv, hxy, mul_inv_cancel]
+    exact mul_inv_eq_one.mp (hOker _ hm this)
+  obtain ⟨C, hC, -, hCinv, hCC⟩ := exists_closed_nhds_one_inv_eq_mul_subset hV
+  have h1C : (1 : G) ∈ C := mem_of_mem_nhds hC
+  have hCV : C ⊆ V := fun x hx ↦ by simpa using hCC (Set.mul_mem_mul hx h1C)
+  -- Small logarithms of values on `V` come from `C`.
+  have hD : IsCompact (f '' (V \ interior C)) :=
+    (hVc.diff isOpen_interior).image f.continuous
+  have h1D : (1 : ι → Circle) ∉ f '' (V \ interior C) := by
+    rintro ⟨x, ⟨hxV, hxC⟩, hfx⟩
+    have : x = 1 := hinj x hxV 1 (mem_of_mem_nhds hV) (by rw [hfx, map_one])
+    exact hxC (this ▸ mem_interior_iff_mem_nhds.mpr hC)
+  obtain ⟨ε, hε, hεD⟩ : ∃ ε > 0, ∀ v : EuclideanSpace ℝ ι, ‖v‖ < ε →
+      ex v ∉ f '' (V \ interior C) := by
+    have hnhds : (f '' (V \ interior C))ᶜ ∈ 𝓝 (ex 0) := by
+      rw [hex0]; exact hD.isClosed.isOpen_compl.mem_nhds h1D
+    obtain ⟨ε, hε, H⟩ := Metric.mem_nhds_iff.mp (hex.continuousAt hnhds)
+    exact ⟨ε, hε, fun v hv ↦ H (by simpa using hv)⟩
+  have hlift : ∀ v : EuclideanSpace ℝ ι, ‖v‖ < ε → ∀ x ∈ V, f x = ex v → x ∈ C := by
+    intro v hv x hx hfx
+    by_contra hxC
+    exact hεD v hv ⟨x, ⟨hx, fun h ↦ hxC (interior_subset h)⟩, hfx⟩
+  -- The logarithms of the image form a closed local subgroup.
+  set R := min (ε / 2) 1 with hRdef
+  have hR : 0 < R := lt_min (half_pos hε) one_pos
+  have hRε : R < ε := (min_le_left _ _).trans_lt (half_lt_self hε)
+  have hR1 : R ≤ 1 := min_le_right _ _
+  let A : Set (EuclideanSpace ℝ ι) := {v | ‖v‖ ≤ R ∧ ex v ∈ f '' V}
+  have hAc : IsClosed A :=
+    (isClosed_le continuous_norm continuous_const).inter
+      ((hVc.image f.continuous).isClosed.preimage hex)
+  have hA0 : (0 : EuclideanSpace ℝ ι) ∈ A :=
+    ⟨by simp [hR.le], ⟨1, mem_of_mem_nhds hV, by rw [map_one, hex0]⟩⟩
+  have hAmemC : ∀ v ∈ A, ∃ x ∈ C, f x = ex v := by
+    rintro v ⟨hv, x, hx, hfx⟩
+    exact ⟨x, hlift v (hv.trans_lt hRε) x hx hfx, hfx⟩
+  have hAsym : ∀ v ∈ A, -v ∈ A := by
+    intro v hvA
+    obtain ⟨x, hxC, hfx⟩ := hAmemC v hvA
+    have hxC' : x⁻¹ ∈ C := by rw [← hCinv]; simpa using hxC
+    exact ⟨by simpa using hvA.1, x⁻¹, hCV hxC', by rw [map_inv, hfx, hexneg]⟩
+  have hAadd : ∀ v ∈ A, ∀ w ∈ A, ‖v + w‖ ≤ R → v + w ∈ A := by
+    intro v hv w hw hvw
+    obtain ⟨x, hxC, hfx⟩ := hAmemC v hv
+    obtain ⟨y, hyC, hfy⟩ := hAmemC w hw
+    exact ⟨hvw, x * y, hCC (Set.mul_mem_mul hxC hyC), by rw [map_mul, hfx, hfy, hexadd]⟩
+  obtain ⟨L, ε₁, hε₁, hε₁R, hAL⟩ :=
+    exists_subspace_ball_eq_of_localSubgroup hR hAc hA0 hAsym hAadd
+  have hLA : ∀ v : EuclideanSpace ℝ ι, v ∈ L → ‖v‖ ≤ ε₁ → v ∈ A := by
+    intro v hvL hv
+    have : v ∈ (L : Set (EuclideanSpace ℝ ι)) ∩ Metric.closedBall 0 ε₁ :=
+      ⟨hvL, by simpa using hv⟩
+    rw [← hAL] at this
+    exact this.1
+  have hAL' : ∀ v ∈ A, ‖v‖ ≤ ε₁ → v ∈ L := by
+    intro v hvA hv
+    have : v ∈ A ∩ Metric.closedBall 0 ε₁ := ⟨hvA, by simpa using hv⟩
+    rw [hAL] at this
+    exact this.1
+  let σ : L → G := fun v ↦ Function.invFunOn f C (ex v)
+  have hσ : ∀ v : L, ‖v‖ < ε₁ → σ v ∈ C ∧ f (σ v) = ex v := by
+    intro v hv
+    exact Function.invFunOn_pos (hAmemC _ (hLA _ v.2 hv.le))
+  refine ⟨L, ε₁, σ, hε₁, hε₁R.trans hR1, ?_, ?_, ?_, ?_⟩
+  · intro v hv i
+    exact congrFun (hσ v hv).2 i
+  · rw [continuousOn_iff_continuous_domRestrict]
+    let gV : V → (ι → Circle) := fun x ↦ f x
+    have : CompactSpace V := isCompact_iff_compactSpace.mp hVc
+    have hgV : IsClosedEmbedding gV :=
+      (f.continuous.comp continuous_subtype_val).isClosedEmbedding
+        (fun x y hxy ↦ Subtype.ext (hinj x x.2 y y.2 hxy))
+    let σ' : Metric.ball (0 : L) ε₁ → V := fun v ↦
+      ⟨σ v, hCV (hσ v (mem_ball_zero_iff.mp v.2)).1⟩
+    have hσ' : Continuous σ' := by
+      rw [hgV.isInducing.continuous_iff]
+      have e : gV ∘ σ' = fun v : Metric.ball (0 : L) ε₁ ↦ ex ((v : L) : EuclideanSpace ℝ ι) :=
+        funext fun v ↦ (hσ v (mem_ball_zero_iff.mp v.2)).2
+      rw [e]
+      exact hex.comp (continuous_subtype_val.comp continuous_subtype_val)
+    exact continuous_subtype_val.comp hσ'
+  · intro v w hv hw hvw
+    have h1 := hσ v hv
+    have h2 := hσ w hw
+    have h3 := hσ (v + w) hvw
+    refine hinj _ (hCV h3.1) _ (hCC (Set.mul_mem_mul h1.1 h2.1)) ?_
+    rw [map_mul, h1.2, h2.2, h3.2, ← hexadd]
+    rfl
+  · intro ε' hε'
+    set ε'' := min ε' ε₁ with hε''def
+    have hε'' : 0 < ε'' := lt_min hε' hε₁
+    have hnear : ∀ᶠ x in 𝓝 (1 : G), x ∈ interior C ∧
+        ∃ u : EuclideanSpace ℝ ι, ‖u‖ < ε'' ∧ ∀ i, Circle.exp (u i) = f x i := by
+      refine Filter.Eventually.and (show ∀ᶠ x in 𝓝 (1 : G), x ∈ interior C from
+        isOpen_interior.mem_nhds (mem_interior_iff_mem_nhds.mpr hC)) ?_
+      have ht : Tendsto f (𝓝 (1 : G)) (𝓝 1) := by
+        have := (map_continuous f).tendsto (1 : G)
+        rwa [map_one] at this
+      exact ht.eventually (eventually_exists_small_circleLog hε'')
+    apply Filter.mem_of_superset hnear
+    rintro x ⟨hxC, u, hu, hux⟩
+    have hfx : f x = ex u := funext fun i ↦ (hux i).symm
+    have hu1 : ‖u‖ < ε₁ := hu.trans_le (min_le_right _ _)
+    have huA : u ∈ A := ⟨hu1.le.trans hε₁R, x, hCV (interior_subset hxC), hfx⟩
+    have huL : u ∈ L := hAL' u huA hu1.le
+    refine ⟨⟨u, huL⟩, by simpa using hu.trans_le (min_le_left _ _), ?_⟩
+    have hs := hσ ⟨u, huL⟩ (by simpa using hu1)
+    exact hinj _ (hCV hs.1) _ (hCV (interior_subset hxC)) (by rw [hs.2, hfx])
+
+omit [T2Space G] [LocallyCompactSpace G] in
+/-- Translating a chart at the identity gives charts everywhere. -/
+theorem isLocallyEuclidean_of_chart_at_one {k : ℕ}
+    (e : OpenPartialHomeomorph G (EuclideanSpace ℝ (Fin k))) (he : (1 : G) ∈ e.source) :
+    IsLocallyEuclidean G := by
+  classical
+  exact ⟨k, ⟨{
+    atlas := Set.range fun g : G ↦
+      ((Homeomorph.mulLeft g⁻¹).toOpenPartialHomeomorph).trans e
+    chartAt := fun g ↦ ((Homeomorph.mulLeft g⁻¹).toOpenPartialHomeomorph).trans e
+    mem_chart_source := fun g ↦ by
+      change g ∈ ((Homeomorph.mulLeft g⁻¹).toOpenPartialHomeomorph).source ∩
+        (Homeomorph.mulLeft g⁻¹) ⁻¹' e.source
+      refine ⟨trivial, ?_⟩
+      simpa using he
+    chart_mem_atlas := fun g ↦ ⟨g, rfl⟩ }⟩⟩
+
+omit [T2Space G] in
+/-- A continuous homomorphism to a finite-dimensional torus with discrete kernel makes
+the group locally Euclidean. -/
+theorem isLocallyEuclidean_of_torusHom_discreteKernel {ι : Type*} [Fintype ι]
+    (f : G →ₜ* (ι → Circle)) (hf : DiscreteTopology f.toMonoidHom.ker) :
+    IsLocallyEuclidean G := by
+  classical
+  obtain ⟨L, ρ, σ, hρ, hρ1, hfσ, hσc, hσmul, hσnhds⟩ :=
+    exists_localSection_of_discrete_torusKernel f hf
+  have hσ0 : σ 0 = 1 := by
+    have e := hσmul 0 0 (by simpa using hρ) (by simpa using hρ) (by simpa using hρ)
+    rw [add_zero] at e
+    exact mul_eq_left.mp e.symm
+  let B := Metric.ball (0 : L) ρ
+  let τ : B → G := fun v ↦ σ v
+  have hτc : Continuous τ := continuousOn_iff_continuous_domRestrict.mp hσc
+  have hτinj : Function.Injective τ := by
+    intro v w hvw
+    have hv : ‖(v : L)‖ < ρ := mem_ball_zero_iff.mp v.2
+    have hw : ‖(w : L)‖ < ρ := mem_ball_zero_iff.mp w.2
+    apply Subtype.ext
+    apply Subtype.ext
+    refine circleExp_coord_injective (hv.le.trans hρ1) (hw.le.trans hρ1) fun i ↦ ?_
+    rw [← hfσ v hv i, ← hfσ w hw i]
+    exact congrArg (fun x ↦ f x i) hvw
+  have hτopen : IsOpenMap τ := by
+    intro S hS
+    rw [isOpen_iff_mem_nhds]
+    rintro _ ⟨v, hvS, rfl⟩
+    have hv : ‖(v : L)‖ < ρ := mem_ball_zero_iff.mp v.2
+    obtain ⟨δ, hδ, hδS⟩ := Metric.isOpen_iff.mp hS v hvS
+    set δ' := min δ (ρ - ‖(v : L)‖) with hδ'def
+    have hδ' : 0 < δ' := lt_min hδ (sub_pos.mpr hv)
+    have hδ'1 : δ' ≤ δ := min_le_left _ _
+    have hδ'2 : δ' ≤ ρ - ‖(v : L)‖ := min_le_right _ _
+    have hnhds : (fun x ↦ σ v * x) '' (σ '' Metric.ball (0 : L) δ') ∈ 𝓝 (σ v) := by
+      rw [← map_mul_left_nhds_one (σ v)]
+      exact image_mem_map (hσnhds δ' hδ')
+    apply Filter.mem_of_superset hnhds
+    rintro _ ⟨_, ⟨w, hw, rfl⟩, rfl⟩
+    have hw' : ‖w‖ < δ' := mem_ball_zero_iff.mp hw
+    have hvw : ‖(v : L) + w‖ < ρ :=
+      (norm_add_le _ _).trans_lt (by linarith)
+    refine ⟨⟨(v : L) + w, mem_ball_zero_iff.mpr hvw⟩, hδS ?_, ?_⟩
+    · rw [Metric.mem_ball, Subtype.dist_eq, dist_eq_norm]
+      simpa using hw'.trans_le hδ'1
+    · exact (hσmul v w hv (by linarith [norm_nonneg (v : L)]) hvw)
+  have hτ : IsOpenEmbedding τ := .of_continuous_injective_isOpenMap hτc hτinj hτopen
+  let iso := (stdOrthonormalBasis ℝ L).repr
+  let j : B → EuclideanSpace ℝ (Fin (Module.finrank ℝ L)) := fun v ↦ iso v
+  have hj : IsOpenEmbedding j :=
+    iso.toHomeomorph.isOpenEmbedding.comp Metric.isOpen_ball.isOpenEmbedding_subtypeVal
+  have : Nonempty B := ⟨⟨0, Metric.mem_ball_self hρ⟩⟩
+  let e := (hτ.toOpenPartialHomeomorph τ).symm.trans (hj.toOpenPartialHomeomorph j)
+  have he : (1 : G) ∈ e.source := by
+    simp only [e, OpenPartialHomeomorph.trans_source, OpenPartialHomeomorph.symm_source,
+      IsOpenEmbedding.toOpenPartialHomeomorph_target,
+      IsOpenEmbedding.toOpenPartialHomeomorph_source, preimage_univ, inter_univ]
+    exact ⟨⟨0, Metric.mem_ball_self hρ⟩, hσ0⟩
+  exact isLocallyEuclidean_of_chart_at_one e he
+
+end TorusCharts
+
+section Structure
+
+universe u
+
+variable {G : Type u} [CommGroup G] [TopologicalSpace G]
+variable [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+
 /-- Paper: Theorem D.1.4.3(1), p. 757. A locally compact Hausdorff abelian group
 with a continuous homomorphism to a finite-dimensional torus and discrete kernel
 is locally Euclidean.
@@ -341,7 +590,8 @@ Translation gives charts at every point. -/
 theorem isLocallyEuclidean_of_discrete_torus_kernel {ι : Type*} [Finite ι]
     (f : G →ₜ* (ι → Circle)) (hf : DiscreteTopology f.toMonoidHom.ker) :
     IsLocallyEuclidean G := by
-  sorry
+  let : Fintype ι := Fintype.ofFinite ι
+  exact isLocallyEuclidean_of_torusHom_discreteKernel f hf
 
 open scoped Pointwise in
 /-- A neighborhood containing no nontrivial cyclic subgroup lets finitely many
@@ -1239,7 +1489,17 @@ theorem lca_dualSubgroup_eval_denseRange
     DenseRange ((PontryaginDual.map
       (⟨H.val.subtype, continuous_subtype_val⟩ : H.val →ₜ* PontryaginDual G)).comp
         (pontryaginDual_eval (G := G))) := by
-  sorry
+  refine Function.Surjective.denseRange ?_
+  obtain ⟨restrict, hRestrict⟩ :=
+    lcaDualQuotient_equiv_subgroupDual H.val (H.val.isClosed_of_isOpen H.property.1)
+  obtain ⟨eval, hEval⟩ := pontryaginDual_bidual (G := G)
+  intro ψ
+  obtain ⟨q, rfl⟩ := restrict.surjective ψ
+  obtain ⟨η, rfl⟩ := QuotientGroup.mk_surjective q
+  obtain ⟨x, rfl⟩ := eval.surjective η
+  refine ⟨x, PontryaginDual.ext fun χ ↦ ?_⟩
+  change χ.val x = restrict (QuotientGroup.mk (eval x)) χ
+  rw [hRestrict, hEval]
 
 /-- Paper: (D.1.4.9)–(D.1.4.10), p. 759. The evaluation map onto the dual of
 an open compactly generated subgroup of the dual is an open quotient. Its
@@ -1310,7 +1570,49 @@ theorem lca_openSubgroup_quotient_elementary (J : OpenCompactlyGeneratedSubgroup
     (H : OpenCompactlyGeneratedSubgroups (PontryaginDual G))
     (_h : lcaDualAnnihilator H.val ≤ J.val) :
     Nonempty (ElementaryLCAPresentation (J.val ⧸ (lcaDualAnnihilator H.val).comap J.val.subtype)) := by
-  sorry
+  let N := (lcaDualAnnihilator H.val).comap J.val.subtype
+  let : LocallyCompactSpace J.val :=
+    J.property.1.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  let : LocallyCompactSpace H.val :=
+    H.property.1.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  let ι : H.val →ₜ* PontryaginDual G :=
+    ⟨H.val.subtype, continuous_subtype_val⟩
+  let f : J.val →ₜ* PontryaginDual H.val :=
+    (PontryaginDual.map ι).comp
+      (pontryaginDual_eval.comp
+        ⟨J.val.subtype, continuous_subtype_val⟩)
+  have hker : f.toMonoidHom.ker = N := by
+    ext x
+    rw [MonoidHom.mem_ker, Subgroup.mem_comap, Subgroup.coe_subtype,
+      mem_lcaDualAnnihilator_iff]
+    exact
+      ⟨fun hx χ ↦ congrArg (fun ψ : PontryaginDual H.val ↦ ψ χ) hx,
+        fun hx ↦ PontryaginDual.ext hx⟩
+  have hN : IsClosed (N : Set J.val) := by
+    rw [← hker]
+    exact isClosed_eq f.continuous continuous_const
+  let : T1Space (J.val ⧸ N) :=
+    QuotientGroup.t1Space_iff.mpr hN
+  refine lca_elementary_iff.mp
+    ⟨isCompactlyGeneratedGroup_quotient J.property.2 N hN, ?_⟩
+  let e : (J.val ⧸ N) →ₜ* PontryaginDual H.val :=
+    ⟨QuotientGroup.lift N f.toMonoidHom hker.ge,
+      (QuotientGroup.isQuotientMap_mk N).continuous_iff.mpr
+        f.continuous⟩
+  have he : Function.Injective e :=
+    (QuotientGroup.injective_lift_iff N f.toMonoidHom hker.ge).mpr
+      hker.symm
+  obtain ⟨W, hW, hPow⟩ := exists_nhds_one_of_isLocallyEuclidean
+    (isCompactlyGeneratedGroup_iff_dual_locallyEuclidean.mp
+      H.property.2)
+  have hW' : W ∈ 𝓝 (e 1) := by
+    rwa [map_one]
+  refine isLocallyEuclidean_of_noSmallCyclicSubgroups
+    (e.continuous.continuousAt.preimage_mem_nhds hW') ?_
+  intro x hx
+  apply he
+  rw [map_one]
+  exact hPow (e x) fun n ↦ map_pow e x n ▸ hx n
 
 /-- Paper: Lemma D.1.4.7, p. 760. Each open compactly generated subgroup is the
 inverse limit of its quotients by the annihilators it contains.
@@ -1454,233 +1756,6 @@ theorem BruhatStructuralPair.quotient_mk_eq_one (p : BruhatStructuralPair G) (x 
   rw [QuotientGroup.eq_one_iff, Subgroup.mem_comap, Subgroup.coe_subtype]
 
 variable [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
-
-omit [T2Space G] in
-open scoped Pointwise in
-/-- A continuous homomorphism to a finite-dimensional torus with discrete kernel has a
-continuous local section over a ball in a linear subspace of the logarithm space. The
-section is a local homomorphism, and the images of small balls are identity neighborhoods. -/
-theorem exists_localSection_of_discrete_torusKernel {ι : Type*} [Fintype ι]
-    (f : G →ₜ* (ι → Circle)) (hf : DiscreteTopology f.toMonoidHom.ker) :
-    ∃ (L : Submodule ℝ (EuclideanSpace ℝ ι)) (ρ : ℝ) (σ : L → G), 0 < ρ ∧ ρ ≤ 1 ∧
-      (∀ v : L, ‖v‖ < ρ → ∀ i, f (σ v) i = Circle.exp ((v : EuclideanSpace ℝ ι) i)) ∧
-      ContinuousOn σ (Metric.ball 0 ρ) ∧
-      (∀ v w : L, ‖v‖ < ρ → ‖w‖ < ρ → ‖v + w‖ < ρ → σ (v + w) = σ v * σ w) ∧
-      (∀ ε > 0, σ '' Metric.ball 0 ε ∈ 𝓝 1) := by
-  classical
-  let ex : EuclideanSpace ℝ ι → (ι → Circle) := fun v i ↦ Circle.exp (v i)
-  have hex : Continuous ex := continuous_pi fun i ↦ Circle.exp.continuous.comp (by fun_prop)
-  have hex0 : ex 0 = 1 := funext fun i ↦ by simp [ex]
-  have hexadd : ∀ v w, ex (v + w) = ex v * ex w := fun v w ↦ funext fun i ↦ by
-    simp [ex, Circle.exp_add]
-  have hexneg : ∀ v, ex (-v) = (ex v)⁻¹ := fun v ↦ funext fun i ↦ by simp [ex]
-  -- A neighborhood meeting the kernel only at the identity.
-  obtain ⟨O, hO, h1O, hOker⟩ : ∃ O : Set G, IsOpen O ∧ (1 : G) ∈ O ∧
-      ∀ x ∈ O, f x = 1 → x = 1 := by
-    have hopen1 : IsOpen ({1} : Set f.toMonoidHom.ker) := isOpen_discrete _
-    obtain ⟨U0, hU0o, hpre⟩ := isOpen_induced_iff.mp hopen1
-    refine ⟨U0, hU0o, ?_, ?_⟩
-    · have : (1 : f.toMonoidHom.ker) ∈ Subtype.val ⁻¹' U0 := by rw [hpre]; rfl
-      simpa using this
-    · intro x hx hfx
-      have hmem : (⟨x, MonoidHom.mem_ker.mpr hfx⟩ : f.toMonoidHom.ker) ∈
-          Subtype.val ⁻¹' U0 := hx
-      rw [hpre] at hmem
-      exact congrArg Subtype.val (Set.mem_singleton_iff.mp hmem)
-  obtain ⟨W, hW, h1W, hWW⟩ := exists_open_nhds_one_mul_subset (hO.mem_nhds h1O)
-  have hWW' : W ∩ W⁻¹ ∈ 𝓝 (1 : G) :=
-    inter_mem (hW.mem_nhds h1W) (inv_mem_nhds_one G (hW.mem_nhds h1W))
-  obtain ⟨V, hV, hVW, hVc⟩ := local_compact_nhds hWW'
-  have hinj : ∀ x ∈ V, ∀ y ∈ V, f x = f y → x = y := by
-    intro x hx y hy hxy
-    have hy' : y⁻¹ ∈ W := (hVW hy).2
-    have hm : x * y⁻¹ ∈ O := hWW (Set.mul_mem_mul (hVW hx).1 hy')
-    have : f (x * y⁻¹) = 1 := by rw [map_mul, map_inv, hxy, mul_inv_cancel]
-    exact mul_inv_eq_one.mp (hOker _ hm this)
-  obtain ⟨C, hC, -, hCinv, hCC⟩ := exists_closed_nhds_one_inv_eq_mul_subset hV
-  have h1C : (1 : G) ∈ C := mem_of_mem_nhds hC
-  have hCV : C ⊆ V := fun x hx ↦ by simpa using hCC (Set.mul_mem_mul hx h1C)
-  -- Small logarithms of values on `V` come from `C`.
-  have hD : IsCompact (f '' (V \ interior C)) :=
-    (hVc.diff isOpen_interior).image f.continuous
-  have h1D : (1 : ι → Circle) ∉ f '' (V \ interior C) := by
-    rintro ⟨x, ⟨hxV, hxC⟩, hfx⟩
-    have : x = 1 := hinj x hxV 1 (mem_of_mem_nhds hV) (by rw [hfx, map_one])
-    exact hxC (this ▸ mem_interior_iff_mem_nhds.mpr hC)
-  obtain ⟨ε, hε, hεD⟩ : ∃ ε > 0, ∀ v : EuclideanSpace ℝ ι, ‖v‖ < ε →
-      ex v ∉ f '' (V \ interior C) := by
-    have hnhds : (f '' (V \ interior C))ᶜ ∈ 𝓝 (ex 0) := by
-      rw [hex0]; exact hD.isClosed.isOpen_compl.mem_nhds h1D
-    obtain ⟨ε, hε, H⟩ := Metric.mem_nhds_iff.mp (hex.continuousAt hnhds)
-    exact ⟨ε, hε, fun v hv ↦ H (by simpa using hv)⟩
-  have hlift : ∀ v : EuclideanSpace ℝ ι, ‖v‖ < ε → ∀ x ∈ V, f x = ex v → x ∈ C := by
-    intro v hv x hx hfx
-    by_contra hxC
-    exact hεD v hv ⟨x, ⟨hx, fun h ↦ hxC (interior_subset h)⟩, hfx⟩
-  -- The logarithms of the image form a closed local subgroup.
-  set R := min (ε / 2) 1 with hRdef
-  have hR : 0 < R := lt_min (half_pos hε) one_pos
-  have hRε : R < ε := (min_le_left _ _).trans_lt (half_lt_self hε)
-  have hR1 : R ≤ 1 := min_le_right _ _
-  let A : Set (EuclideanSpace ℝ ι) := {v | ‖v‖ ≤ R ∧ ex v ∈ f '' V}
-  have hAc : IsClosed A :=
-    (isClosed_le continuous_norm continuous_const).inter
-      ((hVc.image f.continuous).isClosed.preimage hex)
-  have hA0 : (0 : EuclideanSpace ℝ ι) ∈ A :=
-    ⟨by simp [hR.le], ⟨1, mem_of_mem_nhds hV, by rw [map_one, hex0]⟩⟩
-  have hAmemC : ∀ v ∈ A, ∃ x ∈ C, f x = ex v := by
-    rintro v ⟨hv, x, hx, hfx⟩
-    exact ⟨x, hlift v (hv.trans_lt hRε) x hx hfx, hfx⟩
-  have hAsym : ∀ v ∈ A, -v ∈ A := by
-    intro v hvA
-    obtain ⟨x, hxC, hfx⟩ := hAmemC v hvA
-    have hxC' : x⁻¹ ∈ C := by rw [← hCinv]; simpa using hxC
-    exact ⟨by simpa using hvA.1, x⁻¹, hCV hxC', by rw [map_inv, hfx, hexneg]⟩
-  have hAadd : ∀ v ∈ A, ∀ w ∈ A, ‖v + w‖ ≤ R → v + w ∈ A := by
-    intro v hv w hw hvw
-    obtain ⟨x, hxC, hfx⟩ := hAmemC v hv
-    obtain ⟨y, hyC, hfy⟩ := hAmemC w hw
-    exact ⟨hvw, x * y, hCC (Set.mul_mem_mul hxC hyC), by rw [map_mul, hfx, hfy, hexadd]⟩
-  obtain ⟨L, ε₁, hε₁, hε₁R, hAL⟩ :=
-    exists_subspace_ball_eq_of_localSubgroup hR hAc hA0 hAsym hAadd
-  have hLA : ∀ v : EuclideanSpace ℝ ι, v ∈ L → ‖v‖ ≤ ε₁ → v ∈ A := by
-    intro v hvL hv
-    have : v ∈ (L : Set (EuclideanSpace ℝ ι)) ∩ Metric.closedBall 0 ε₁ :=
-      ⟨hvL, by simpa using hv⟩
-    rw [← hAL] at this
-    exact this.1
-  have hAL' : ∀ v ∈ A, ‖v‖ ≤ ε₁ → v ∈ L := by
-    intro v hvA hv
-    have : v ∈ A ∩ Metric.closedBall 0 ε₁ := ⟨hvA, by simpa using hv⟩
-    rw [hAL] at this
-    exact this.1
-  let σ : L → G := fun v ↦ Function.invFunOn f C (ex v)
-  have hσ : ∀ v : L, ‖v‖ < ε₁ → σ v ∈ C ∧ f (σ v) = ex v := by
-    intro v hv
-    exact Function.invFunOn_pos (hAmemC _ (hLA _ v.2 hv.le))
-  refine ⟨L, ε₁, σ, hε₁, hε₁R.trans hR1, ?_, ?_, ?_, ?_⟩
-  · intro v hv i
-    exact congrFun (hσ v hv).2 i
-  · rw [continuousOn_iff_continuous_domRestrict]
-    let gV : V → (ι → Circle) := fun x ↦ f x
-    have : CompactSpace V := isCompact_iff_compactSpace.mp hVc
-    have hgV : IsClosedEmbedding gV :=
-      (f.continuous.comp continuous_subtype_val).isClosedEmbedding
-        (fun x y hxy ↦ Subtype.ext (hinj x x.2 y y.2 hxy))
-    let σ' : Metric.ball (0 : L) ε₁ → V := fun v ↦
-      ⟨σ v, hCV (hσ v (mem_ball_zero_iff.mp v.2)).1⟩
-    have hσ' : Continuous σ' := by
-      rw [hgV.isInducing.continuous_iff]
-      have e : gV ∘ σ' = fun v : Metric.ball (0 : L) ε₁ ↦ ex ((v : L) : EuclideanSpace ℝ ι) :=
-        funext fun v ↦ (hσ v (mem_ball_zero_iff.mp v.2)).2
-      rw [e]
-      exact hex.comp (continuous_subtype_val.comp continuous_subtype_val)
-    exact continuous_subtype_val.comp hσ'
-  · intro v w hv hw hvw
-    have h1 := hσ v hv
-    have h2 := hσ w hw
-    have h3 := hσ (v + w) hvw
-    refine hinj _ (hCV h3.1) _ (hCC (Set.mul_mem_mul h1.1 h2.1)) ?_
-    rw [map_mul, h1.2, h2.2, h3.2, ← hexadd]
-    rfl
-  · intro ε' hε'
-    set ε'' := min ε' ε₁ with hε''def
-    have hε'' : 0 < ε'' := lt_min hε' hε₁
-    have hnear : ∀ᶠ x in 𝓝 (1 : G), x ∈ interior C ∧
-        ∃ u : EuclideanSpace ℝ ι, ‖u‖ < ε'' ∧ ∀ i, Circle.exp (u i) = f x i := by
-      refine Filter.Eventually.and (show ∀ᶠ x in 𝓝 (1 : G), x ∈ interior C from
-        isOpen_interior.mem_nhds (mem_interior_iff_mem_nhds.mpr hC)) ?_
-      have ht : Tendsto f (𝓝 (1 : G)) (𝓝 1) := by
-        have := (map_continuous f).tendsto (1 : G)
-        rwa [map_one] at this
-      exact ht.eventually (eventually_exists_small_circleLog hε'')
-    apply Filter.mem_of_superset hnear
-    rintro x ⟨hxC, u, hu, hux⟩
-    have hfx : f x = ex u := funext fun i ↦ (hux i).symm
-    have hu1 : ‖u‖ < ε₁ := hu.trans_le (min_le_right _ _)
-    have huA : u ∈ A := ⟨hu1.le.trans hε₁R, x, hCV (interior_subset hxC), hfx⟩
-    have huL : u ∈ L := hAL' u huA hu1.le
-    refine ⟨⟨u, huL⟩, by simpa using hu.trans_le (min_le_left _ _), ?_⟩
-    have hs := hσ ⟨u, huL⟩ (by simpa using hu1)
-    exact hinj _ (hCV hs.1) _ (hCV (interior_subset hxC)) (by rw [hs.2, hfx])
-
-omit [T2Space G] [LocallyCompactSpace G] in
-/-- Translating a chart at the identity gives charts everywhere. -/
-theorem isLocallyEuclidean_of_chart_at_one {k : ℕ}
-    (e : OpenPartialHomeomorph G (EuclideanSpace ℝ (Fin k))) (he : (1 : G) ∈ e.source) :
-    IsLocallyEuclidean G := by
-  classical
-  exact ⟨k, ⟨{
-    atlas := Set.range fun g : G ↦
-      ((Homeomorph.mulLeft g⁻¹).toOpenPartialHomeomorph).trans e
-    chartAt := fun g ↦ ((Homeomorph.mulLeft g⁻¹).toOpenPartialHomeomorph).trans e
-    mem_chart_source := fun g ↦ by
-      change g ∈ ((Homeomorph.mulLeft g⁻¹).toOpenPartialHomeomorph).source ∩
-        (Homeomorph.mulLeft g⁻¹) ⁻¹' e.source
-      refine ⟨trivial, ?_⟩
-      simpa using he
-    chart_mem_atlas := fun g ↦ ⟨g, rfl⟩ }⟩⟩
-
-omit [T2Space G] in
-/-- A continuous homomorphism to a finite-dimensional torus with discrete kernel makes
-the group locally Euclidean. -/
-theorem isLocallyEuclidean_of_torusHom_discreteKernel {ι : Type*} [Fintype ι]
-    (f : G →ₜ* (ι → Circle)) (hf : DiscreteTopology f.toMonoidHom.ker) :
-    IsLocallyEuclidean G := by
-  classical
-  obtain ⟨L, ρ, σ, hρ, hρ1, hfσ, hσc, hσmul, hσnhds⟩ :=
-    exists_localSection_of_discrete_torusKernel f hf
-  have hσ0 : σ 0 = 1 := by
-    have e := hσmul 0 0 (by simpa using hρ) (by simpa using hρ) (by simpa using hρ)
-    rw [add_zero] at e
-    exact mul_eq_left.mp e.symm
-  let B := Metric.ball (0 : L) ρ
-  let τ : B → G := fun v ↦ σ v
-  have hτc : Continuous τ := continuousOn_iff_continuous_domRestrict.mp hσc
-  have hτinj : Function.Injective τ := by
-    intro v w hvw
-    have hv : ‖(v : L)‖ < ρ := mem_ball_zero_iff.mp v.2
-    have hw : ‖(w : L)‖ < ρ := mem_ball_zero_iff.mp w.2
-    apply Subtype.ext
-    apply Subtype.ext
-    refine circleExp_coord_injective (hv.le.trans hρ1) (hw.le.trans hρ1) fun i ↦ ?_
-    rw [← hfσ v hv i, ← hfσ w hw i]
-    exact congrArg (fun x ↦ f x i) hvw
-  have hτopen : IsOpenMap τ := by
-    intro S hS
-    rw [isOpen_iff_mem_nhds]
-    rintro _ ⟨v, hvS, rfl⟩
-    have hv : ‖(v : L)‖ < ρ := mem_ball_zero_iff.mp v.2
-    obtain ⟨δ, hδ, hδS⟩ := Metric.isOpen_iff.mp hS v hvS
-    set δ' := min δ (ρ - ‖(v : L)‖) with hδ'def
-    have hδ' : 0 < δ' := lt_min hδ (sub_pos.mpr hv)
-    have hδ'1 : δ' ≤ δ := min_le_left _ _
-    have hδ'2 : δ' ≤ ρ - ‖(v : L)‖ := min_le_right _ _
-    have hnhds : (fun x ↦ σ v * x) '' (σ '' Metric.ball (0 : L) δ') ∈ 𝓝 (σ v) := by
-      rw [← map_mul_left_nhds_one (σ v)]
-      exact image_mem_map (hσnhds δ' hδ')
-    apply Filter.mem_of_superset hnhds
-    rintro _ ⟨_, ⟨w, hw, rfl⟩, rfl⟩
-    have hw' : ‖w‖ < δ' := mem_ball_zero_iff.mp hw
-    have hvw : ‖(v : L) + w‖ < ρ :=
-      (norm_add_le _ _).trans_lt (by linarith)
-    refine ⟨⟨(v : L) + w, mem_ball_zero_iff.mpr hvw⟩, hδS ?_, ?_⟩
-    · rw [Metric.mem_ball, Subtype.dist_eq, dist_eq_norm]
-      simpa using hw'.trans_le hδ'1
-    · exact (hσmul v w hv (by linarith [norm_nonneg (v : L)]) hvw)
-  have hτ : IsOpenEmbedding τ := .of_continuous_injective_isOpenMap hτc hτinj hτopen
-  let iso := (stdOrthonormalBasis ℝ L).repr
-  let j : B → EuclideanSpace ℝ (Fin (Module.finrank ℝ L)) := fun v ↦ iso v
-  have hj : IsOpenEmbedding j :=
-    iso.toHomeomorph.isOpenEmbedding.comp Metric.isOpen_ball.isOpenEmbedding_subtypeVal
-  have : Nonempty B := ⟨⟨0, Metric.mem_ball_self hρ⟩⟩
-  let e := (hτ.toOpenPartialHomeomorph τ).symm.trans (hj.toOpenPartialHomeomorph j)
-  have he : (1 : G) ∈ e.source := by
-    simp only [e, OpenPartialHomeomorph.trans_source, OpenPartialHomeomorph.symm_source,
-      IsOpenEmbedding.toOpenPartialHomeomorph_target,
-      IsOpenEmbedding.toOpenPartialHomeomorph_source, preimage_univ, inter_univ]
-    exact ⟨⟨0, Metric.mem_ball_self hρ⟩, hσ0⟩
-  exact isLocallyEuclidean_of_chart_at_one e he
 
 /-- A neighborhood containing no nontrivial cyclic subgroup gives finitely many characters
 whose joint kernel is discrete. -/
@@ -2650,11 +2725,188 @@ theorem isBruhatContDiff_zero (p : ℕ) : IsBruhatContDiff p (0 : G → ℂ) := 
   intro e z b
   exact contDiff_const
 
+/-- The target of an open continuous map from a real vector group has an elementary
+presentation if it is compactly generated. -/
+private theorem elementaryPresentation_of_open_vector_map {E B : Type*}
+    [NormedAddCommGroup E] [NormedSpace ℝ E] [FiniteDimensional ℝ E]
+    [CommGroup B] [TopologicalSpace B] [IsTopologicalGroup B] [T2Space B]
+    (f : E →+ Additive B) (hf : Continuous f) (hopen : IsOpenMap f)
+    (hB : IsCompactlyGeneratedGroup B) : Nonempty (ElementaryLCAPresentation B) := by
+  let : T2Space (Additive B) := ‹T2Space B›
+  obtain ⟨m, n, ⟨e⟩⟩ := exists_real_torus_equiv_of_open_vector_range f hf hopen
+  have hRange : IsOpen (f.range : Set (Additive B)) := by
+    rw [AddMonoidHom.coe_range, ← Set.image_univ]
+    exact hopen _ isOpen_univ
+  let : DivisibleBy f.range ℤ := divisibleByOfSMulRightSurj f.range ℤ (fun {z} hz y ↦ by
+    obtain ⟨x, rfl⟩ := f.rangeRestrict_surjective y
+    have hzR : (z : ℝ) ≠ 0 := Int.cast_ne_zero.mpr hz
+    refine ⟨f.rangeRestrict ((z : ℝ)⁻¹ • x), ?_⟩
+    change z • f.rangeRestrict ((z : ℝ)⁻¹ • x) = f.rangeRestrict x
+    rw [← map_zsmul, ← Int.cast_smul_eq_zsmul ℝ, smul_smul, mul_inv_cancel₀ hzR, one_smul])
+  obtain ⟨split⟩ := exists_continuousAddEquiv_prod_quotient_of_open f.range hRange
+  let D := Additive B ⧸ f.range
+  let : DiscreteTopology D := QuotientAddGroup.discreteTopology hRange
+  let product := split.toAddEquiv.trans (AddEquiv.prodCongr e.toAddEquiv (AddEquiv.refl D))
+  let assoc := Homeomorph.prodAssoc (EuclideanSpace ℝ (Fin m)) (Fin n → AddCircle (1 : ℝ)) D
+  exact elementaryPresentation_of_compactlyGenerated hB {
+    AddEquiv.toMultiplicativeRight (product.trans AddEquiv.prodAssoc) with
+    continuous_toFun := assoc.continuous.comp
+      ((e.continuous_toFun.prodMap continuous_id).comp split.continuous_toFun)
+    continuous_invFun := split.continuous_invFun.comp
+      ((e.continuous_invFun.prodMap continuous_id).comp assoc.symm.continuous) }
+
+
+/-- The cover of the identity component of an elementary group as a homomorphism. -/
+private def elementaryCoverZeroHom {m n r : ℕ} {F : Type*} [AddCommGroup F] :
+    EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n) →+ ElementaryLieGroup m n r F where
+  toFun := fun xt ↦ elementaryCover xt 0 0
+  map_zero' := Prod.ext rfl (Prod.ext (funext fun _ ↦ AddCircle.coe_zero (1 : ℝ)) rfl)
+  map_add' x y := Prod.ext rfl
+    (Prod.ext (funext fun i ↦ AddCircle.coe_add (1 : ℝ) (x.2 i) (y.2 i)) (zero_add _).symm)
+
+/-- The cover of the identity component is continuous and open in the elementary group. -/
+private theorem elementaryCoverZeroHom_continuous_isOpenMap {m n r : ℕ} {F : Type*}
+    [AddCommGroup F] [TopologicalSpace F] [DiscreteTopology F] :
+    let c := elementaryCoverZeroHom (m := m) (n := n) (r := r) (F := F)
+    Continuous c ∧ IsOpenMap c := by
+  refine ⟨continuous_fst.prodMk
+    ((continuous_pi fun i ↦ (AddCircle.continuous_mk' (1 : ℝ)).comp
+      ((PiLp.continuous_apply 2 _ i).comp continuous_snd)).prodMk continuous_const), ?_⟩
+  let q : (Fin n → ℝ) → (Fin n → AddCircle (1 : ℝ)) := fun u i ↦ (u i : AddCircle (1 : ℝ))
+  have hq : IsOpenMap q := IsOpenMap.piMap
+    (fun _ ↦ (QuotientAddGroup.isOpenQuotientMap_mk
+      (N := AddSubgroup.zmultiples (1 : ℝ))).isOpenMap)
+    (Eventually.of_forall fun _ ↦ QuotientAddGroup.mk_surjective)
+  have hzero : IsOpenMap (fun _ : Unit ↦ (0 : (Fin r → ℤ) × F)) := fun _ _ ↦ isOpen_discrete _
+  have he : IsOpenMap (fun u : EuclideanSpace ℝ (Fin n) ↦
+      ((u, ()) : EuclideanSpace ℝ (Fin n) × Unit)) :=
+    (Homeomorph.prodUnique _ _).symm.isOpenMap
+  exact IsOpenMap.id.prodMap
+    (((hq.comp (EuclideanSpace.equiv (Fin n) ℝ).toHomeomorph.isOpenMap).prodMap hzero).comp he)
+
+/-- On a covered discrete fiber, a continuous homomorphism of elementary groups
+is represented in the target cover by a continuous affine map. -/
+private theorem contDiff_comp_elementaryHom {m n r m' n' r' : ℕ} {F F' : Type*}
+    [AddCommGroup F] [TopologicalSpace F] [DiscreteTopology F]
+    [AddCommGroup F'] [TopologicalSpace F'] [DiscreteTopology F'] [Finite F']
+    {p : ℕ∞} (a : ElementaryLieGroup m n r F →+ ElementaryLieGroup m' n' r' F')
+    (ha : Continuous a) {f : ElementaryLieGroup m' n' r' F' → ℂ}
+    (hf : ∀ z b, ContDiff ℝ p (fun u ↦ f (elementaryCover u z b)))
+    (z : Fin r → ℤ) (b : F) :
+    ContDiff ℝ p (fun u ↦ f (a (elementaryCover u z b))) := by
+  let cover := elementaryCoverZeroHom (m := m) (n := n) (r := r) (F := F)
+  let A := a.comp cover
+  have hA : Continuous A := ha.comp elementaryCoverZeroHom_continuous_isOpenMap.1
+  let R := (AddMonoidHom.fst _ _).comp A
+  let T := (AddMonoidHom.fst _ _).comp ((AddMonoidHom.snd _ _).comp A)
+  choose l hl using fun i : Fin n' ↦ exists_addCircle_coe_linearMap_eq
+    ((Pi.evalAddMonoidHom _ i).comp T) ((continuous_apply i).comp hA.snd.fst)
+  let L := (R.toRealLinearMap hA.fst).prod
+    ((EuclideanSpace.equiv (Fin n') ℝ).symm.toContinuousLinearMap.comp
+      (ContinuousLinearMap.pi l))
+  let c := a (elementaryCover 0 z b)
+  obtain ⟨t, ht⟩ := elementaryCover_surjective c.2.2.1 c.2.2.2 c.1 c.2.1
+  have hLift (u : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) :
+      elementaryCover (L u + (c.1, t)) c.2.2.1 c.2.2.2 = a (elementaryCover u z b) := by
+    have hshift : cover u + elementaryCover 0 z b = elementaryCover u z b := by
+      simp [cover, elementaryCoverZeroHom, elementaryCover, Pi.zero_def]
+    rw [← hshift, map_add]
+    refine Prod.ext rfl (Prod.ext ?_ ?_)
+    · funext i
+      have hti := congrArg (fun y : ElementaryLieGroup m' n' r' F' ↦ y.2.1 i) ht
+      change ((l i u + t i : ℝ) : AddCircle (1 : ℝ)) = (A u).2.1 i + c.2.1 i
+      rw [AddCircle.coe_add, hl i u]
+      exact congrArg ((A u).2.1 i + ·) hti
+    · have h := hA.snd.snd.isConst_of_preconnectedSpace u 0
+      rw [map_zero A] at h
+      change c.2.2 = (A u).2.2 + c.2.2
+      rw [h]
+      exact (zero_add _).symm
+  simp_rw [← hLift]
+  exact (hf c.2.2.1 c.2.2.2).comp (L.contDiff.add (contDiff_const (c := (c.1, t))))
+
+/-- Smooth descents for a good subgroup pull back to structural quotients by
+smaller good subgroups. -/
+private theorem bruhatContDiff_descend_of_le {p : ℕ} {f : G → ℂ}
+    {k : Subgroup G} (hk : IsBruhatGoodSubgroup k)
+    (hdesc : ∀ b : BruhatStructuralPair G, OrderDual.ofDual b.val.2 = k →
+      ∃ f₀ : b.quotient → ℂ, (∀ x : b.val.1, f₀ (QuotientGroup.mk x) = f x.val) ∧
+        ∀ (e : ElementaryLCAPresentation b.quotient)
+          (z : Fin e.latticeRank → ℤ) (d : e.finiteFactor),
+          ContDiff ℝ (p : ℕ∞) (fun u ↦ f₀ (e.equiv.symm
+            (Multiplicative.ofAdd (elementaryCover u z d)))))
+    (a : BruhatStructuralPair G) (hak : OrderDual.ofDual a.val.2 ≤ k) :
+    ∃ f₀ : a.quotient → ℂ, (∀ x : a.val.1, f₀ (QuotientGroup.mk x) = f x.val) ∧
+      ∀ (e : ElementaryLCAPresentation a.quotient)
+        (z : Fin e.latticeRank → ℤ) (d : e.finiteFactor),
+        ContDiff ℝ (p : ℕ∞) (fun u ↦ f₀ (e.equiv.symm
+          (Multiplicative.ofAdd (elementaryCover u z d)))) := by
+  have hkc := isCompact_lcaDualAnnihilator (lcaAnnihilator k) hk.2.1
+  rw [lcaDualAnnihilator_annihilator k hk.1] at hkc
+  obtain ⟨J, hkJ⟩ := exists_openCompactlyGeneratedSubgroup_contains hkc
+  obtain ⟨H, haH, hJH⟩ := (openCompactlyGeneratedSubgroups_colimit (G := G)).1.directed
+    ⟨a.val.1, a.property.1, a.property.2.1⟩ J
+  let b : BruhatStructuralPair G :=
+    ⟨(H.val, OrderDual.toDual k), H.property.1, H.property.2, hk, hkJ.trans hJH⟩
+  let i := Subgroup.inclusion (show a.val.1 ≤ H.val from haH)
+  let j : a.quotient →* b.quotient := QuotientGroup.map _ _ i (fun _ hx ↦ hak hx)
+  have hi : Continuous i := (continuous_subtype_val : Continuous ((↑) : a.val.1 → G)).subtype_mk _
+  have hj : Continuous j := (QuotientGroup.isQuotientMap_mk _).continuous_iff.mpr
+    (QuotientGroup.continuous_mk.comp hi)
+  have hio : IsOpenMap i := a.property.1.isOpenMap_inclusion haH
+  have hjo : IsOpenMap j := by
+    intro U hU
+    let qa : a.val.1 → a.quotient := QuotientGroup.mk
+    let qb : b.val.1 → b.quotient := QuotientGroup.mk
+    have hEq : j '' U = (qb ∘ i) '' (qa ⁻¹' U) := by
+      rw [show qb ∘ i = j ∘ qa from rfl, Set.image_comp,
+        Set.image_preimage_eq _ QuotientGroup.mk_surjective]
+    rw [hEq]
+    exact (QuotientGroup.isOpenQuotientMap_mk.isOpenMap.comp hio) _
+      (hU.preimage QuotientGroup.continuous_mk)
+  obtain ⟨f₀, hf₀, hSmooth⟩ := hdesc b rfl
+  refine ⟨f₀ ∘ j, fun x ↦ hf₀ (i x), ?_⟩
+  intro e z d
+  -- The image of the identity-component cover is open in the larger quotient.
+  let c := elementaryCoverZeroHom (m := e.realDim) (n := e.torusDim) (r := e.latticeRank)
+    (F := e.finiteFactor)
+  let j' := MonoidHom.toAdditiveRight (j.comp e.equiv.symm.toMulEquiv.toMonoidHom)
+  have hContinuous : Continuous (j'.comp c) :=
+    hj.comp (e.equiv.symm.continuous.comp elementaryCoverZeroHom_continuous_isOpenMap.1)
+  have hOpen : IsOpenMap (j'.comp c) :=
+    hjo.comp (e.equiv.symm.toHomeomorph.isOpenMap.comp
+      elementaryCoverZeroHom_continuous_isOpenMap.2)
+  have hkClosed : IsClosed ((k.comap b.val.1.subtype : Subgroup b.val.1) : Set b.val.1) :=
+    hk.1.preimage continuous_subtype_val
+  let : LocallyCompactSpace H.val := H.property.1.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  let : T1Space b.quotient := QuotientGroup.t1Space_iff.mpr hkClosed
+  obtain ⟨e'⟩ := elementaryPresentation_of_open_vector_map (j'.comp c) hContinuous hOpen
+    (isCompactlyGeneratedGroup_quotient H.property.2 _ hkClosed)
+  let L := AddMonoidHom.toMultiplicative.symm
+    (e'.equiv.toMulEquiv.toMonoidHom.comp (j.comp e.equiv.symm.toMulEquiv.toMonoidHom))
+  have hL : Continuous L := e'.equiv.continuous.comp (hj.comp e.equiv.symm.continuous)
+  let φ := fun y ↦ f₀ (e'.equiv.symm (Multiplicative.ofAdd y))
+  have hs := contDiff_comp_elementaryHom L hL (f := φ) (hSmooth e') z d
+  convert hs using 1
+  funext u
+  change f₀ (j (e.equiv.symm _)) = f₀ (e'.equiv.symm (e'.equiv (j (e.equiv.symm _))))
+  rw [e'.equiv.symm_apply_apply]
+
 /-- Paper: Definition D.1.5.3(1), p. 762. The sum of two functions of class Cᵖ
 is of class Cᵖ. -/
 theorem IsBruhatContDiff.add {p : ℕ} {f g : G → ℂ}
     (hf : IsBruhatContDiff p f) (hg : IsBruhatContDiff p g) :
-    IsBruhatContDiff p (f + g) := by sorry
+    IsBruhatContDiff p (f + g) := by
+  obtain ⟨k, hk, hfk, hfd⟩ := hf
+  obtain ⟨l, hl, hgl, hgd⟩ := hg
+  refine ⟨k ⊓ l, isBruhatGoodSubgroup_inf hk hl, ?_, ?_⟩
+  · intro h x
+    exact congrArg₂ (· + ·) (hfk ⟨h, h.property.1⟩ x) (hgl ⟨h, h.property.2⟩ x)
+  · intro a ha
+    obtain ⟨f₀, hf₀, hfSmooth⟩ := bruhatContDiff_descend_of_le hk hfd a (ha ▸ inf_le_left)
+    obtain ⟨g₀, hg₀, hgSmooth⟩ := bruhatContDiff_descend_of_le hl hgd a (ha ▸ inf_le_right)
+    exact ⟨f₀ + g₀, fun x ↦ congrArg₂ (· + ·) (hf₀ x) (hg₀ x),
+      fun e z d ↦ (hfSmooth e z d).add (hgSmooth e z d)⟩
 
 /-- Paper: Definition D.1.5.3(1), p. 762. A complex scalar multiple of a function
 of class Cᵖ is of class Cᵖ. -/
@@ -2809,12 +3061,161 @@ theorem pontryaginDual_restriction_isBruhatSmooth (χ : PontryaginDual G)
 when the group is second countable. -/
 theorem schwartzBruhat_t2 [SecondCountableTopology G] : T2Space (SchwartzBruhat G) := by sorry
 
+/-- Paper: Lemma D.1.5.6, p. 763. A compact exhaustion controls the open subgroups,
+and shrinking identity neighborhoods control the kernels, since the elementary quotients
+have no small subgroups. Together they give an increasing cofinal sequence. -/
+private theorem exists_cofinal_bruhatStructuralPairs [SecondCountableTopology G] :
+    ∃ b : ℕ → BruhatStructuralPair G, Monotone b ∧ ∀ a, ∃ n, a ≤ b n := by
+  classical
+  let C := CompactExhaustion.choice G
+  obtain ⟨U, hU⟩ := (𝓝 (1 : G)).exists_antitone_basis
+  choose H hH using fun n ↦ exists_openCompactlyGeneratedSubgroup_contains (C.isCompact n)
+  choose A hA using fun n ↦ exists_lcaDualAnnihilator_subset_nhds
+    (inter_mem (hU.mem n) ((H n).property.1.mem_nhds (H n).val.one_mem))
+  let K (n : ℕ) := lcaDualAnnihilator (A n).val
+  have hGood (n : ℕ) : IsBruhatGoodSubgroup (K n) := by
+    refine ⟨(isCompact_lcaDualAnnihilator _ (A n).property.1).isClosed, ?_⟩
+    rw [show lcaAnnihilator (K n) = (A n).val from
+      lcaAnnihilator_dualAnnihilator_of_open _ (A n).property.1]
+    exact (A n).property
+  let b (n : ℕ) : BruhatStructuralPair G :=
+    ⟨((H n).val, OrderDual.toDual (K n)), (H n).property.1, (H n).property.2,
+      hGood n, fun _ hx ↦ (hA n hx).2⟩
+  have hCofinal (a : BruhatStructuralPair G) : ∃ n, a ≤ b n := by
+    obtain ⟨D, _, hDc, hDgen⟩ := a.property.2.1
+    obtain ⟨m, hm⟩ := C.exists_superset_of_isCompact (hDc.image continuous_subtype_val)
+    let : LocallyCompactSpace a.val.1 := a.property.1.isOpenEmbedding_subtypeVal.locallyCompactSpace
+    let : T1Space a.quotient :=
+      QuotientGroup.t1Space_iff.mpr (a.property.2.2.1.1.preimage continuous_subtype_val)
+    obtain ⟨e⟩ := a.elementary
+    obtain ⟨W, hW, hPow⟩ :=
+      exists_nhds_one_of_isLocallyEuclidean (locallyEuclidean_of_elementaryPresentation e)
+    let π : a.val.1 →* a.quotient := QuotientGroup.mk' _
+    have hPre : π ⁻¹' W ∈ 𝓝 (1 : a.val.1) :=
+      (QuotientGroup.continuous_mk (N := _) : Continuous π).continuousAt.preimage_mem_nhds
+        (by change W ∈ 𝓝 (π 1); rwa [map_one])
+    have hImage : Subtype.val '' (π ⁻¹' W) ∈ 𝓝 (1 : G) :=
+      a.property.1.isOpenEmbedding_subtypeVal.isOpenMap.image_mem_nhds hPre
+    obtain ⟨l, _, hl⟩ := hU.1.mem_iff.mp hImage
+    let n := max m l
+    refine ⟨n, ?_, ?_⟩
+    · have hD : D ⊆ ((H n).val.comap a.val.1.subtype : Set a.val.1) :=
+        fun x hx ↦ hH n (C.subset (le_max_left m l) (hm ⟨x, hx, rfl⟩))
+      have htop : ⊤ ≤ (H n).val.comap a.val.1.subtype :=
+        hDgen ▸ (Subgroup.closure_le _).mpr hD
+      exact fun x hx ↦ htop (Subgroup.mem_top ⟨x, hx⟩)
+    · have hSmall : (K n : Set G) ⊆ Subtype.val '' (π ⁻¹' W) :=
+        fun _ hx ↦ hl (hU.2 (le_max_right m l) (hA n hx).1)
+      intro x hx
+      obtain ⟨y, _, rfl⟩ := hSmall hx
+      apply (a.quotient_mk_eq_one y).mp
+      change π y = 1
+      apply hPow
+      intro k
+      rw [← map_pow]
+      obtain ⟨z, hz, hzy⟩ := hSmall ((K n).pow_mem hx k)
+      exact (Subtype.ext hzy : z = y ^ k) ▸ hz
+  let := (bruhatStructuralPair_filtered (G := G)).2
+  choose upper hleft hright using (exists_ge_ge (α := BruhatStructuralPair G))
+  let chain : ℕ → BruhatStructuralPair G :=
+    Nat.rec (b 0) fun n prev ↦ upper prev (b (n + 1))
+  have hdom (n : ℕ) : b n ≤ chain n := by
+    cases n with
+    | zero => exact le_rfl
+    | succ n => exact hright (chain n) (b (n + 1))
+  exact ⟨chain, monotone_nat_of_le_succ fun n ↦ hleft (chain n) (b (n + 1)), fun a ↦ by
+    obtain ⟨n, hn⟩ := hCofinal a
+    exact ⟨n, hn.trans (hdom n)⟩⟩
+
+omit hTop hT2 hLC in
+/-- A stage function is determined by its realization because every elementary coordinate
+is represented by a point in the open subgroup. -/
+private theorem schwartzBruhatStageInclusion_injective (a : BruhatStructuralPair G)
+    (e : ElementaryLCAPresentation a.quotient) :
+    Function.Injective (schwartzBruhatStageInclusion a e) := by
+  classical
+  intro f g hfg
+  apply Subtype.ext
+  funext z
+  obtain ⟨q, hq⟩ := e.equiv.surjective (Multiplicative.ofAdd z)
+  obtain ⟨x, rfl⟩ := QuotientGroup.mk_surjective q
+  have h := congrArg (fun f : schwartzBruhatSubmodule G ↦ f.val x.val) hfg
+  change schwartzBruhatStageRealization a e f x.val = schwartzBruhatStageRealization a e g x.val at h
+  simpa only [schwartzBruhatStageRealization_apply, dite_eq_left x.property, hq,
+    toAdd_ofAdd] using h
+
+omit hTop hT2 hLC in
+/-- A cofinal sequence with embedding transitions induces the same final locally convex
+topology as the full system. Each stage embeds by factoring through a stage of that sequence. -/
+private theorem isEmbedding_of_cofinal_lcStages {ι E : Type*}
+    [AddCommGroup E] [Module ℂ E] [t : TopologicalSpace E] [IsTopologicalAddGroup E]
+    {X : ι → Type*} [∀ a, AddCommGroup (X a)] [∀ a, Module ℂ (X a)]
+    [∀ a, TopologicalSpace (X a)] [∀ a, IsTopologicalAddGroup (X a)]
+    [∀ a, PolynormableSpace ℂ (X a)]
+    (inc : ∀ a, X a →ₗ[ℂ] E) (s : ℕ → ι)
+    (hinj : ∀ n, Function.Injective (inc (s n)))
+    (hex : ∀ x : E, ∃ a, x ∈ (inc a).range)
+    (ht : t = locallyConvexFinalTopology inc)
+    (hstep : ∀ n, ∃ j : X (s n) →L[ℂ] X (s (n + 1)),
+      (∀ x, inc (s (n + 1)) (j x) = inc (s n) x) ∧ IsEmbedding j)
+    (hfactor : ∀ a, ∃ n, ∃ j : X a →L[ℂ] X (s n),
+      (∀ x, inc (s n) (j x) = inc a x) ∧ IsEmbedding j)
+    (a : ι) : IsEmbedding (inc a) := by
+  classical
+  let stage (n : ℕ) := inc (s n)
+  have htests : (fun q : Seminorm ℂ E ↦ ∀ a, Continuous (q ∘ inc a)) =
+      (fun q : Seminorm ℂ E ↦ ∀ n, Continuous (q ∘ stage n)) := by
+    funext q
+    exact propext ⟨fun h n ↦ h (s n), fun h a ↦ by
+      obtain ⟨n, j, hj, _⟩ := hfactor a
+      exact ((h n).comp j.continuous).congr fun x ↦ congrArg q (hj x)⟩
+  have ht' : t = locallyConvexFinalTopology stage :=
+    ht.trans (congrArg (fun P : Seminorm ℂ E → Prop ↦
+      (SeminormFamily.moduleFilterBasis (Subtype.val : Subtype P → Seminorm ℂ E)).topology) htests)
+  have hseminorms : WithSeminorms
+      (Subtype.val : {q : Seminorm ℂ E // ∀ n, Continuous (q ∘ stage n)} → Seminorm ℂ E) := ⟨ht'⟩
+  let i (n : ℕ) : X (s n) →L[ℂ] E :=
+    ⟨stage n, hseminorms.continuous_of_continuous_comp _ fun q ↦ q.property n⟩
+  choose j hj hEmb using hstep
+  have hlim : IsInjectiveLCLimit (X := fun n ↦ X (s n)) j i := by
+    refine ⟨hinj, fun n ↦ ContinuousLinearMap.ext (hj n), ?_, ht'⟩
+    intro x
+    obtain ⟨c, y, rfl⟩ := hex x
+    obtain ⟨n, k, hk, _⟩ := hfactor c
+    exact ⟨n, k y, hk y⟩
+  obtain ⟨n, k, hk, hkEmb⟩ := hfactor a
+  have hcomp : (i n : X (s n) → E) ∘ k = inc a := funext hk
+  exact hcomp ▸ (hlim.isEmbedding_stage hEmb n).comp hkEmb
+
 /-- Paper: Lemma D.1.5.6(1), p. 763. Each structural stage inherits its intrinsic
 topology from the final locally convex topology. -/
 theorem schwartzBruhatStage_isEmbedding [SecondCountableTopology G]
     (a : BruhatStructuralPair G) (e : ElementaryLCAPresentation a.quotient) :
     IsEmbedding (show SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat G from
-      schwartzBruhatStageInclusion a e) := by sorry
+      schwartzBruhatStageInclusion a e) := by
+  classical
+  let ι := (c : BruhatStructuralPair G) × ElementaryLCAPresentation c.quotient
+  let X (c : ι) := SchwartzBruhatStage c.2
+  let inc (c : ι) : X c →ₗ[ℂ] SchwartzBruhat G := schwartzBruhatStageInclusion c.1 c.2
+  have hseq := exists_cofinal_bruhatStructuralPairs (G := G)
+  let b := hseq.choose
+  let s (n : ℕ) : ι := ⟨b n, Classical.choice (b n).elementary⟩
+  have htransition (c c' : ι) (hc : c.1 ≤ c'.1) :
+      ∃ j : X c →L[ℂ] X c', (∀ x, inc c' (j x) = inc c x) ∧ IsEmbedding j := by
+    have h := schwartzBruhatStage_transition hc c.2 c'.2
+    exact ⟨h.choose, fun x ↦ Subtype.ext (h.choose_spec.1 x), h.choose_spec.2.isEmbedding⟩
+  refine isEmbedding_of_cofinal_lcStages (X := X) inc s
+    (fun n ↦ schwartzBruhatStageInclusion_injective (s n).1 (s n).2)
+    ?_ schwartzBruhat_topology_eq_final
+    (fun n ↦ htransition (s n) (s (n + 1)) (hseq.choose_spec.1 (Nat.le_succ n))) ?_ ⟨a, e⟩
+  · intro f
+    have hf := (mem_schwartzBruhatSubmodule_iff _).mp
+      (show schwartzBruhatSubmodule G from f).property
+    exact hf.elim fun c hc ↦ hc.elim fun p hp ↦ hp.elim fun x hx ↦
+      ⟨⟨c, p⟩, x, Subtype.ext hx⟩
+  · intro c
+    have hc := hseq.choose_spec.2 c.1
+    exact ⟨hc.choose, htransition c (s hc.choose) hc.choose_spec⟩
 
 /-- Paper: Lemma D.1.5.6(2), p. 763. Every bounded subset of the limit is
 the image of a bounded subset of a single stage. -/
@@ -2866,15 +3267,345 @@ of a second-countable group is nuclear. -/
 theorem schwartzBruhat_strongDual_nuclear [SecondCountableTopology G] :
     IsNuclearTVS.{v} (StrongDual ℂ (SchwartzBruhat G)) := by sorry
 
+/-- The intersection of an open ascending union with a compactly generated subgroup
+is already contained in one member of the union. -/
+private theorem compactlyGenerated_inter_iSup_open {H : Subgroup G}
+    (hH : IsCompactlyGeneratedGroup H) (hHOpen : IsOpen (H : Set G))
+    {J : ℕ → Subgroup G} (hJ : Monotone J)
+    (hOpen : ∀ n, IsOpen (J n : Set G)) :
+    ∃ N, H ⊓ (⨆ n, J n) ≤ J N := by
+  let L : Subgroup G := ⨆ n, J n
+  have hL : IsOpen (L : Set G) := Subgroup.isOpen_mono (le_iSup J 0) (hOpen 0)
+  let M := L.comap H.subtype
+  have hM : IsClosed (M : Set H) :=
+    (L.isClosed_of_isOpen hL).preimage continuous_subtype_val
+  let : LocallyCompactSpace H := hHOpen.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  obtain ⟨K, _, hK, hGen⟩ := isCompactlyGeneratedGroup_closedSubgroup hH M hM
+  let i : M →* G := H.subtype.comp M.subtype
+  have hi : Continuous i := continuous_subtype_val.comp continuous_subtype_val
+  obtain ⟨N, hN⟩ := (hK.image hi).elim_directed_cover
+    (fun n ↦ (J n : Set G)) hOpen (by
+      rw [← Subgroup.coe_iSup_of_directed hJ.directed_le]
+      rintro _ ⟨x, _, rfl⟩
+      exact x.property) (hJ.directed_le.mono fun _ _ h ↦ h)
+  refine ⟨N, fun x hx ↦ ?_⟩
+  have hgen : Subgroup.closure K ≤ (J N).comap i :=
+    Subgroup.closure_le _ |>.mpr fun y hy ↦ hN (mem_image_of_mem i hy)
+  exact hgen (hGen.symm ▸ Subgroup.mem_top (⟨⟨x, hx.1⟩, hx.2⟩ : M))
+
+omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] in
+/-- Point evaluation on an elementary Schwartz stage is continuous by the
+zero-order, zero-weight seminorm. -/
+private theorem continuous_schwartzBruhatStage_eval
+    (a : BruhatStructuralPair G) (e : ElementaryLCAPresentation a.quotient) (x : G) :
+    Continuous (fun f : SchwartzBruhatStage e ↦ schwartzBruhatStageRealization a e f x) := by
+  let L := (LinearMap.proj x).comp (schwartzBruhatStageRealization a e)
+  refine (norm_withSeminorms ℂ ℂ).continuous_of_continuous_comp L fun _ ↦ ?_
+  apply Seminorm.continuous_of_le (elementarySchwartz_withSeminorms.continuous_seminorm (0, 0, 0, 0))
+  intro f
+  change ‖schwartzBruhatStageRealization a e f x‖ ≤ elementarySchwartzSeminorm (0, 0, 0, 0) f
+  rw [schwartzBruhatStageRealization_apply]
+  split_ifs with hx
+  · change (‖f _‖₊ : ENNReal).toReal ≤ (elementarySchwartzBound f.val (0, 0, 0, 0)).toReal
+    apply ENNReal.toReal_mono (f.property.2 _).ne
+    rw [elementarySchwartzBound_zero]
+    exact le_iSup (fun y ↦ (‖f y‖₊ : ENNReal)) _
+  · exact norm_zero.trans_le (apply_nonneg _ _)
+
+open Classical in
+/-- Paper: Lemma D.1.5.6, p. 763. The stage projection on functions restricts the
+support to the open subgroup and averages translates over the compact good subgroup. -/
+def schwartzBruhatStageAverage (a : BruhatStructuralPair G) (f : G → ℂ) (x : G) : ℂ :=
+  let k : Subgroup G := OrderDual.ofDual a.val.2
+  letI : MeasurableSpace k := borel k
+  letI : BorelSpace k := ⟨rfl⟩
+  have hk : IsCompact (k : Set G) := by
+    rw [← lcaDualAnnihilator_annihilator k a.property.2.2.1.1]
+    exact isCompact_lcaDualAnnihilator _ a.property.2.2.1.2.1
+  letI : CompactSpace k := isCompact_iff_compactSpace.mp hk
+  let μ := Measure.haarMeasure (⟨⟨univ, isCompact_univ⟩, by simp⟩ : PositiveCompacts k)
+  if x ∈ a.val.1 then ∫ h : k, f (h.val * x) ∂μ else 0
+
+/-- Paper: Lemma D.1.5.6, p. 763. Cutoff and normalized Haar averaging yield a
+continuous stage retraction, with the stated pointwise formula on the limit. -/
+theorem schwartzBruhatStage_average_retraction
+    (a : BruhatStructuralPair G) (e : ElementaryLCAPresentation a.quotient) :
+    ∃ R : SchwartzBruhat G →L[ℂ] SchwartzBruhatStage e,
+      (∀ f, R (schwartzBruhatStageInclusion a e f) = f) ∧
+        ∀ f x, schwartzBruhatStageRealization a e (R f) x = schwartzBruhatStageAverage a f x := by
+  sorry
+
+/-- For a function from a fixed stage, two comparable cutoff and averaging operations
+agree when their open subgroups have the same intersection with the source support
+subgroup and their averaging subgroups have the same image modulo the source kernel.
+The equality of annihilator intersections expresses the latter condition. -/
+theorem schwartzBruhatStage_average_eq_of_inf
+    {a c : BruhatStructuralPair G} (b : BruhatStructuralPair G) (hac : a ≤ c)
+    (hOpen : a.val.1 ⊓ b.val.1 = c.val.1 ⊓ b.val.1)
+    (hKernel : lcaAnnihilator (OrderDual.ofDual a.val.2) ⊓
+      lcaAnnihilator (OrderDual.ofDual b.val.2) =
+      lcaAnnihilator (OrderDual.ofDual c.val.2) ⊓ lcaAnnihilator (OrderDual.ofDual b.val.2))
+    (e : ElementaryLCAPresentation b.quotient) (f : SchwartzBruhatStage e) :
+    schwartzBruhatStageAverage a (schwartzBruhatStageRealization b e f) =
+      schwartzBruhatStageAverage c (schwartzBruhatStageRealization b e f) := by
+  sorry
+
+omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] in
+/-- The inclusion of a stage is continuous by the definition of the generating seminorms. -/
+private theorem continuous_schwartzBruhatStageInclusion
+    (a : BruhatStructuralPair G) (e : ElementaryLCAPresentation a.quotient) :
+    Continuous (show SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat G from
+      schwartzBruhatStageInclusion a e) := by
+  exact (withGeneratingSeminorms_spec _ _).continuous_of_continuous_comp _ (fun p ↦ p.2 a e)
+
+/-- The intersections of a fixed stage's open subgroups in the group and its dual
+with the corresponding subgroups in an ascending chain both stabilize. -/
+private theorem schwartzBruhatStage_intersections_stabilize
+    {a : ℕ → BruhatStructuralPair G} (ha : Monotone a) (b : BruhatStructuralPair G) :
+    ∃ N, ∀ n ≥ N,
+      (a n).val.1 ⊓ b.val.1 = (a (n + 1)).val.1 ⊓ b.val.1 ∧
+      lcaAnnihilator (OrderDual.ofDual (a n).val.2) ⊓
+        lcaAnnihilator (OrderDual.ofDual b.val.2) =
+      lcaAnnihilator (OrderDual.ofDual (a (n + 1)).val.2) ⊓
+        lcaAnnihilator (OrderDual.ofDual b.val.2) := by
+  let H (n : ℕ) := (a n).val.1
+  let A (n : ℕ) := lcaAnnihilator (OrderDual.ofDual (a n).val.2)
+  have hH : Monotone H := fun _ _ h ↦ (ha h).1
+  have hA : Monotone A := fun _ _ h χ hχ ↦
+    (mem_lcaAnnihilator_iff _ χ).mpr fun x ↦
+      (mem_lcaAnnihilator_iff _ χ).mp hχ ⟨x, (ha h).2 x.property⟩
+  obtain ⟨N, hN⟩ := compactlyGenerated_inter_iSup_open b.property.2.1 b.property.1 hH
+    (fun n ↦ (a n).property.1)
+  obtain ⟨M, hM⟩ := compactlyGenerated_inter_iSup_open b.property.2.2.1.2.2
+    b.property.2.2.1.2.1 hA (fun n ↦ (a n).property.2.2.1.2.1)
+  refine ⟨max N M, fun n hn ↦ ⟨?_, ?_⟩⟩
+  · exact le_antisymm (inf_le_inf_right _ (hH (Nat.le_succ n)))
+      (le_inf ((inf_le_inf (le_iSup H (n + 1)) le_rfl).trans
+        ((inf_comm _ _).le.trans (hN.trans (hH ((le_max_left _ _).trans hn))))) inf_le_right)
+  · exact le_antisymm (inf_le_inf_right _ (hA (Nat.le_succ n)))
+      (le_inf ((inf_le_inf (le_iSup A (n + 1)) le_rfl).trans
+        ((inf_comm _ _).le.trans (hM.trans (hA ((le_max_right _ _).trans hn))))) inf_le_right)
+
+omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] in
+/-- A sequence of linear functionals that eventually vanish on each stage cannot be
+nonzero on a corresponding sequence in a bounded set. The functionals can be rescaled
+and combined into one seminorm continuous on every stage. -/
+private theorem exists_zero_evaluation_of_bounded
+    {E : Type*} [AddCommGroup E] [Module ℂ E]
+    {ι : Type*} {X : ι → Type*} [∀ a, AddCommGroup (X a)] [∀ a, Module ℂ (X a)]
+    [∀ a, TopologicalSpace (X a)] [∀ a, IsTopologicalAddGroup (X a)]
+    (i : ∀ a, X a →ₗ[ℂ] E)
+    (hCover : ∀ u : E, ∃ a, u ∈ range (i a))
+    {B : Set E} (hBound : ∀ p : Seminorm ℂ E, (∀ a, Continuous (p ∘ i a)) →
+      ∃ C : ℝ, ∀ u ∈ B, p u < C)
+    (f : ℕ → E) (hfB : ∀ n, f n ∈ B)
+    (L : ℕ → E →ₗ[ℂ] ℂ)
+    (hL : ∀ n a, Continuous (L n ∘ i a))
+    (hzero : ∀ a, ∃ N, ∀ n ≥ N, ∀ s, L n (i a s) = 0) :
+    ¬ ∀ n, L n (f n) ≠ 0 := by
+  intro hne
+  let w (n : ℕ) : ℝ := (n : ℝ) / ‖L n (f n)‖
+  let p (n : ℕ) : Seminorm ℂ E :=
+    (Real.toNNReal (w n)) • (normSeminorm ℂ ℂ).comp (L n)
+  have hp (n : ℕ) (u : E) : p n u = w n * ‖L n u‖ := by
+    change (↑(Real.toNNReal (w n)) : ℝ) * ‖L n u‖ = w n * ‖L n u‖
+    rw [Real.coe_toNNReal _ (div_nonneg (Nat.cast_nonneg n) (norm_nonneg _))]
+  have hfin (a : ι) : ∃ N, ∀ n (s : X a), p n (i a s) ≤ ((Finset.range N).sup p) (i a s) := by
+    obtain ⟨N, hN⟩ := hzero a
+    refine ⟨N, fun n s ↦ ?_⟩
+    by_cases hn : n < N
+    · exact Seminorm.le_finset_sup_apply (Finset.mem_range.mpr hn)
+    · rw [hp, hN n (Nat.le_of_not_gt hn) s, norm_zero, mul_zero]
+      exact apply_nonneg _ _
+  have hbound : BddAbove (range p) := Seminorm.bddAbove_range_iff.mpr fun u ↦ by
+    obtain ⟨a, s, rfl⟩ := hCover u
+    obtain ⟨N, hN⟩ := hfin a
+    exact ⟨((Finset.range N).sup p) (i a s), forall_mem_range.mpr fun n ↦ hN n s⟩
+  let q : Seminorm ℂ E := ⨆ n, p n
+  have hcont (a : ι) : Continuous (q ∘ i a) := by
+    obtain ⟨N, hN⟩ := hfin a
+    let p' := SeminormFamily.comp p (i a)
+    apply Seminorm.continuous_of_le (p := q.comp (i a))
+      (q := (Finset.range N).sup p')
+    · apply Seminorm.continuous_finsetSup
+      intro n _
+      exact ((hL n a).norm.const_mul (w n)).congr fun s ↦ (hp n (i a s)).symm
+    · intro s
+      rw [← SeminormFamily.finset_sup_comp]
+      change (⨆ n, p n) (i a s) ≤ ((Finset.range N).sup p) (i a s)
+      rw [Seminorm.iSup_apply hbound]
+      exact ciSup_le fun n ↦ hN n s
+  obtain ⟨C, hC⟩ := hBound q hcont
+  obtain ⟨n, hn⟩ := exists_nat_gt C
+  have hpn : p n (f n) = (n : ℝ) := by
+    rw [hp]
+    exact div_mul_cancel₀ _ (norm_ne_zero_iff.mpr (hne n))
+  exact (not_lt_of_ge (hn.le.trans (hpn.ge.trans (le_ciSup hbound n (f n))))) (hC _ (hfB n))
+
+/-- If projections along an ascending chain eventually agree on each fixed stage,
+their successive differences rule out a bounded set escaping every stage. -/
+private theorem bounded_subset_stage_of_projections
+    {E A : Type*} [AddCommGroup E] [Module ℂ E]
+    {ι κ : Type*} [Preorder κ] [Nonempty κ] {X : ι → Type*}
+    [∀ a, AddCommGroup (X a)] [∀ a, Module ℂ (X a)]
+    [∀ a, TopologicalSpace (X a)] [∀ a, IsTopologicalAddGroup (X a)]
+    (i : ∀ a, X a →ₗ[ℂ] E) (hCover : ∀ u : E, ∃ a, u ∈ range (i a))
+    {B : Set E} (hBound : ∀ p : Seminorm ℂ E, (∀ a, Continuous (p ∘ i a)) →
+      ∃ C : ℝ, ∀ u ∈ B, p u < C)
+    (S : κ → Set E) (hNext : ∀ k u, ∃ l, k ≤ l ∧ u ∈ S l)
+    (P : κ → E →ₗ[ℂ] (A → ℂ)) (realize : E → (A → ℂ))
+    (hFix : ∀ k u, P k u = realize u ↔ u ∈ S k)
+    (hCont : ∀ k x b, Continuous (fun s : X b ↦ P k (i b s) x))
+    (hStable : ∀ (a : ℕ → κ), Monotone a → ∀ b, ∃ N, ∀ n ≥ N, ∀ s,
+      P (a (n + 1)) (i b s) = P (a n) (i b s)) :
+    ∃ k, B ⊆ S k := by
+  classical
+  by_contra hEscape
+  simp only [not_exists, not_subset] at hEscape
+  choose f hfB hfOut using hEscape
+  choose next hnext hmem using fun k ↦ hNext k (f k)
+  let a : ℕ → κ := Nat.rec (Classical.choice ‹Nonempty κ›) (fun _ k ↦ next k)
+  have ha : Monotone a := monotone_nat_of_le_succ fun n ↦ hnext (a n)
+  have hPoint (n : ℕ) : ∃ x, P (a (n + 1)) (f (a n)) x ≠ P (a n) (f (a n)) x := by
+    by_contra! h
+    exact hfOut (a n) ((hFix _ _).mp ((funext h).symm.trans ((hFix _ _).mpr (hmem (a n)))))
+  choose x hx using hPoint
+  let L (n : ℕ) : E →ₗ[ℂ] ℂ := (LinearMap.proj (x n)).comp (P (a (n + 1)) - P (a n))
+  apply exists_zero_evaluation_of_bounded i hCover hBound (f ∘ a) (fun n ↦ hfB (a n)) L
+  · exact fun n b ↦ (hCont (a (n + 1)) (x n) b).sub (hCont (a n) (x n) b)
+  · intro b
+    obtain ⟨N, hN⟩ := hStable a ha b
+    exact ⟨N, fun n hn s ↦ sub_eq_zero.mpr (congrFun (hN n hn s) (x n))⟩
+  · exact fun n ↦ sub_ne_zero.mpr (hx n)
+
+/-- An element can be realized in a stage above any given structural pair,
+with any chosen presentation of the larger quotient. -/
+private theorem schwartzBruhat_exists_stage_above
+    (e : ∀ b : BruhatStructuralPair G, ElementaryLCAPresentation b.quotient)
+    (a : BruhatStructuralPair G) (u : schwartzBruhatSubmodule G) :
+    ∃ b, a ≤ b ∧ u ∈ range (schwartzBruhatStageInclusion b (e b)) := by
+  obtain ⟨b, d, s, hs⟩ := (mem_schwartzBruhatSubmodule_iff (G := G) u.val).mp u.property
+  obtain ⟨c, hac, hbc⟩ := (bruhatStructuralPair_filtered (G := G)).2.directed a b
+  obtain ⟨j, hj, _⟩ := schwartzBruhatStage_transition hbc d (e c)
+  exact ⟨c, hac, j s, Subtype.ext ((hj s).trans hs)⟩
+
+omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] in
+/-- Each generating seminorm is bounded on every von Neumann bounded set. -/
+private theorem schwartzBruhat_seminorm_bounded {B : Set (SchwartzBruhat G)}
+    (hB : IsVonNBounded ℂ B) (p : Seminorm ℂ (schwartzBruhatSubmodule G))
+    (hp : ∀ (b : BruhatStructuralPair G) (d : ElementaryLCAPresentation b.quotient),
+      Continuous (p ∘ schwartzBruhatStageInclusion b d)) :
+    ∃ C : ℝ, ∀ u ∈ B, p u < C := by
+  let I := {q : Seminorm ℂ (schwartzBruhatSubmodule G) //
+    ∀ (b : BruhatStructuralPair G) (d : ElementaryLCAPresentation b.quotient),
+      Continuous (q ∘ schwartzBruhatStageInclusion b d)}
+  have hSeminorms := withGeneratingSeminorms_spec (schwartzBruhatSubmodule G)
+    (Subtype.val : I → Seminorm ℂ (schwartzBruhatSubmodule G))
+  exact (hSeminorms.isVonNBounded_iff_seminorm_bounded.mp hB ⟨p, hp⟩).imp (fun _ h ↦ h.2)
+
+/-- The stage maps for all pairs and presentations cover the Schwartz–Bruhat space. -/
+private theorem schwartzBruhat_stage_cover (u : schwartzBruhatSubmodule G) :
+    ∃ b : (a : BruhatStructuralPair G) × ElementaryLCAPresentation a.quotient,
+      u ∈ range (schwartzBruhatStageInclusion b.1 b.2) := by
+  exact ((mem_schwartzBruhatSubmodule_iff (G := G) u.val).mp u.property).elim
+    (fun b hb ↦ hb.elim fun d hd ↦ hd.elim fun s hs ↦ ⟨⟨b, d⟩, s, Subtype.ext hs⟩)
+
+/-- Averaging along an ascending chain eventually gives the same result on every
+element of a fixed stage. -/
+private theorem schwartzBruhatStage_average_stabilizes
+    {a : ℕ → BruhatStructuralPair G} (ha : Monotone a)
+    (b : BruhatStructuralPair G) (d : ElementaryLCAPresentation b.quotient) :
+    ∃ N, ∀ n ≥ N, ∀ s : SchwartzBruhatStage d,
+      schwartzBruhatStageAverage (a (n + 1)) (schwartzBruhatStageRealization b d s) =
+      schwartzBruhatStageAverage (a n) (schwartzBruhatStageRealization b d s) := by
+  refine (schwartzBruhatStage_intersections_stabilize (G := G) ha b).imp ?_
+  intro N hN n hn s
+  exact (schwartzBruhatStage_average_eq_of_inf b (ha (Nat.le_succ n))
+    (hN n hn).1 (hN n hn).2 d s).symm
+
+/-- Successive differences of the cutoff and averaging projections force a bounded
+set to lie in one stage. -/
+private theorem schwartzBruhat_bounded_subset_stage
+    {B : Set (SchwartzBruhat G)} (hB : IsVonNBounded ℂ B)
+    (e : ∀ a : BruhatStructuralPair G, ElementaryLCAPresentation a.quotient)
+    (R : ∀ a, SchwartzBruhat G →L[ℂ] SchwartzBruhatStage (e a))
+    (hRi : ∀ a, Function.LeftInverse (R a) (schwartzBruhatStageInclusion a (e a)))
+    (hR : ∀ (a : BruhatStructuralPair G) (u : SchwartzBruhat G) (x : G),
+      schwartzBruhatStageRealization a (e a) (R a u) x = schwartzBruhatStageAverage a u x) :
+    ∃ a, B ⊆ range (schwartzBruhatStageInclusion a (e a)) := by
+  let : Nonempty (BruhatStructuralPair G) := (bruhatStructuralPair_filtered (G := G)).1
+  let i (a : BruhatStructuralPair G) := schwartzBruhatStageInclusion a (e a)
+  let P (b : BruhatStructuralPair G) : schwartzBruhatSubmodule G →ₗ[ℂ] (G → ℂ) :=
+    (schwartzBruhatStageRealization b (e b)).comp (R b).toLinearMap
+  have hP (b : BruhatStructuralPair G) (u : SchwartzBruhat G) :
+      P b u = schwartzBruhatStageAverage b u := funext (hR b u)
+  have hFix (b : BruhatStructuralPair G) (u : SchwartzBruhat G) : P b u = u.val ↔ u ∈ range (i b) :=
+    ⟨fun h ↦ ⟨R b u, Subtype.ext h⟩,
+      fun hu ↦ congrArg (fun w : SchwartzBruhat G ↦ w.val)
+        ((Function.LeftInverse.rightInvOn_range (hRi b)) hu)⟩
+  let J := (b : BruhatStructuralPair G) × ElementaryLCAPresentation b.quotient
+  let j (b : J) := schwartzBruhatStageInclusion b.1 b.2
+  have hBound (p : Seminorm ℂ (schwartzBruhatSubmodule G)) (hp : ∀ b : J, Continuous (p ∘ j b)) :
+      ∃ C : ℝ, ∀ u ∈ B, p u < C :=
+    schwartzBruhat_seminorm_bounded (G := G) hB p (fun b d ↦ hp ⟨b, d⟩)
+  refine bounded_subset_stage_of_projections (X := fun b : J ↦ SchwartzBruhatStage b.2)
+    j (schwartzBruhat_stage_cover (G := G)) hBound (fun b ↦ range (i b))
+    (schwartzBruhat_exists_stage_above (G := G) e) P (fun u ↦ u.val) hFix ?_ ?_
+  · rintro c x ⟨b, d⟩
+    exact (continuous_schwartzBruhatStage_eval c (e c) x).comp
+      ((R c).continuous.comp (continuous_schwartzBruhatStageInclusion b d))
+  · rintro a ha ⟨b, d⟩
+    refine (schwartzBruhatStage_average_stabilizes (G := G) ha b d).imp ?_
+    intro N hN n hn s
+    let u : SchwartzBruhat G := schwartzBruhatStageInclusion b d s
+    exact (hP (a (n + 1)) u).trans ((hN n hn s).trans (hP (a n) u).symm)
+
+/-- A bounded set in the full Schwartz–Bruhat space is the image of a bounded
+set in one stage, obtained by applying that stage's continuous retraction. -/
+private theorem schwartzBruhat_bounded_lift
+    {B : Set (SchwartzBruhat G)} (hB : IsVonNBounded ℂ B) :
+    ∃ (a : BruhatStructuralPair G) (e : ElementaryLCAPresentation a.quotient)
+      (C : Set (SchwartzBruhatStage e)), IsVonNBounded ℂ C ∧
+        (show SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat G from
+          schwartzBruhatStageInclusion a e) '' C = B := by
+  let e (a : BruhatStructuralPair G) := Classical.choice a.elementary
+  let R (a : BruhatStructuralPair G) : SchwartzBruhat G →L[ℂ] SchwartzBruhatStage (e a) :=
+    (schwartzBruhatStage_average_retraction a (e a)).choose
+  have hRi (a : BruhatStructuralPair G) :
+      Function.LeftInverse (R a) (schwartzBruhatStageInclusion a (e a)) :=
+    (schwartzBruhatStage_average_retraction a (e a)).choose_spec.1
+  refine (schwartzBruhat_bounded_subset_stage (G := G) hB e R hRi
+    (fun b ↦ (schwartzBruhatStage_average_retraction b (e b)).choose_spec.2)).elim ?_
+  intro a ha
+  let i := schwartzBruhatStageInclusion a (e a)
+  have hInv : LeftInvOn i (R a) B := fun _ hu ↦ (hRi a).rightInvOn_range (ha hu)
+  exact ⟨a, e a, R a '' B, hB.image (R a), hInv.image_image⟩
+
 /-- Paper: Theorem D.1.5.7 and Remark D.1.5.8, p. 764. Closed bounded subsets
 of the Schwartz–Bruhat space are compact, including beyond the second-countable case. -/
 theorem schwartzBruhat_montel :
-    MontelSpace ℂ (SchwartzBruhat G) := by sorry
+    MontelSpace ℂ (SchwartzBruhat G) := by
+  refine ⟨fun B hClosed hBounded ↦ ?_⟩
+  obtain ⟨a, e, C, hC, hImage⟩ := schwartzBruhat_bounded_lift (G := G) hBounded
+  let i : SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat G := schwartzBruhatStageInclusion a e
+  have hi : Continuous i := continuous_schwartzBruhatStageInclusion a e
+  let : T2Space (SchwartzBruhatStage e) := elementarySchwartz_t2
+  let : ContinuousSMul ℂ (SchwartzBruhatStage e) := elementarySchwartz_withSeminorms.continuousSMul
+  have hCompact : IsCompact (closure C) :=
+    elementarySchwartz_isCompact_of_isClosed_isVonNBounded isClosed_closure hC.closure
+  have hEq : i '' closure C = B := subset_antisymm
+    ((image_closure_subset_closure_image hi).trans (hImage ▸ hClosed.closure_eq.le))
+    (hImage ▸ image_mono subset_closure)
+  exact hEq ▸ hCompact.image hi
 
 /-- Paper: Theorem D.1.5.7, p. 764. Closed bounded subsets of the strong dual
 of the Schwartz–Bruhat space are compact. -/
 theorem schwartzBruhat_strongDual_montel [SecondCountableTopology G] :
-    MontelSpace ℂ (StrongDual ℂ (SchwartzBruhat G)) := by sorry
+    MontelSpace ℂ (StrongDual ℂ (SchwartzBruhat G)) := by
+  letI : T2Space (SchwartzBruhat G) := schwartzBruhat_t2
+  letI : BarrelledSpace ℂ (SchwartzBruhat G) := schwartzBruhat_barrelled
+  letI : MontelSpace ℂ (SchwartzBruhat G) := schwartzBruhat_montel
+  exact montelSpace_strongDual
 
 /-- Paper: Theorem D.1.5.7 and Remark D.1.5.8, p. 764. Evaluation gives a
 linear homeomorphism with the strong bidual, the paper's reflexivity property
@@ -2883,6 +3614,8 @@ theorem schwartzBruhat_reflexive :
     ∃ e : SchwartzBruhat G ≃L[ℂ] StrongDual ℂ (StrongDual ℂ (SchwartzBruhat G)),
       ∀ f L, e f L = L f := by sorry
 
+-- Checking section-variable usage is expensive for the nested strong duals here.
+set_option linter.unusedSectionVars false in
 /-- Paper: Theorem D.1.5.7, p. 764. Evaluation identifies the strong dual
 linearly and topologically with its own strong bidual. -/
 theorem schwartzBruhat_strongDual_reflexive [SecondCountableTopology G] :
@@ -2891,12 +3624,65 @@ theorem schwartzBruhat_strongDual_reflexive [SecondCountableTopology G] :
     let DD := StrongDual ℂ D
     letI : TopologicalSpace DD := ContinuousLinearMap.topologicalSpace
     letI : TopologicalSpace (StrongDual ℂ DD) := ContinuousLinearMap.topologicalSpace
-    ∃ e : D ≃L[ℂ] StrongDual ℂ DD, ∀ L M, e L M = M L := by sorry
+    ∃ e : D ≃L[ℂ] StrongDual ℂ DD, ∀ L M, e L M = M L := by
+  refine (schwartzBruhat_reflexive (G := G)).elim ?_
+  intro e he
+  refine ⟨e.arrowCongr (ContinuousLinearEquiv.refl ℂ ℂ), ?_⟩
+  intro L M
+  change L (e.symm M) = M L
+  simpa only [e.apply_symm_apply] using (he (e.symm M) L).symm
 
+open scoped ComplexOrder in
 /-- Paper: Theorem D.1.5.7, p. 764. The strong dual of the Schwartz–Bruhat space
 is barrelled. -/
 theorem schwartzBruhat_strongDual_barrelled [SecondCountableTopology G] :
-    BarrelledSpace ℂ (StrongDual ℂ (SchwartzBruhat G)) := by sorry
+    BarrelledSpace ℂ (StrongDual ℂ (SchwartzBruhat G)) := by
+  suffices h : ∀ (E : Type _) [AddCommGroup E] [Module ℂ E] [UniformSpace E]
+      [IsUniformAddGroup E] [ContinuousSMul ℂ E] [PolynormableSpace ℂ E] [T2Space E]
+      [MontelSpace ℂ E], BarrelledSpace ℂ (StrongDual ℂ E) by
+    let : T2Space (SchwartzBruhat G) := schwartzBruhat_t2
+    let : MontelSpace ℂ (SchwartzBruhat G) := schwartzBruhat_montel
+    exact h (SchwartzBruhat G)
+  intro E _ _ _ _ _ _ _ _
+  let D := StrongDual ℂ E
+  let S : Set (Set E) := {s | IsVonNBounded ℂ s}
+  have hS : ⋃₀ S = (univ : Set E) := sUnion_isVonNBounded_eq_univ (𝕜 := ℂ) (E := E)
+  have hdense : Dense (Submodule.span ℂ (⋃₀ S) : Set E) := by
+    rw [hS, Submodule.span_univ, Submodule.top_coe]
+    exact dense_univ
+  let : PolynormableSpace ℂ D :=
+    uniformConvergenceCLM_polynormable (E := E) (F := ℂ) S (fun _ hs ↦ hs) hdense
+  refine ⟨fun p hp ↦ Seminorm.continuous' (r := 1) ?_⟩
+  let U := p.closedBall 0 1
+  let A := (topDualPairing ℂ E).polar U
+  -- The polar of the absorbing unit ball is bounded under every functional on E.
+  have hA : IsVonNBounded ℂ A := by
+    apply (isVonNBounded_iff_dual_image (E := E) A).mpr
+    intro φ
+    obtain ⟨c, hc⟩ := (p.absorbent_closedBall_zero one_pos φ).exists
+    refine isBounded_iff_forall_norm_le.mpr ⟨‖c‖, ?_⟩
+    rintro _ ⟨x, hx, rfl⟩
+    obtain ⟨ψ, hψ, hφ⟩ := hc (mem_singleton φ)
+    rw [← hφ]
+    change ‖(c • ψ) x‖ ≤ ‖c‖
+    rw [smul_apply, norm_smul]
+    exact mul_le_of_le_one_right (norm_nonneg _) (hx ψ hψ)
+  have hU : IsClosed U := by
+    rw [show U = {φ | p φ ≤ 1} from p.closedBall_zero_eq]
+    exact hp.isClosed_preimage 1
+  let : Module ℝ D := Module.restrictScalars ℝ ℂ D
+  let : IsScalarTower ℝ ℂ D := IsScalarTower.restrictScalars ℝ ℂ D
+  have haU : AbsConvex ℂ U := ⟨p.balanced_closedBall_zero 1,
+    convex_RCLike_iff_convex_real.mpr (p.convex_closedBall 0 1)⟩
+  have hzU : 0 ∈ U := p.mem_closedBall_zero.mpr (by simp)
+  -- A separating functional is evaluation at a point of A.
+  filter_upwards [ContinuousLinearMap.eventually_nhds_zero_mapsTo (σ := RingHom.id ℂ) hA
+    (Metric.ball_mem_nhds (0 : ℂ) one_pos)] with φ hφ
+  by_contra hnot
+  obtain ⟨l, hl, hlt⟩ := exists_dual_norm_le_one_lt_of_notMem hU haU hzU hnot
+  obtain ⟨x, rfl⟩ := surjective_strongBidual_eval (E := E) l
+  have hx : x ∈ A := fun ψ hψ ↦ hl ψ hψ
+  exact (not_lt_of_ge (mem_ball_zero_iff.mp (hφ hx)).le) hlt
 
 /-- Paper: Remark D.1.5.8, p. 764. The Schwartz–Bruhat space of a group that
 fails second countability fails nuclearity. -/

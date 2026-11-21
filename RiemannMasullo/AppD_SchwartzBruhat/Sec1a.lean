@@ -9,8 +9,12 @@ public import Mathlib.MeasureTheory.Group.Integral
 public import Mathlib.Algebra.MvPolynomial.Eval
 public import Mathlib.Topology.Algebra.PontryaginDual
 public import Mathlib.Topology.ContinuousMap.ZeroAtInfty
+public import Mathlib.Topology.ContinuousMap.CompactlySupported
+import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Symmetric
+import RiemannMasullo.ForMathlib.Analysis.InnerProductSpace.PiL2
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SmoothFamily
 import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Separation
+import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
 import Mathlib.Topology.Algebra.IsUniformGroup.Basic
 import Mathlib.MeasureTheory.Function.LpSpace.ContinuousCompMeasurePreserving
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
@@ -22,6 +26,7 @@ import Mathlib.Topology.ContinuousMap.StoneWeierstrass
 import Mathlib.Topology.TietzeExtension
 import Mathlib.Analysis.Calculus.ContDiff.Comp
 import Mathlib.Analysis.Calculus.ContDiff.Operations
+import Mathlib.Analysis.Convex.Contractible
 import Mathlib.MeasureTheory.Measure.Haar.Unique
 import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Extension
 import Mathlib.Topology.PartitionOfUnity
@@ -38,6 +43,11 @@ import RiemannMasullo.ForMathlib.MeasureTheory.Function.ContinuousMapDense
 import Mathlib.MeasureTheory.Constructions.Polish.StronglyMeasurable
 import Mathlib.Analysis.Normed.Operator.Extend
 import Mathlib.Analysis.InnerProductSpace.Projection.Submodule
+import Mathlib.MeasureTheory.Measure.WithDensity
+import Mathlib.MeasureTheory.Measure.Decomposition.RadonNikodym
+import RiemannMasullo.ForMathlib.MeasureTheory.Integral.ProdRegular
+import RiemannMasullo.ForMathlib.MeasureTheory.Measure.RegularDomination
+import Mathlib.Analysis.Normed.Lp.lpSpace
 
 /-!
 # Fourier analysis and Schwartz spaces of elementary abelian Lie groups
@@ -140,16 +150,6 @@ theorem isClosedEmbedding_pontryaginDual_eval :
   let : CompleteSpace G := IsRightUniformGroup.completeSpace_of_weaklyLocallyCompactSpace G
   exact (MonoidHom.isUniformEmbedding_of_isEmbedding (f := e)
     ⟨hInducing, hInjective⟩).isClosedEmbedding
-
-/-- For each identity neighborhood in the dual, there is an inner-regular probability
-measure on the group whose Fourier–Stieltjes transform vanishes off that neighborhood.
-One route is to take the autocorrelation of a bump on the dual and use Plancherel to
-represent it by the squared modulus of the inverse transform of the bump. -/
-theorem exists_pontryaginDual_localized_integral [MeasurableSpace G] [BorelSpace G]
-    {V : Set (PontryaginDual G)} (hV : V ∈ 𝓝 (1 : PontryaginDual G)) :
-    ∃ ν : Measure G, IsProbabilityMeasure ν ∧ ν.InnerRegular ∧
-      ∀ ψ ∉ V, ∫ x, (ψ x : ℂ) ∂ν = 0 := by
-  sorry
 
 open scoped Pointwise in
 omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] in
@@ -312,41 +312,6 @@ theorem pontryaginDual_integral_mul_eq_zero
     (fun χ _ ↦ hDiff χ)
   rw [hFull] at hLe
   linarith
-
-/-- Paper: Theorem D.1.1.1(2), p. 746. Evaluation gives the canonical topological
-group isomorphism with the double dual. -/
-theorem pontryaginDual_bidual :
-    ∃ e : G ≃ₜ* PontryaginDual (PontryaginDual G),
-      ∀ x χ, e x χ = χ x := by
-  let e := pontryaginDual_eval (G := G)
-  have hEmb := isClosedEmbedding_pontryaginDual_eval (G := G)
-  have hSurj : Function.Surjective e := by
-    intro η
-    by_contra hη
-    -- Choose a transform that vanishes on the translate of the evaluation image by η⁻¹.
-    let V := ((η * ·) ⁻¹' Set.range e)ᶜ
-    have hV : V ∈ 𝓝 (1 : PontryaginDual (PontryaginDual G)) :=
-      (hEmb.isClosed_range.preimage (continuous_const.mul continuous_id)).isOpen_compl.mem_nhds
-        (by simpa [V] using hη)
-    let : MeasurableSpace (PontryaginDual G) := borel _
-    let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
-    obtain ⟨ν, hν, hReg, hZero⟩ := exists_pontryaginDual_localized_integral hV
-    let := hν
-    let := hReg
-    have hTest (x : G) : ∫ χ, (η⁻¹ χ : ℂ) * (χ x : ℂ) ∂ν = 0 := by
-      have hx : η⁻¹ * e x ∉ V := by simp [V]
-      exact hZero _ hx
-    have hz := pontryaginDual_integral_mul_eq_zero ν η⁻¹ hTest η
-    have hProd (χ : PontryaginDual G) : (η⁻¹ χ : ℂ) * (η χ : ℂ) = 1 := by
-      rw [← Circle.coe_mul]
-      change ((η⁻¹ * η) χ : ℂ) = 1
-      rw [inv_mul_cancel, PontryaginDual.one_apply, Circle.coe_one]
-    simp [hProd] at hz
-  let equiv := MulEquiv.ofBijective e.toMonoidHom ⟨hEmb.injective, hSurj⟩
-  have hOpen := hEmb.isInducing.isOpenMap (by rw [hSurj.range_eq]; exact isOpen_univ)
-  exact ⟨equiv.toContinuousMulEquiv (fun _ ↦
-    (hOpen.isQuotientMap e.continuous hSurj).isCoinducing.isOpen_preimage),
-    fun _ _ ↦ rfl⟩
 
 /-- Paper: Theorem D.1.1.1(3), p. 746. A locally compact abelian group is compact
 exactly when its dual is discrete. -/
@@ -1114,6 +1079,494 @@ private theorem isLCAPlancherelMeasure_of_compactSupport
   · simp_rw [h _ (hg _).1 (hg _).2]
     simpa only [Lp.eNorm_toLp] using ht.eNorm
 
+open scoped CompactlySupported in
+/-- The autocorrelation of a continuous compactly supported function is the
+Fourier–Stieltjes transform of a finite regular positive measure on the dual.
+This is the autocorrelation case of Bochner's theorem. -/
+theorem exists_lcaAutocorrelation_measure (f : C_c(G, ℂ)) :
+    ∃ ρ : Measure (PontryaginDual G), IsFiniteMeasure ρ ∧ ρ.Regular ∧
+      ∀ x : G, (∫ χ, (χ x : ℂ) ∂ρ) =
+        lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x := by
+  sorry
+
+open scoped CompactlySupported Pointwise in
+/-- The autocorrelation has compact support, and its Fourier integral is the
+squared modulus of the Fourier integral of the original function. -/
+private theorem lcaFourier_autocorrelation (f : C_c(G, ℂ)) :
+    HasCompactSupport (lcaConvolution μ f (fun y ↦ star (f y⁻¹))) ∧
+    ∀ χ, lcaFourier μ (lcaConvolution μ f (fun y ↦ star (f y⁻¹))) χ =
+      (‖lcaFourier μ f χ‖ ^ 2 : ℝ) := by
+  let K := tsupport f
+  have hK : IsCompact K := f.hasCompactSupport
+  have hout (x y : G) (hx : x ∉ K * K⁻¹) : f y * star (f (x⁻¹ * y)) = 0 := by
+    by_contra h
+    have hy : y ∈ K := subset_tsupport f fun hy ↦ h (by simp [hy])
+    have hz : x⁻¹ * y ∈ K := subset_tsupport f fun hz ↦ h (by simp [hz])
+    apply hx
+    refine ⟨y, hy, (x⁻¹ * y)⁻¹, by simpa, ?_⟩
+    simp [mul_inv_rev]
+  constructor
+  · refine HasCompactSupport.intro (hK.mul hK.inv) fun x hx ↦ ?_
+    simp only [lcaConvolution, mul_inv_rev, inv_inv, hout x _ hx, integral_zero]
+  intro χ
+  let k (x y : G) := f y * star (f (x⁻¹ * y)) * star (χ x : ℂ)
+  have hk : Continuous (Function.uncurry k) :=
+    ((f.continuous.comp continuous_snd).mul
+      (f.continuous.comp (continuous_fst.inv.mul continuous_snd)).star).mul
+      ((continuous_subtype_val.comp χ.continuous).comp continuous_fst).star
+  have hkK : HasCompactSupport (Function.uncurry k) := by
+    refine HasCompactSupport.intro ((hK.mul hK.inv).prod hK) ?_
+    rintro ⟨x, y⟩ h
+    change f y * star (f (x⁻¹ * y)) * star (χ x : ℂ) = 0
+    by_cases hx : x ∈ K * K⁻¹
+    · rw [image_eq_zero_of_notMem_tsupport (fun hy ↦ h ⟨hx, hy⟩), zero_mul, zero_mul]
+    · rw [hout x y hx, zero_mul]
+  have hrow (x : G) : lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x *
+      star (χ x : ℂ) = ∫ y, k x y ∂μ := by
+    simp only [k, lcaConvolution, mul_inv_rev, inv_inv, integral_mul_const]
+  have hcol (y : G) : (∫ x, k x y ∂μ) =
+      f y * star (χ y : ℂ) * star (lcaFourier μ f χ) := by
+    calc
+      _ = ∫ z, k (y * z⁻¹) y ∂μ := by
+        rw [integral_inv_eq_self (fun z ↦ k (y * z) y) μ,
+          integral_mul_left_eq_self (fun z ↦ k z y) y]
+      _ = ∫ z, (f y * star (χ y : ℂ)) * star (f z * star (χ z : ℂ)) ∂μ := by
+        apply integral_congr_ae
+        exact .of_forall fun z ↦ by
+          have hχ : (χ (y * z⁻¹) : ℂ) = (χ y : ℂ) * star (χ z : ℂ) := by
+            simp only [map_mul, Circle.coe_mul, map_inv, Circle.coe_inv_eq_conj, Complex.star_def]
+          simp only [k, hχ, mul_inv_rev, inv_inv, inv_mul_cancel_right, star_mul, star_star]
+          ring
+      _ = _ := (integral_const_mul _ _).trans
+        (congrArg (fun z : ℂ ↦ (f y * star (χ y : ℂ)) * z)
+          (integral_conj (f := fun z ↦ f z * star (χ z : ℂ))))
+  calc
+    _ = ∫ x, ∫ y, k x y ∂μ ∂μ := by simp only [lcaFourier, hrow]
+    _ = ∫ y, ∫ x, k x y ∂μ ∂μ := integral_integral_swap_of_hasCompactSupport hk hkK
+    _ = _ := by
+      simp only [hcol, integral_mul_const]
+      change lcaFourier μ f χ * star (lcaFourier μ f χ) = _
+      rw [Complex.star_def, Complex.mul_conj, Complex.normSq_eq_norm_sq]
+
+/-- A Fourier density under a finite regular spectral measure corresponds to
+convolution with the Fourier–Stieltjes transform of that measure. -/
+private theorem integral_lcaFourier_mul_char
+    (τ : Measure (PontryaginDual G)) [IsFiniteMeasure τ] [τ.Regular]
+    {u : G → ℂ} (hu : Continuous u) (huK : HasCompactSupport u) (x : G) :
+    (∫ χ, lcaFourier μ u χ * (χ x : ℂ) ∂τ) =
+      lcaConvolution μ u (fun z ↦ ∫ χ, (χ z : ℂ) ∂τ) x := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  obtain ⟨S, hS, hτ⟩ := exists_isSigmaCompact_ae_mem τ
+  let K := tsupport u
+  have hK : IsCompact K := huK
+  have hKm : MeasurableSet K := hK.isClosed.measurableSet
+  let : Fact (μ K < ⊤) := ⟨hK.measure_lt_top⟩
+  let k (p : G × PontryaginDual G) := u p.1 * (p.2 (p.1⁻¹ * x) : ℂ)
+  have he : Continuous (fun p : G × PontryaginDual G ↦ p.2 (p.1⁻¹ * x)) :=
+    (continuous_eval (F := C(G, Circle))).comp
+      (((ContinuousMonoidHom.isInducing_toContinuousMap G Circle).continuous.comp
+        continuous_snd).prodMk (continuous_fst.inv.mul continuous_const))
+  have hk : Continuous k := (hu.comp continuous_fst).mul (continuous_subtype_val.comp he)
+  let q := (K ×ˢ S).indicator k
+  have hq : Measurable q := measurable_indicator_prod_of_isSigmaCompact hk hK.isSigmaCompact hS
+  obtain ⟨C, hC⟩ : ∃ C, ∀ y, ‖u y‖ ≤ C := hu.bounded_above_of_compact_support huK
+  have hInt : Integrable q ((μ.restrict K).prod τ) := by
+    apply Integrable.of_bound hq.aestronglyMeasurable C
+    exact .of_forall fun p ↦ by
+      by_cases hp : p ∈ K ×ˢ S
+      · simpa [q, hp, k, norm_mul] using hC p.1
+      · simpa [q, hp] using (norm_nonneg (u p.1)).trans (hC p.1)
+  have hrow : ∀ᵐ y ∂μ.restrict K, (∫ χ, q (y, χ) ∂τ) =
+      u y * ∫ χ, (χ (y⁻¹ * x) : ℂ) ∂τ := by
+    filter_upwards [ae_restrict_mem hKm] with y hy
+    rw [← integral_const_mul]
+    apply integral_congr_ae
+    filter_upwards [hτ] with χ hχ
+    exact indicator_of_mem (s := K ×ˢ S) (a := (y, χ)) ⟨hy, hχ⟩ k
+  have hcol : ∀ᵐ χ ∂τ, (∫ y in K, q (y, χ) ∂μ) = lcaFourier μ u χ * (χ x : ℂ) := by
+    filter_upwards [hτ] with χ hχ
+    let r (y : G) := u y * star (χ y : ℂ) * (χ x : ℂ)
+    calc
+      _ = ∫ y in K, r y ∂μ := by
+        refine setIntegral_congr_fun hKm fun y hy ↦ ?_
+        rw [show q (y, χ) = k (y, χ) from
+          indicator_of_mem (s := K ×ˢ S) (a := (y, χ)) ⟨hy, hχ⟩ k]
+        simp only [k, r, map_mul, Circle.coe_mul, map_inv, Circle.coe_inv_eq_conj,
+          Complex.star_def, mul_assoc]
+      _ = ∫ y, r y ∂μ := setIntegral_eq_integral_of_forall_compl_eq_zero <| fun y hy ↦ by
+        have hz : u y = 0 := image_eq_zero_of_notMem_tsupport hy
+        simp only [r, hz, zero_mul]
+      _ = _ := integral_mul_const _ _
+  calc
+    _ = ∫ χ, ∫ y in K, q (y, χ) ∂μ ∂τ := integral_congr_ae (hcol.mono fun _ h ↦ h.symm)
+    _ = ∫ y in K, ∫ χ, q (y, χ) ∂τ ∂μ :=
+      (integral_integral_swap (f := fun y χ ↦ q (y, χ)) hInt).symm
+    _ = _ := (integral_congr_ae hrow).trans
+      (setIntegral_eq_integral_of_forall_compl_eq_zero
+        (fun y hy ↦ by simp [image_eq_zero_of_notMem_tsupport hy]))
+
+/-- A finite regular measure on the dual is determined by its integrals against
+the evaluation characters. -/
+private theorem lcaSpectral_measure_ext
+    (τ₁ τ₂ : Measure (PontryaginDual G)) [IsFiniteMeasure τ₁] [τ₁.Regular]
+    [IsFiniteMeasure τ₂] [τ₂.Regular]
+    (h : ∀ x : G, (∫ χ, (χ x : ℂ) ∂τ₁) = ∫ χ, (χ x : ℂ) ∂τ₂) : τ₁ = τ₂ := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let τ := τ₁ + τ₂
+  let h₁ : τ₁ ≪ τ := Measure.AbsolutelyContinuous.rfl.add_right _
+  let h₂ : τ₂ ≪ τ := Measure.AbsolutelyContinuous.rfl.add_right' _
+  let : τ.InnerRegular := inferInstanceAs (τ₁ + τ₂).InnerRegular
+  let : τ.Regular := inferInstance
+  let d₁ (χ : PontryaginDual G) : ℂ := (τ₁.rnDeriv τ χ).toReal
+  let d₂ (χ : PontryaginDual G) : ℂ := (τ₂.rnDeriv τ χ).toReal
+  have hInt₁ : Integrable d₁ τ := by
+    simpa only [d₁, Complex.real_smul, mul_one] using
+      (integrable_rnDeriv_smul_iff (f := fun _ ↦ (1 : ℂ)) h₁).2 (integrable_const _)
+  have hInt₂ : Integrable d₂ τ := by
+    simpa only [d₂, Complex.real_smul, mul_one] using
+      (integrable_rnDeriv_smul_iff (f := fun _ ↦ (1 : ℂ)) h₂).2 (integrable_const _)
+  have hc (x : G) : Continuous (fun χ : PontryaginDual G ↦ (χ x : ℂ)) :=
+    continuous_subtype_val.comp (pontryaginDual_eval (G := G) x).continuous
+  have hEq : (d₁ - d₂) =ᵐ[τ] 0 := by
+    refine ae_eq_zero_of_integral_mul_circle_eq_zero
+      (fun χ : PontryaginDual G ↦ χ.toMonoidHom)
+      (fun x ↦ (pontryaginDual_eval (G := G) x).continuous)
+      (fun χ ψ heq ↦ PontryaginDual.ext fun x ↦ congrArg (fun e : G →* Circle ↦ e x) heq)
+      (hInt₁.sub hInt₂) fun x ↦ ?_
+    change (∫ χ, (d₁ χ - d₂ χ) * (χ x : ℂ) ∂τ) = 0
+    simp only [sub_mul]
+    rw [integral_sub
+      (hInt₁.mul_bdd (hc x).aestronglyMeasurable (.of_forall fun χ ↦ (Circle.norm_coe _).le))
+      (hInt₂.mul_bdd (hc x).aestronglyMeasurable (.of_forall fun χ ↦ (Circle.norm_coe _).le))]
+    simp only [d₁, d₂, ← Complex.real_smul, integral_rnDeriv_smul, h₁, h₂, h,
+      sub_self]
+  rw [← Measure.withDensity_rnDeriv_eq τ₁ τ h₁, ← Measure.withDensity_rnDeriv_eq τ₂ τ h₂]
+  apply withDensity_congr_ae
+  filter_upwards [hEq, Measure.rnDeriv_lt_top τ₁ τ, Measure.rnDeriv_lt_top τ₂ τ] with χ he ht₁ ht₂
+  have hr := Complex.ofReal_injective (sub_eq_zero.mp he)
+  rw [← ENNReal.ofReal_toReal ht₁.ne, ← ENNReal.ofReal_toReal ht₂.ne, hr]
+
+open scoped CompactlySupported in
+/-- The translate of one spectral measure and the other spectral measure agree after
+weighting each by the squared Fourier magnitude of the other function. -/
+private theorem lcaAutocorrelation_weighted_translate
+    (f g : C_c(G, ℂ)) (ρ σ : Measure (PontryaginDual G))
+    [IsFiniteMeasure ρ] [ρ.Regular] [IsFiniteMeasure σ] [σ.Regular]
+    (hρ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂ρ) =
+      lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x)
+    (hσ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂σ) =
+      lcaConvolution μ g (fun y ↦ star (g y⁻¹)) x)
+    (a : PontryaginDual G) :
+    (ρ.map (a * ·)).withDensity (fun χ ↦ ‖lcaFourier μ g χ‖ₑ ^ 2) =
+      σ.withDensity (fun χ ↦ ‖lcaFourier μ f (a⁻¹ * χ)‖ₑ ^ 2) := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let A (h : C_c(G, ℂ)) := lcaConvolution μ h (fun y ↦ star (h y⁻¹))
+  have hAc (h : C_c(G, ℂ)) : Continuous (A h) := by
+    apply continuous_lcaConvolution_L2 μ (h.continuous.memLp_of_hasCompactSupport h.hasCompactSupport)
+    exact (h.continuous.comp continuous_inv).star.memLp_of_hasCompactSupport
+      ((h.hasCompactSupport.comp_homeomorph (Homeomorph.inv G)).comp_left (star_zero ℂ))
+  let u (x : G) := (a x : ℂ) * A f x
+  have huc : Continuous u := (continuous_subtype_val.comp a.continuous).mul (hAc f)
+  have huK : HasCompactSupport u := (lcaFourier_autocorrelation μ f).1.mul_left
+  let e := Homeomorph.mulLeft a
+  let τ := ρ.map e
+  let : IsFiniteMeasure τ := ρ.isFiniteMeasure_map e
+  let : τ.Regular := Measure.Regular.map e
+  have hτ (x : G) : (∫ χ, (χ x : ℂ) ∂τ) = u x := by
+    rw [show τ = Measure.map e.toMeasurableEquiv ρ from rfl,
+      integral_map_equiv]
+    change (∫ χ, ((a x * χ x : Circle) : ℂ) ∂ρ) = u x
+    simp only [Circle.coe_mul, integral_const_mul, hρ, u, A]
+  have hF (χ : PontryaginDual G) : lcaFourier μ u χ =
+      (‖lcaFourier μ f (a⁻¹ * χ)‖ ^ 2 : ℝ) := by
+    rw [← (lcaFourier_autocorrelation μ f).2 (a⁻¹ * χ)]
+    apply integral_congr_ae
+    exact .of_forall fun y ↦ by
+      change (a y : ℂ) * A f y * star (χ y : ℂ) =
+        A f y * star ((a⁻¹ * χ) y : ℂ)
+      have hinv : ((a⁻¹ * χ) y : ℂ) = star (a y : ℂ) * (χ y : ℂ) := by
+        change (((a y)⁻¹ * χ y : Circle) : ℂ) = _
+        rw [Circle.coe_mul, Circle.coe_inv_eq_conj, Complex.star_def]
+      rw [hinv, star_mul, star_star]
+      ring
+  let w (h : C_c(G, ℂ)) (χ : PontryaginDual G) : ℝ≥0 := ‖lcaFourier μ h χ‖₊ ^ 2
+  have hw (h : C_c(G, ℂ)) : Continuous (w h) :=
+    (continuous_lcaFourier μ h.integrable).nnNorm.pow 2
+  have hw' : Continuous (fun χ ↦ w f (a⁻¹ * χ)) :=
+    (hw f).comp (continuous_const.mul continuous_id)
+  have hBound (h : C_c(G, ℂ)) (χ : PontryaginDual G) :
+      (w h χ : ℝ≥0∞) ≤ ENNReal.ofReal ((∫ x, ‖h x‖ ∂μ) ^ 2) := by
+    rw [← ENNReal.ofReal_coe_nnreal]
+    exact ENNReal.ofReal_le_ofReal
+      (pow_le_pow_left₀ (norm_nonneg _) (norm_lcaFourier_le_integral_norm μ h χ) 2)
+  have hReg (v : Measure (PontryaginDual G)) [IsFiniteMeasure v] [v.Regular]
+      (p : PontryaginDual G → ℝ≥0∞) (C : ℝ) (hp : ∀ χ, p χ ≤ ENNReal.ofReal C) :
+      IsFiniteMeasure (v.withDensity p) ∧ (v.withDensity p).Regular := by
+    let c := Real.toNNReal C
+    let cv := c • v
+    have hle : v.withDensity p ≤ cv := by
+      change _ ≤ (ENNReal.ofReal C) • v
+      rw [← withDensity_const]
+      exact withDensity_mono (.of_forall hp)
+    let : IsFiniteMeasure cv := inferInstanceAs (IsFiniteMeasure (c • v))
+    let : cv.Regular := inferInstanceAs (c • v).Regular
+    exact ⟨isFiniteMeasure_of_le cv hle, regular_of_le_finite_regular _ cv hle⟩
+  obtain ⟨h₁fin, h₁reg⟩ := hReg τ (fun χ ↦ (w g χ : ℝ≥0∞)) _ (hBound g)
+  obtain ⟨h₂fin, h₂reg⟩ := hReg σ (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞)) _
+    (fun χ ↦ hBound f (a⁻¹ * χ))
+  let := h₁fin
+  let := h₁reg
+  let := h₂fin
+  let := h₂reg
+  suffices heq : τ.withDensity (fun χ ↦ (w g χ : ℝ≥0∞)) =
+      σ.withDensity (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞)) by
+    have he : (e : PontryaginDual G → PontryaginDual G) = (a * ·) := rfl
+    simpa only [τ, he, w, ENNReal.coe_pow, eNorm_eq_nnNorm] using heq
+  apply lcaSpectral_measure_ext
+  intro x
+  rw [integral_withDensity_eq_integral_smul (hw g).measurable,
+    integral_withDensity_eq_integral_smul hw'.measurable]
+  have hl (χ : PontryaginDual G) :
+      w g χ • (χ x : ℂ) = lcaFourier μ (A g) χ * (χ x : ℂ) := by
+    rw [(lcaFourier_autocorrelation μ g).2 χ]
+    simp [w, NNReal.smul_def, Complex.real_smul]
+  have hr (χ : PontryaginDual G) :
+      w f (a⁻¹ * χ) • (χ x : ℂ) = lcaFourier μ u χ * (χ x : ℂ) := by
+    rw [hF]
+    simp [w, NNReal.smul_def, Complex.real_smul]
+  simp_rw [hl, hr]
+  rw [integral_lcaFourier_mul_char μ τ (hAc g) (lcaFourier_autocorrelation μ g).1,
+    integral_lcaFourier_mul_char μ σ huc huK, funext hτ, funext hσ]
+  let q (y : G) := A g y * u (y⁻¹ * x)
+  have hcomm (y : G) : q (x * y⁻¹) = u y * A g (y⁻¹ * x) := by
+    simp only [q, mul_inv_rev, inv_inv, inv_mul_cancel_right]
+    rw [mul_comm x y⁻¹, mul_comm]
+  change (∫ y, q y ∂μ) = ∫ y, u y * A g (y⁻¹ * x) ∂μ
+  rw [← integral_mul_left_eq_self q x]
+  calc
+    (∫ y, q (x * y) ∂μ) = ∫ y, q (x * y⁻¹) ∂μ :=
+      (integral_inv_eq_self (fun y ↦ q (x * y)) μ).symm
+    _ = _ := integral_congr_ae (.of_forall hcomm)
+
+open scoped CompactlySupported in
+/-- Averaging the weighted spectral measures of two autocorrelations over dual
+translations gives this identity on each measurable set. For a dual character `a`,
+the spectral measure of `f` modulated by `a` is the translate of its spectral
+measure by `a`. Weight that translate by the squared Fourier magnitude of `g`,
+or weight the spectral measure of `g` by the shifted squared Fourier magnitude
+of `f`. The two measures have the same Fourier–Stieltjes transform by
+commutativity of convolution. Integrate the resulting identity over `a`
+against the fixed Haar measure `η`. -/
+theorem lcaAutocorrelation_measure_mul_lintegral
+    (η : Measure (PontryaginDual G)) [η.IsHaarMeasure] [η.Regular]
+    (f g : C_c(G, ℂ)) (ρ σ : Measure (PontryaginDual G))
+    [IsFiniteMeasure ρ] [ρ.Regular] [IsFiniteMeasure σ] [σ.Regular]
+    (hρ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂ρ) =
+      lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x)
+    (hσ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂σ) =
+      lcaConvolution μ g (fun y ↦ star (g y⁻¹)) x)
+    {s : Set (PontryaginDual G)} (hs : MeasurableSet s) :
+    (∫⁻ χ, ‖lcaFourier μ f χ‖ₑ ^ 2 ∂η) * σ s =
+      ρ univ * (∫⁻ χ in s, ‖lcaFourier μ g χ‖ₑ ^ 2 ∂η) := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let w (h : C_c(G, ℂ)) (χ : PontryaginDual G) : ℝ≥0 := ‖lcaFourier μ h χ‖₊ ^ 2
+  have hw (h : C_c(G, ℂ)) : Continuous (w h) :=
+    (continuous_lcaFourier μ h.integrable).nnNorm.pow 2
+  have hwMeas (h : C_c(G, ℂ)) : Measurable (fun χ ↦ (w h χ : ℝ≥0∞)) :=
+    (ENNReal.continuous_coe.comp (hw h)).measurable
+  have hCarrier (h : C_c(G, ℂ)) :
+      ∃ S : Set (PontryaginDual G), IsSigmaCompact S ∧ Function.support (w h) ⊆ S := by
+    obtain ⟨F, hF⟩ := lcaFourier_zeroAtInfty μ h.integrable
+    have hlim : Tendsto (w h) (cocompact (PontryaginDual G)) (𝓝 0) := by
+      simpa only [w, ← hF, nnNorm_zero, zero_pow (by decide : (2 : ℕ) ≠ 0)] using
+        (zero_at_infty F).nnNorm.pow 2
+    obtain ⟨ε, -, hε, hεlim⟩ := exists_seq_strictAnti_tendsto' (zero_lt_one : (0 : ℝ≥0) < 1)
+    let K (n : ℕ) := {χ | ε n ≤ w h χ}
+    have hK (n : ℕ) : IsCompact (K n) := by
+      obtain ⟨L, hL, hLK⟩ := mem_cocompact.mp (hlim (Iio_mem_nhds (hε n).1))
+      exact hL.of_isClosed_subset (isClosed_le continuous_const (hw h)) (by
+        intro χ hχ
+        by_contra hn
+        exact (not_lt_of_ge hχ) (hLK hn))
+    refine ⟨⋃ n, K n, ⟨K, hK, rfl⟩, fun χ hχ ↦ ?_⟩
+    have hh : ∀ᶠ n in atTop, ε n < w h χ :=
+      hεlim (Iio_mem_nhds (pos_iff_ne_zero.mpr hχ))
+    obtain ⟨n, hn⟩ := hh.exists
+    exact mem_iUnion.mpr ⟨n, le_of_lt hn⟩
+  obtain ⟨S, hS, hfS⟩ := hCarrier f
+  obtain ⟨T, hT, hgT⟩ := hCarrier g
+  let I := ∫⁻ χ, (w f χ : ℝ≥0∞) ∂η
+  let ν₁ := I • σ
+  let ν₂ := ρ univ • η.withDensity (fun χ ↦ (w g χ : ℝ≥0∞))
+  -- Average the translated identity against each compactly supported continuous test.
+  have hTests (p : C_c(PontryaginDual G, ℝ≥0)) :
+      (∫⁻ χ, (p χ : ℝ≥0∞) ∂ν₁) = ∫⁻ χ, (p χ : ℝ≥0∞) ∂ν₂ := by
+    let v (χ : PontryaginDual G) := w g χ * p χ
+    have hv : Continuous v := (hw g).mul p.continuous
+    have hvT : Function.support v ⊆ T := fun χ hχ ↦ hgT (mul_ne_zero_iff.mp hχ).1
+    have hp : Measurable (fun χ ↦ (p χ : ℝ≥0∞)) :=
+      (ENNReal.continuous_coe.comp p.continuous).measurable
+    have hpoint (a : PontryaginDual G) :
+        (∫⁻ χ, (w f (a⁻¹ * χ) : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂σ) =
+          ∫⁻ χ, (v (a * χ) : ℝ≥0∞) ∂ρ := by
+      have h := congrArg (fun m : Measure (PontryaginDual G) ↦ ∫⁻ χ, (p χ : ℝ≥0∞) ∂m)
+        (lcaAutocorrelation_weighted_translate μ f g ρ σ hρ hσ a).symm
+      simp only [eNorm_eq_nnNorm, ← ENNReal.coe_pow] at h
+      change (∫⁻ χ, (p χ : ℝ≥0∞) ∂σ.withDensity (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞))) =
+        ∫⁻ χ, (p χ : ℝ≥0∞) ∂(ρ.map (a * ·)).withDensity (fun χ ↦ (w g χ : ℝ≥0∞)) at h
+      have hshift : Measurable (fun χ ↦ (w f (a⁻¹ * χ) : ℝ≥0∞)) :=
+        (hwMeas f).comp (continuous_const.mul continuous_id).measurable
+      rw [lintegral_withDensity_eq_lintegral_mul _ hshift hp,
+        lintegral_withDensity_eq_lintegral_mul _ (hwMeas g) hp] at h
+      have hm : Measurable (fun χ ↦ (v χ : ℝ≥0∞)) :=
+        (ENNReal.continuous_coe.comp hv).measurable
+      calc
+        _ = ∫⁻ χ, (v χ : ℝ≥0∞) ∂(ρ.map (a * ·)) := by
+          simpa only [Pi.mul_apply, v, ENNReal.coe_mul] using h
+        _ = _ := lintegral_map hm (continuous_const.mul continuous_id).measurable
+    rw [lintegral_smul_measure, lintegral_smul_measure, smul_eq_mul, smul_eq_mul,
+      lintegral_withDensity_eq_lintegral_mul _ (hwMeas g) hp]
+    calc
+      I * (∫⁻ χ, (p χ : ℝ≥0∞) ∂σ) =
+          ∫⁻ a, ∫⁻ χ, (w f (a * χ) : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂σ ∂η :=
+        (lintegral_lintegral_mul_translate η σ (hw f) p.continuous hS hfS).symm
+      _ = ∫⁻ a, ∫⁻ χ, (w f (a⁻¹ * χ) : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂σ ∂η :=
+        (lintegral_inv_eq_self (fun a ↦ ∫⁻ χ, (w f (a * χ) : ℝ≥0∞) *
+          (p χ : ℝ≥0∞) ∂σ)).symm
+      _ = ∫⁻ a, ∫⁻ χ, (v (a * χ) : ℝ≥0∞) ∂ρ ∂η := lintegral_congr hpoint
+      _ = ρ univ * ∫⁻ χ, (w g χ : ℝ≥0∞) * (p χ : ℝ≥0∞) ∂η := by
+        simpa only [ENNReal.coe_one, mul_one, lintegral_const, one_mul, v, ENNReal.coe_mul] using
+          (lintegral_lintegral_mul_translate η ρ hv
+            (v := fun _ ↦ (1 : ℝ≥0)) continuous_const hT hvT).trans (mul_comm _ _)
+  let C := Real.toNNReal ((∫ x, ‖g x‖ ∂μ) ^ 2)
+  have hBound (χ : PontryaginDual G) : (w g χ : ℝ≥0∞) ≤ C := by
+    rw [← ENNReal.ofReal_coe_nnreal]
+    exact ENNReal.ofReal_le_ofReal
+      (pow_le_pow_left₀ (norm_nonneg _) (norm_lcaFourier_le_integral_norm μ g χ) 2)
+  let ν := η.withDensity (fun χ ↦ (w g χ : ℝ≥0∞))
+  have hνle : ν ≤ C • η := by
+    change _ ≤ (C : ℝ≥0∞) • η
+    rw [← withDensity_const]
+    exact withDensity_mono (.of_forall hBound)
+  let : IsFiniteMeasureOnCompacts ν := ⟨fun K hK ↦ (hνle K).trans_lt
+    (hK.measure_lt_top (μ := C • η))⟩
+  let : ν.InnerRegular := innerRegular_withDensity_of_le_of_isSigmaCompact η hBound hT
+    (fun χ hχ ↦ hgT (by simpa using hχ))
+  let : ν₂.InnerRegular := inferInstanceAs (ρ univ • ν).InnerRegular
+  let : IsLocallyFiniteMeasure ν₂ := ν.isLocallyFiniteMeasure_smul (measure_ne_top ρ univ)
+  let : σ.InnerRegular := inferInstance
+  let : ν₁.InnerRegular := inferInstanceAs (I • σ).InnerRegular
+  -- Local finiteness of the weighted Haar measure suffices to identify both measures.
+  have hEq := congrArg (fun m : Measure (PontryaginDual G) ↦ m s)
+    (measure_eq_of_lintegral_eq_on_compactlySupported_nnreal ν₁ ν₂ hTests)
+  simpa only [ν₁, ν₂, I, w, smul_apply, smul_eq_mul, withDensity_apply _ hs,
+    ENNReal.coe_pow, eNorm_eq_nnNorm] using hEq
+
+omit [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] [μ.Regular] in
+open scoped CompactlySupported in
+/-- Evaluating the Fourier–Stieltjes representation at the identity identifies
+the total mass with the integral of the squared source norm. -/
+private theorem lcaAutocorrelation_measure_univ (f : C_c(G, ℂ))
+    (ρ : Measure (PontryaginDual G)) [IsFiniteMeasure ρ]
+    (hρ : ∀ x : G, (∫ χ, (χ x : ℂ) ∂ρ) =
+      lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x) :
+    ρ univ = ∫⁻ x, ‖f x‖ₑ ^ 2 ∂μ := by
+  have hSqC : Continuous (fun x ↦ ‖f x‖ ^ 2) := f.continuous.norm.pow 2
+  have hSqK : HasCompactSupport (fun x ↦ ‖f x‖ ^ 2) :=
+    f.hasCompactSupport.norm.comp_left (g := fun t : ℝ ↦ t ^ 2) (by simp)
+  have hAuto : lcaConvolution μ f (fun y ↦ star (f y⁻¹)) 1 =
+      ((∫ x, ‖f x‖ ^ 2 ∂μ : ℝ) : ℂ) := by
+    rw [lcaConvolution, ← integral_complex_ofReal]
+    apply integral_congr_ae
+    exact .of_forall fun x ↦ by
+      simp [Complex.mul_conj, Complex.normSq_eq_norm_sq]
+  have h := congrArg Complex.re (hρ 1)
+  simp only [map_one, Circle.coe_one, integral_const, Complex.real_smul, mul_one,
+    Complex.ofReal_re, hAuto] at h
+  rw [← ENNReal.ofReal_toReal (measure_ne_top ρ univ)]
+  change ENNReal.ofReal (ρ.real univ) = _
+  rw [h, ofReal_integral_eq_lintegral_ofReal (hSqC.integrable_of_hasCompactSupport hSqK)
+    (.of_forall fun x ↦ sq_nonneg _)]
+  exact lintegral_congr fun x ↦ by rw [ENNReal.ofReal_pow (norm_nonneg _), ofReal_norm]
+
+open scoped CompactlySupported in
+/-- A nonnegative compactly supported bump fixes the normalization of Haar measure
+on the dual. Its spectral measure gives positive mass to a compact set, so the
+averaging identity on that set ensures its squared Fourier integral is finite. -/
+private theorem exists_lcaFourier_weighted_haar
+    (ρ : C_c(G, ℂ) → Measure (PontryaginDual G))
+    (hρ : ∀ f, IsFiniteMeasure (ρ f) ∧ (ρ f).Regular ∧
+      ∀ x : G, (∫ χ, (χ x : ℂ) ∂(ρ f)) =
+        lcaConvolution μ f (fun y ↦ star (f y⁻¹)) x) :
+    ∃ ν : Measure (PontryaginDual G), ν.IsHaarMeasure ∧ ν.Regular ∧
+      ∀ f : C_c(G, ℂ), ν.withDensity (fun χ ↦ ‖lcaFourier μ f χ‖ₑ ^ 2) = ρ f := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let η : Measure (PontryaginDual G) := MeasureTheory.Measure.haar
+  let (g : C_c(G, ℂ)) : IsFiniteMeasure (ρ g) := (hρ g).1
+  let (g : C_c(G, ℂ)) : (ρ g).Regular := (hρ g).2.1
+  obtain ⟨b, hbK, hb₀, hb₁⟩ := exists_continuous_nonneg_pos (1 : G)
+  let f : C_c(G, ℂ) := ⟨⟨fun x ↦ (b x : ℂ), Complex.continuous_ofReal.comp b.continuous⟩,
+    hbK.comp_left Complex.ofReal_zero⟩
+  let w (g : C_c(G, ℂ)) (χ : PontryaginDual G) := ‖lcaFourier μ g χ‖ₑ ^ 2
+  have hf₁ : f 1 ≠ 0 := Complex.ofReal_ne_zero.mpr hb₁
+  have hw (g : C_c(G, ℂ)) : Continuous (w g) :=
+    ENNReal.continuous_coe.comp ((continuous_lcaFourier μ g.integrable).nnNorm.pow 2)
+  have hfSq : Continuous (fun x ↦ ‖f x‖ₑ ^ 2) :=
+    ENNReal.continuous_coe.comp (f.continuous.nnNorm.pow 2)
+  have hM : ρ f univ ≠ 0 := by
+    rw [lcaAutocorrelation_measure_univ μ f (ρ f) (hρ f).2.2]
+    apply ne_of_gt
+    apply (lintegral_pos_iff_support hfSq.measurable).2
+    exact (isOpen_ne_fun hfSq continuous_const).measure_pos μ
+      ⟨1, show ‖f 1‖ₑ ^ 2 ≠ 0 by simpa using hf₁⟩
+  have hF₁ : lcaFourier μ f 1 ≠ 0 := by
+    rw [lcaFourier_one μ f f.integrable]
+    change (∫ x, (b x : ℂ) ∂μ) ≠ 0
+    rw [integral_complex_ofReal]
+    exact Complex.ofReal_ne_zero.mpr
+      (b.continuous.integral_pos_of_hasCompactSupport_nonneg_ne_zero hbK hb₀ hb₁).ne'
+  let I : ℝ≥0∞ := ∫⁻ χ, w f χ ∂η
+  have hI₀ : I ≠ 0 := by
+    apply ne_of_gt
+    apply (lintegral_pos_iff_support (hw f).measurable).2
+    exact (isOpen_ne_fun (hw f) continuous_const).measure_pos η
+      ⟨1, show w f 1 ≠ 0 by simpa [w] using hF₁⟩
+  obtain ⟨K, -, hK, hKpos⟩ := MeasurableSet.univ.exists_lt_isCompact (pos_iff_ne_zero.mpr hM)
+  have hI_top : I ≠ ⊤ := by
+    intro h
+    have hAvg := lcaAutocorrelation_measure_mul_lintegral μ η f f (ρ f) (ρ f)
+      (hρ f).2.2 (hρ f).2.2 hK.isClosed.measurableSet
+    change I * ρ f K = ρ f univ * (∫⁻ χ in K, w f χ ∂η) at hAvg
+    rw [h, ENNReal.top_mul hKpos.ne'] at hAvg
+    have hBound (χ : PontryaginDual G) : w f χ ≤ ENNReal.ofReal (∫ x, ‖f x‖ ∂μ) ^ 2 := by
+      change ‖lcaFourier μ f χ‖ₑ ^ 2 ≤ _
+      rw [← ofReal_norm]
+      exact pow_le_pow_left' (ENNReal.ofReal_le_ofReal
+        (norm_lcaFourier_le_integral_norm μ f χ)) _
+    have hFinite : (∫⁻ χ in K, w f χ ∂η) < ⊤ := by
+      refine (lintegral_mono hBound).trans_lt ?_
+      rw [setLIntegral_const]
+      exact ENNReal.mul_lt_top (ENNReal.pow_lt_top ENNReal.ofReal_lt_top) hK.measure_lt_top
+    exact (ENNReal.mul_lt_top (measure_lt_top (ρ f) univ) hFinite).ne hAvg.symm
+  let c := ρ f univ * I⁻¹
+  have hc₀ : c ≠ 0 := mul_ne_zero hM (ENNReal.inv_ne_zero.mpr hI_top)
+  have hc_top : c ≠ ⊤ :=
+    ENNReal.mul_ne_top (measure_ne_top (ρ f) univ) (ENNReal.inv_ne_top.mpr hI₀)
+  refine ⟨c • η, Measure.IsHaarMeasure.smul η hc₀ hc_top, Measure.Regular.smul hc_top, ?_⟩
+  intro g
+  ext1 s hs
+  have hAvg := lcaAutocorrelation_measure_mul_lintegral μ η f g (ρ f) (ρ g)
+    (hρ f).2.2 (hρ g).2.2 hs
+  change I * ρ g s = ρ f univ * (∫⁻ χ in s, w g χ ∂η) at hAvg
+  change (c • η).withDensity (w g) s = _
+  rw [withDensity_apply _ hs, setLIntegral_smul_measure, smul_eq_mul]
+  calc
+    c * (∫⁻ χ in s, w g χ ∂η) = I⁻¹ * (ρ f univ * (∫⁻ χ in s, w g χ ∂η)) := by
+      dsimp [c]
+      ac_rfl
+    _ = ρ g s := by rw [← hAvg, ← mul_assoc, ENNReal.inv_mul_cancel hI₀ hI_top, one_mul]
+
+open scoped CompactlySupported in
 /-- There is a regular Haar measure on the dual for which the Fourier transform
 preserves the L² norm of every continuous compactly supported function. It suffices
 to construct this measure by Fourier inversion at the identity for autocorrelations
@@ -1122,7 +1575,25 @@ theorem exists_lcaFourier_eLpNorm_eq_of_hasCompactSupport :
     ∃ ν : Measure (PontryaginDual G), ν.IsHaarMeasure ∧ ν.Regular ∧
       ∀ (f : G → ℂ), Continuous f → HasCompactSupport f →
         eLpNorm (lcaFourier μ f) 2 ν = eLpNorm f 2 μ := by
-  sorry
+  choose ρ hρ using exists_lcaAutocorrelation_measure μ
+  obtain ⟨ν, hHaar, hRegular, hDensity⟩ := exists_lcaFourier_weighted_haar μ ρ hρ
+  refine ⟨ν, hHaar, hRegular, fun f hf hs ↦ ?_⟩
+  let g : C_c(G, ℂ) := ⟨⟨f, hf⟩, hs⟩
+  let : IsFiniteMeasure (ρ g) := (hρ g).1
+  have hMass : ρ g univ = ∫⁻ x, ‖f x‖ₑ ^ 2 ∂μ :=
+    lcaAutocorrelation_measure_univ μ g (ρ g) (hρ g).2.2
+  have hSqEq : (∫⁻ χ, ‖lcaFourier μ f χ‖ₑ ^ 2 ∂ν) = ∫⁻ x, ‖f x‖ₑ ^ 2 ∂μ := by
+    have h := congrArg (fun m : Measure (PontryaginDual G) ↦ m univ) (hDensity g)
+    change (ν.withDensity (fun χ ↦ ‖lcaFourier μ f χ‖ₑ ^ 2)) univ = ρ g univ at h
+    rwa [withDensity_apply _ MeasurableSet.univ, Measure.restrict_univ, hMass] at h
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  have hFourier := continuous_lcaFourier μ (hf.integrable_of_hasCompactSupport (μ := μ) hs)
+  rw [eLpNorm_eq_lintegral_rpow_eNorm_toReal two_ne_zero ENNReal.ofNat_ne_top
+    hFourier.aestronglyMeasurable,
+    eLpNorm_eq_lintegral_rpow_eNorm_toReal two_ne_zero ENNReal.ofNat_ne_top
+      hf.aestronglyMeasurable]
+  simp only [ENNReal.toReal_ofNat, ENNReal.rpow_ofNat]
+  rw [hSqEq]
 
 /-- Paper: Lemma D.1.1.2(4), p. 747. There is exactly one Plancherel measure. -/
 theorem lcaPlancherelMeasure_existsUnique :
@@ -1387,7 +1858,232 @@ theorem lcaFourier_convolution {f g : G → ℂ} (hf : Integrable f μ) (hg : In
       rw [hχ, star_mul]
       ring
 
+/-- Multiplying an L² function by a character translates its Plancherel transform. -/
+private theorem lcaFourier_unitary_modulation (μ : Measure G)
+    (ν : Measure (PontryaginDual G)) [ν.IsHaarMeasure]
+    (U : Lp ℂ 2 μ ≃ₗᵢ[ℂ] Lp ℂ 2 ν)
+    (hU : ∀ (f : G → ℂ), Integrable f μ → ∀ (hf : MemLp f 2 μ),
+      (U (hf.toLp f) : PontryaginDual G → ℂ) =ᵐ[ν] lcaFourier μ f)
+    (ψ : PontryaginDual G) (f : Lp ℂ 2 μ) :
+    ∃ g : Lp ℂ 2 μ, (g : G → ℂ) =ᵐ[μ] (fun x ↦ (ψ x : ℂ) * f x) ∧
+      (U g : PontryaginDual G → ℂ) =ᵐ[ν] (fun χ ↦ U f (ψ⁻¹ * χ)) := by
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let m := measurePreserving_mul_left ν ψ⁻¹
+  let c (x : G) : ℂ := ψ x
+  have hc : MemLp c ∞ μ := memLp_top_of_bound
+    (continuous_subtype_val.comp ψ.continuous).aestronglyMeasurable 1
+      (.of_forall fun x ↦ (Circle.norm_coe (ψ x)).le)
+  have hMem (v : Lp ℂ 2 μ) : MemLp (fun x ↦ c x * v x) 2 μ :=
+    hc.fun_mul (Lp.memLp v)
+  let M (v : Lp ℂ 2 μ) := (hMem v).toLp (fun x ↦ c x * v x)
+  have hM (v : Lp ℂ 2 μ) : (M v : G → ℂ) =ᵐ[μ] (fun x ↦ c x * v x) :=
+    (hMem v).coeFn_toLp
+  refine ⟨M f, hM f, ?_⟩
+  let T := Lp.compMeasurePreservingₗᵢ ℂ (ψ⁻¹ * ·) m (p := 2) (E := ℂ)
+  have hT (v : Lp ℂ 2 ν) : (T v : PontryaginDual G → ℂ) =ᵐ[ν] (fun χ ↦ v (ψ⁻¹ * χ)) :=
+    Lp.coeFn_compMeasurePreserving v m
+  suffices hEq : U (M f) = T (U f) by
+    rw [hEq]
+    exact hT (U f)
+  have hMc : Continuous M := by
+    apply Isometry.continuous
+    apply Isometry.of_dist_eq
+    intro v w
+    simp only [dist_eq_norm]
+    have hNorm : ∀ᵐ x ∂μ, ‖(M v - M w) x‖ = ‖(v - w) x‖ := by
+      filter_upwards [hM v, hM w, Lp.coeFn_sub (M v) (M w), Lp.coeFn_sub v w]
+        with x hv hw h₁ h₂
+      simp only [Pi.sub_apply] at h₁ h₂
+      rw [h₁, h₂, hv, hw, ← mul_sub, norm_mul, Circle.norm_coe (ψ x), one_mul]
+    exact le_antisymm (Lp.norm_le_norm_of_ae_le (hNorm.mono fun _ h ↦ h.le))
+      (Lp.norm_le_norm_of_ae_le (hNorm.mono fun _ h ↦ h.ge))
+  refine (Lp.simpleFunc.denseRange (E := ℂ) (μ := μ) (p := 2) ENNReal.ofNat_ne_top).induction_on f
+    (isClosed_eq (U.continuous.comp hMc) (T.continuous.comp U.continuous)) ?_
+  intro s
+  let v : Lp ℂ 2 μ := s
+  have hv : Integrable (v : G → ℂ) μ :=
+    ((SimpleFunc.memLp_iff_integrable two_ne_zero ENNReal.ofNat_ne_top).mp
+      (Lp.simpleFunc.memLp s)).congr (Lp.simpleFunc.toSimpleFunc_eq_toFun s)
+  have hMv : Integrable (fun x ↦ c x * v x) μ :=
+    memLp_one_iff_integrable.mp (hc.fun_mul (memLp_one_iff_integrable.mpr hv))
+  have hUv : (U v : PontryaginDual G → ℂ) =ᵐ[ν] lcaFourier μ v := by
+    simpa only [Lp.toLp_coeFn] using hU _ hv (Lp.memLp v)
+  change U (M v) = T (U v)
+  apply Lp.ext
+  filter_upwards [hU _ hMv (hMem v), hT (U v), m.quasiMeasurePreserving.ae_eq_comp hUv]
+    with χ h₁ h₂ h₃
+  rw [h₁, h₂, show U v (ψ⁻¹ * χ) = lcaFourier μ v (ψ⁻¹ * χ) from h₃]
+  unfold lcaFourier
+  apply integral_congr_ae
+  exact .of_forall fun x ↦ by
+    change c x * v x * star (χ x : ℂ) = v x * star (((ψ x)⁻¹ * χ x : Circle) : ℂ)
+    rw [Circle.coe_mul, star_mul, Circle.coe_inv_eq_conj, ← Complex.star_def, star_star]
+    change (ψ x : ℂ) * v x * _ = _
+    ring
+
+/-- A nonzero L² function with orthogonal modulations gives a normalized measure
+whose Fourier–Stieltjes coefficients vanish at those modulations. -/
+private theorem probability_of_l2_orthogonality (μ : Measure G) [μ.InnerRegularCompactLTTop]
+    (f : Lp ℂ 2 μ) (hf : f ≠ 0) {V : Set (PontryaginDual G)}
+    (hZero : ∀ ψ ∉ V, ∫ x, (ψ x : ℂ) * (‖f x‖ ^ 2 : ℝ) ∂μ = 0) :
+    ∃ ν : Measure G, IsProbabilityMeasure ν ∧ ν.InnerRegular ∧
+      ∀ ψ ∉ V, ∫ x, (ψ x : ℂ) ∂ν = 0 := by
+  let w (x : G) := ‖f x‖ ^ 2
+  have hw : ∀ x, 0 ≤ w x := fun x ↦ sq_nonneg _
+  have hSq (x : G) : inner ℂ (f x) (f x) = (w x : ℂ) := by
+    change _ = ((‖f x‖ ^ 2 : ℝ) : ℂ)
+    rw [Complex.ofReal_pow]
+    exact inner_self_eq_norm_sq_to_K (f x)
+  have hInt : Integrable w μ := by
+    simpa only [hSq, RCLike.re_to_complex, Complex.ofReal_re]
+      using (L2.integrable_inner (𝕜 := ℂ) f f).re
+  let ρ := μ.withDensity (fun x ↦ ENNReal.ofReal (w x))
+  have hρ {s : Set G} (hs : MeasurableSet s) :
+      ρ s = ENNReal.ofReal (∫ x in s, w x ∂μ) := by
+    rw [withDensity_apply _ hs,
+      ofReal_integral_eq_lintegral_ofReal hInt.integrableOn (.of_forall hw)]
+  have hMass : ρ univ = ENNReal.ofReal (‖f‖ ^ 2) := by
+    rw [hρ MeasurableSet.univ, Measure.restrict_univ]
+    congr 1
+    have hSelf : inner ℂ f f = ((‖f‖ ^ 2 : ℝ) : ℂ) := by
+      rw [Complex.ofReal_pow]
+      exact inner_self_eq_norm_sq_to_K f
+    rw [L2.inner_def] at hSelf
+    simp_rw [hSq, integral_complex_ofReal] at hSelf
+    exact Complex.ofReal_injective hSelf
+  have hFinite : IsFiniteMeasure ρ := ⟨hMass ▸ ENNReal.ofReal_lt_top⟩
+  have hPos : ρ univ ≠ 0 := by
+    rw [hMass]
+    exact (ENNReal.ofReal_pos.mpr (sq_pos_of_pos (norm_pos_iff.mpr hf))).ne'
+  have hRegular : ρ.InnerRegular := by
+    constructor
+    intro s hs r hr
+    have hrTop := hr.ne_top
+    have hr' : r.toReal < ∫ x in s, w x ∂μ := by
+      rw [hρ hs] at hr
+      exact ENNReal.toReal_lt_of_lt_ofReal hr
+    obtain ⟨K, hKs, hK, hTail⟩ := exists_isCompact_integral_norm_sdiff_lt hInt hs
+      (sub_pos.mpr hr')
+    simp only [Real.norm_of_nonneg (hw _)] at hTail
+    refine ⟨K, hKs, hK, ?_⟩
+    rw [hρ hK.isClosed.measurableSet, ← ENNReal.ofReal_toReal hrTop,
+      ENNReal.ofReal_lt_ofReal_iff_of_nonneg ENNReal.toReal_nonneg]
+    have hSplit := setIntegral_sdiff hK.isClosed.measurableSet hInt.integrableOn hKs
+    linarith
+  refine ⟨(ρ univ)⁻¹ • ρ, ⟨?_⟩, inferInstance, fun ψ hψ ↦ ?_⟩
+  · rw [smul_apply, smul_eq_mul, ENNReal.inv_mul_cancel hPos (measure_ne_top ρ _)]
+  · rw [integral_smul_measure, integral_withDensity_eq_integral_toReal_smul₀
+      hInt.aemeasurable.ennreal_ofReal (.of_forall fun _ ↦ ENNReal.ofReal_lt_top)]
+    simp only [ENNReal.toReal_ofReal (hw _), Complex.real_smul, mul_comm (w _ : ℂ)]
+    change _ * (∫ x, (ψ x : ℂ) * (‖f x‖ ^ 2 : ℝ) ∂μ) = 0
+    rw [hZero ψ hψ, mul_zero]
+
 end Fourier
+
+section Pontryagin
+
+variable {G : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+  [T2Space G] [LocallyCompactSpace G]
+
+open scoped Pointwise in
+/-- For each identity neighborhood in the dual, there is an inner-regular probability
+measure on the group whose Fourier–Stieltjes transform vanishes off that neighborhood.
+One route is to take the autocorrelation of a bump on the dual and use Plancherel to
+represent it by the squared modulus of the inverse transform of the bump. -/
+theorem exists_pontryaginDual_localized_integral [MeasurableSpace G] [BorelSpace G]
+    {V : Set (PontryaginDual G)} (hV : V ∈ 𝓝 (1 : PontryaginDual G)) :
+    ∃ ν : Measure G, IsProbabilityMeasure ν ∧ ν.InnerRegular ∧
+      ∀ ψ ∉ V, ∫ x, (ψ x : ℂ) ∂ν = 0 := by
+  let : MeasurableSpace (PontryaginDual G) := borel _
+  let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+  let μ : Measure G := Measure.haar
+  obtain ⟨ν, hν, -⟩ := lcaPlancherelMeasure_existsUnique μ
+  let : ν.IsHaarMeasure := hν.1
+  obtain ⟨U, hU, -⟩ := lcaFourier_unitary μ ν hν
+  -- Choose a compact neighborhood whose pairwise quotients lie in V.
+  obtain ⟨W, hW, -, hWinv, hWV⟩ := exists_closed_nhds_one_inv_eq_mul_subset hV
+  obtain ⟨K, ⟨hK₁, hK⟩, hKW⟩ := (compact_basis_nhds (1 : PontryaginDual G)).mem_iff.mp hW
+  have hKm := hK.isClosed.measurableSet
+  have hKfin := (hK.measure_lt_top (μ := ν)).ne
+  have hKpos := (ν.measure_pos_of_mem_nhds hK₁).ne'
+  let a := indicatorConstLp (μ := ν) 2 hKm hKfin (1 : ℂ)
+  have ha : (a : PontryaginDual G → ℂ) =ᵐ[ν] K.indicator (fun _ ↦ (1 : ℂ)) :=
+    indicatorConstLp_coeFn
+  have haNe : a ≠ 0 := by
+    intro hz
+    have hn := norm_indicatorConstLp (p := 2) (μ := ν) (hs := hKm) (hμs := hKfin) (c := (1 : ℂ))
+      (by norm_num) ENNReal.ofNat_ne_top
+    have hp := ENNReal.toReal_pos hKpos hKfin
+    change ‖a‖ = _ at hn
+    simp only [hz, norm_zero, norm_one, one_mul] at hn
+    exact (Real.rpow_pos_of_pos hp _).ne' hn.symm
+  let f := U.symm a
+  have hUf : U f = a := U.apply_symm_apply a
+  refine probability_of_l2_orthogonality μ f (U.symm.map_eq_zero_iff.not.mpr haNe) ?_
+  intro ψ hψ
+  obtain ⟨g, hg, hUg⟩ := lcaFourier_unitary_modulation μ ν U hU ψ f
+  -- The transforms of f and g have disjoint supports up to null sets.
+  have hUtf : inner ℂ (U f) (U g) = 0 := by
+    let m := measurePreserving_mul_left ν ψ⁻¹
+    rw [hUf] at hUg
+    rw [L2.inner_def, hUf]
+    rw [← integral_zero (α := PontryaginDual G) (μ := ν) (G := ℂ)]
+    apply integral_congr_ae
+    filter_upwards [ha, hUg, m.quasiMeasurePreserving.ae_eq_comp ha] with χ hχ hχ' hShift
+    change a χ = _ at hχ
+    change U g χ = _ at hχ'
+    rw [hχ, hχ', show a (ψ⁻¹ * χ) = _ from hShift]
+    by_cases hχK : χ ∈ K
+    · have hOutside : ψ⁻¹ * χ ∉ K := by
+        intro h
+        apply hψ
+        apply hWV
+        refine ⟨χ, hKW hχK, (ψ⁻¹ * χ)⁻¹, ?_, by simp [mul_comm]⟩
+        rw [← hWinv]
+        exact Set.inv_mem_inv.mpr (hKW h)
+      simp [indicator_of_notMem hOutside]
+    · simp [indicator_of_notMem hχK]
+  rw [U.inner_map_map, L2.inner_def] at hUtf
+  refine (integral_congr_ae (hg.mono fun x hx ↦ ?_)).trans hUtf
+  rw [RCLike.inner_apply, starRingEnd_apply, hx, mul_assoc, Complex.star_def, Complex.mul_conj,
+    Complex.normSq_eq_norm_sq]
+
+/-- Paper: Theorem D.1.1.1(2), p. 746. Evaluation gives the canonical topological
+group isomorphism with the double dual. -/
+theorem pontryaginDual_bidual :
+    ∃ e : G ≃ₜ* PontryaginDual (PontryaginDual G),
+      ∀ x χ, e x χ = χ x := by
+  let e := pontryaginDual_eval (G := G)
+  have hEmb := isClosedEmbedding_pontryaginDual_eval (G := G)
+  have hSurj : Function.Surjective e := by
+    intro η
+    by_contra hη
+    -- Choose a transform that vanishes on the translate of the evaluation image by η⁻¹.
+    let V := ((η * ·) ⁻¹' Set.range e)ᶜ
+    have hV : V ∈ 𝓝 (1 : PontryaginDual (PontryaginDual G)) :=
+      (hEmb.isClosed_range.preimage (continuous_const.mul continuous_id)).isOpen_compl.mem_nhds
+        (by simpa [V] using hη)
+    let : MeasurableSpace (PontryaginDual G) := borel _
+    let : BorelSpace (PontryaginDual G) := ⟨rfl⟩
+    obtain ⟨ν, hν, hReg, hZero⟩ := exists_pontryaginDual_localized_integral hV
+    let := hν
+    let := hReg
+    have hTest (x : G) : ∫ χ, (η⁻¹ χ : ℂ) * (χ x : ℂ) ∂ν = 0 := by
+      have hx : η⁻¹ * e x ∉ V := by simp [V]
+      exact hZero _ hx
+    have hz := pontryaginDual_integral_mul_eq_zero ν η⁻¹ hTest η
+    have hProd (χ : PontryaginDual G) : (η⁻¹ χ : ℂ) * (η χ : ℂ) = 1 := by
+      rw [← Circle.coe_mul]
+      change ((η⁻¹ * η) χ : ℂ) = 1
+      rw [inv_mul_cancel, PontryaginDual.one_apply, Circle.coe_one]
+    simp [hProd] at hz
+  let equiv := MulEquiv.ofBijective e.toMonoidHom ⟨hEmb.injective, hSurj⟩
+  have hOpen := hEmb.isInducing.isOpenMap (by rw [hSurj.range_eq]; exact isOpen_univ)
+  exact ⟨equiv.toContinuousMulEquiv (fun _ ↦
+    (hOpen.isQuotientMap e.continuous hSurj).isCoinducing.isOpen_preimage),
+    fun _ _ ↦ rfl⟩
+
+end Pontryagin
 
 section Weil
 
@@ -2850,7 +3546,130 @@ theorem elementarySchwartzSubmodule_real_iff
     (f : EuclideanSpace ℝ (Fin m) → ℂ) :
     (fun g : ElementaryLieGroup m 0 0 PUnit ↦ f g.1) ∈
         elementarySchwartzSubmodule m 0 0 PUnit ↔
-      ∃ s : SchwartzMap (EuclideanSpace ℝ (Fin m)) ℂ, (s : _ → ℂ) = f := by sorry
+      ∃ s : SchwartzMap (EuclideanSpace ℝ (Fin m)) ℂ, (s : _ → ℂ) = f := by
+  classical
+  let E := EuclideanSpace ℝ (Fin m)
+  let X := E × EuclideanSpace ℝ (Fin 0)
+  let g : ElementaryLieGroup m 0 0 PUnit → ℂ := fun p ↦ f p.1
+  let P : X →L[ℝ] E := ContinuousLinearMap.fst ℝ E _
+  let J : E →L[ℝ] X := ContinuousLinearMap.inl ℝ E _
+  let coord (j : Fin m) : E := EuclideanSpace.single j 1
+  let liftedCoord (j : Fin m) : X := (coord j, 0)
+  let directions (β : Fin m → ℕ) := (List.ofFn fun j ↦ List.replicate (β j) (liftedCoord j)).flatten
+  let mixedPartial (β : Fin m → ℕ) (x : E) : ℂ :=
+    iteratedFDeriv ℝ (directions β).length f x (fun j ↦ ((directions β).get j).1)
+  let weight (α : Fin m → ℕ) (x : E) : ℝ := ∏ j, ‖x j‖ ^ α j
+  -- The torus and lattice indices are empty, so only the real coordinates contribute.
+  have hBound (hf : ContDiff ℝ ∞ f) (i : ElementarySchwartzIndex m 0 0) :
+      elementarySchwartzBound g i =
+        ⨆ x : E, ENNReal.ofReal (weight i.1 x * ‖mixedPartial i.2.1 x‖) := by
+    have hPartial (xt : X) (a : Fin 0 → ℤ) (b : PUnit) :
+        elementaryPartial g i.2.1 i.2.2.1 xt a b = mixedPartial i.2.1 xt.1 := by
+      let l : List X := directions i.2.1 ++
+        (List.ofFn fun j ↦ List.replicate (i.2.2.1 j) (0, EuclideanSpace.single j 1)).flatten
+      have hl : l = directions i.2.1 := by simp [l]
+      change (fun v : List X ↦ iteratedFDeriv ℝ v.length (f ∘ P) xt v.get) l = _
+      rw [hl]
+      change iteratedFDeriv ℝ (directions i.2.1).length (f ∘ P) xt (directions i.2.1).get = _
+      rw [P.iteratedFDeriv_comp_right hf xt (by simp),
+        ContinuousMultilinearMap.compContinuousLinearMap_apply]
+      rfl
+    simp only [elementarySchwartzBound, hPartial, Finset.univ_eq_empty (α := Fin 0),
+      Finset.prod_empty, mul_one, ENNReal.coe_nnreal_eq, coe_nnNorm, norm_mul, norm_prod,
+      norm_pow, Complex.norm_real, iSup_const]
+    exact (show Function.Surjective (Prod.fst : X → E) from fun x ↦ ⟨(x, 0), rfl⟩).iSup_comp
+      (fun x ↦ ENNReal.ofReal (weight i.1 x * ‖mixedPartial i.2.1 x‖))
+  -- Group any tuple of coordinate directions by its multiplicities.
+  have hCoord (hf : ContDiff ℝ ∞ f) {n : ℕ} (t : Fin n → Fin m) (x : E) :
+      iteratedFDeriv ℝ n f x (fun j ↦ coord (t j)) = mixedPartial (fun j ↦ (List.ofFn t).count j) x := by
+    let β (j : Fin m) := (List.ofFn t).count j
+    let l := (List.finRange m).flatMap fun j ↦ List.replicate (β j) j
+    have hPerm : (List.ofFn t).Perm l := by
+      apply List.perm_iff_count.mpr
+      intro j
+      rw [List.count_flatMap, ← Fin.sum_univ_def]
+      simp [List.count_replicate, β]
+    have hDirs : l.map liftedCoord = directions β := by
+      simp [l, directions, List.ofFn_eq_map, List.flatMap, Function.comp_def]
+    have h := iteratedFDeriv_apply_list_perm hf (Prod.fst : X → E) (hPerm.map liftedCoord) x
+    rw [hDirs, List.map_ofFn] at h
+    let eval (s : Σ k, Fin k → X) := iteratedFDeriv ℝ s.1 f x (fun j ↦ (s.2 j).1)
+    exact (congrArg eval (List.equivSigmaTuple.apply_symm_apply ⟨n, liftedCoord ∘ t⟩)).symm.trans h
+  change ((∀ (a : Fin 0 → ℤ) (b : PUnit), ContDiff ℝ ∞ (f ∘ P)) ∧
+    ∀ i, elementarySchwartzBound g i < (⊤ : ℝ≥0∞)) ↔ _
+  constructor
+  · rintro ⟨hs, hb⟩
+    have hf : ContDiff ℝ ∞ f := (hs 0 PUnit.unit).comp J.contDiff
+    refine ⟨⟨f, hf, ?_⟩, rfl⟩
+    intro k n
+    let α (i : Option (Fin m)) : Fin m → ℕ := i.elim 0 (fun j ↦ Pi.single j k)
+    let β (t : Fin n → Fin m) (j : Fin m) := (List.ofFn t).count j
+    let idx (i : Option (Fin m)) (t : Fin n → Fin m) :
+        ElementarySchwartzIndex m 0 0 := (α i, β t, 0, 0)
+    obtain ⟨C, hC⟩ := Finite.bddAbove_range (fun p : Option (Fin m) × (Fin n → Fin m) ↦
+      (elementarySchwartzBound g (idx p.1 p.2)).toReal)
+    refine ⟨((m : ℝ) + 1) ^ k * (Fintype.card (Fin n → Fin m) * C), fun x ↦ ?_⟩
+    -- Include the constant weight so the maximum exists even when m = 0.
+    let c (i : Option (Fin m)) : ℝ := i.elim 1 (fun j ↦ ‖x j‖)
+    obtain ⟨i, -, hi⟩ := Finset.exists_max_image Finset.univ c Finset.univ_nonempty
+    have hsum : ‖x‖ ≤ ∑ j, ‖x j‖ := by
+      conv_lhs => rw [← (EuclideanSpace.basisFun (Fin m) ℝ).sum_repr x]
+      refine (norm_sum_le _ _).trans_eq ?_
+      simp only [norm_smul, OrthonormalBasis.norm_eq_one, EuclideanSpace.basisFun_repr, mul_one]
+    have hsize : ‖x‖ ≤ ((m : ℝ) + 1) * c i := calc
+      _ ≤ ∑ _j : Fin m, c i :=
+        hsum.trans (Finset.sum_le_sum fun j _ ↦ hi (some j) (Finset.mem_univ _))
+      _ ≤ _ := by
+        have hnonneg : 0 ≤ c i := zero_le_one.trans (hi none (Finset.mem_univ _))
+        simp [add_mul, hnonneg]
+    have hw : weight (α i) x = c i ^ k := by
+      cases i <;> simp [weight, α, c, Pi.single, Function.update, apply_ite]
+    have hpow : ‖x‖ ^ k ≤ ((m : ℝ) + 1) ^ k * weight (α i) x := by
+      rw [hw, ← mul_pow]
+      exact pow_le_pow_left₀ (norm_nonneg _) hsize k
+    let T := iteratedFDeriv ℝ n f x
+    have hpoint (t : Fin n → Fin m) : weight (α i) x * ‖T (fun j ↦ coord (t j))‖ ≤ C := by
+      rw [show T (fun j ↦ coord (t j)) = mixedPartial (β t) x from hCoord hf t x]
+      have hle : ENNReal.ofReal (weight (α i) x * ‖mixedPartial (β t) x‖) ≤
+          elementarySchwartzBound g (idx i t) := by
+        rw [hBound hf]
+        exact le_iSup (fun y ↦ ENNReal.ofReal (weight (α i) y * ‖mixedPartial (β t) y‖)) x
+      have h := ENNReal.toReal_mono (hb (idx i t)).ne hle
+      rw [ENNReal.toReal_ofReal (by dsimp [weight]; positivity)] at h
+      exact h.trans (hC (mem_range_self (i, t)))
+    calc
+      ‖x‖ ^ k * ‖T‖ ≤ (((m : ℝ) + 1) ^ k * weight (α i) x) *
+          ∑ t : Fin n → Fin m, ‖T (fun j ↦ coord (t j))‖ :=
+        mul_le_mul hpow (norm_multilinear_le_sum_euclidean_basis T) (norm_nonneg _) (by positivity)
+      _ = ((m : ℝ) + 1) ^ k * ∑ t : Fin n → Fin m, weight (α i) x * ‖T (fun j ↦ coord (t j))‖ := by
+        rw [mul_assoc, Finset.mul_sum]
+      _ ≤ ((m : ℝ) + 1) ^ k * ∑ _t : Fin n → Fin m, C :=
+        mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun t _ ↦ hpoint t) (by positivity)
+      _ = _ := by simp
+  · rintro ⟨s, rfl⟩
+    refine ⟨fun _ _ ↦ s.smooth'.comp P.contDiff, fun i ↦ ?_⟩
+    rw [hBound s.smooth']
+    obtain ⟨C, -, hC⟩ := s.decay (∑ j, i.1 j) (directions i.2.1).length
+    refine lt_of_le_of_lt (b := ENNReal.ofReal C)
+      (iSup_le fun x ↦ ENNReal.ofReal_le_ofReal ?_) ENNReal.ofReal_lt_top
+    have hw : weight i.1 x ≤ ‖x‖ ^ (∑ j, i.1 j) := calc
+      _ ≤ ∏ j, ‖x‖ ^ i.1 j :=
+        Finset.prod_le_prod₀ (fun _ _ ↦ by positivity) fun j _ ↦
+          pow_le_pow_left₀ (norm_nonneg _) (PiLp.norm_apply_le x j) _
+      _ = _ := Finset.prod_pow_eq_pow_sum _ _ _
+    have he (j : Fin (directions i.2.1).length) : ‖((directions i.2.1).get j).1‖ = 1 := by
+      have hmem := List.get_mem (directions i.2.1) j
+      simp only [directions, List.mem_flatten, List.mem_ofFn] at hmem
+      obtain ⟨_, ⟨q, rfl⟩, hq⟩ := hmem
+      rw [List.eq_of_mem_replicate hq]
+      change ‖EuclideanSpace.single q (1 : ℝ)‖ = 1
+      simpa only [EuclideanSpace.basisFun_apply] using
+        (EuclideanSpace.basisFun (Fin m) ℝ).norm_eq_one q
+    have hD : ‖mixedPartial i.2.1 x‖ ≤ ‖iteratedFDeriv ℝ (directions i.2.1).length s x‖ := by
+      simpa only [mixedPartial, he, Finset.prod_const_one, mul_one] using
+        (iteratedFDeriv ℝ (directions i.2.1).length s x).le_opNorm
+          (fun j ↦ ((directions i.2.1).get j).1)
+    exact (mul_le_mul hw hD (norm_nonneg _) (by positivity)).trans (hC x)
 
 section
 
@@ -2987,11 +3806,586 @@ theorem elementarySchwartz_t2 : T2Space (ElementarySchwartz m n r F) := by
     exact norm_eq_zero.mp (le_antisymm (h.trans_eq hzero) (norm_nonneg _))
   infer_instance
 
+/-- A group automorphism lifts on each discrete fibre to an affine map with
+the same real-linear part on every fibre. -/
+private theorem elementaryCover_pullback_affine
+    (φ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F) :
+    let X := EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)
+    ∃ L : X →L[ℝ] X, ∀ (a : Fin r → ℤ) (b : F),
+      ∃ (y : X) (a' : Fin r → ℤ) (b' : F), ∀ xt : X,
+        φ (elementaryCover xt a b) = elementaryCover (L xt + y) a' b' := by
+  let X := EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)
+  let G := ElementaryLieGroup m n r F
+  let q : X →+ G :=
+    { toFun := fun xt ↦ elementaryCover xt 0 0
+      map_zero' := Prod.ext rfl (Prod.ext (funext fun _ ↦ AddCircle.coe_zero (1 : ℝ)) rfl)
+      map_add' := fun x y ↦ Prod.ext rfl
+        (Prod.ext (funext fun i ↦ AddCircle.coe_add 1 (x.2 i) (y.2 i)) (zero_add _).symm) }
+  have hq : Continuous q :=
+    continuous_fst.prodMk
+      ((continuous_pi fun i ↦ (AddCircle.continuous_mk' (1 : ℝ)).comp
+        ((PiLp.continuous_apply 2 _ i).comp continuous_snd)).prodMk
+          (continuous_const.prodMk continuous_const))
+  let a₀ := φ.toAddEquiv.toAddMonoidHom.comp q
+  have ha₀ : Continuous a₀ := φ.continuous.comp hq
+  let aR := (AddMonoidHom.fst _ _).comp a₀
+  let aT := (AddMonoidHom.fst _ _).comp ((AddMonoidHom.snd _ _).comp a₀)
+  choose l hl hlift using fun i : Fin n ↦ exists_addCircle_addMonoidHom_lift
+    ((Pi.evalAddMonoidHom _ i).comp aT) ((continuous_apply i).comp ha₀.snd.fst)
+  let A : X →+ X := aR.prod ((EuclideanSpace.equiv (Fin n) ℝ).symm.toLinearMap.toAddMonoidHom.comp
+    (AddMonoidHom.pi l))
+  have hA : Continuous A :=
+    ha₀.fst.prodMk ((PiLp.continuous_toLp 2 _).comp (continuous_pi hl))
+  have hDiscrete (x : X) : (a₀ x).2.2 = 0 := by
+    have h := ha₀.snd.snd.isConst_of_preconnectedSpace x 0
+    rw [map_zero a₀] at h
+    exact h
+  refine ⟨A.toRealLinearMap hA, fun a b ↦ ?_⟩
+  let c := φ (elementaryCover (0 : X) a b)
+  obtain ⟨u, hu⟩ := elementaryCover_surjective c.2.2.1 c.2.2.2 c.1 c.2.1
+  refine ⟨(c.1, u), c.2.2.1, c.2.2.2, fun x ↦ ?_⟩
+  have hShift : q x + elementaryCover 0 a b = elementaryCover x a b := by
+    refine Prod.ext (add_zero _) (Prod.ext ?_ (zero_add _))
+    funext i
+    change (x.2 i : AddCircle (1 : ℝ)) + ((0 : ℝ) : AddCircle (1 : ℝ)) = _
+    rw [AddCircle.coe_zero, add_zero]
+    rfl
+  rw [← hShift, map_add]
+  change a₀ x + c = elementaryCover (A x + (c.1, u)) c.2.2.1 c.2.2.2
+  refine Prod.ext rfl (Prod.ext ?_ ?_)
+  · funext i
+    have hui := congrArg (fun y : G ↦ y.2.1 i) hu
+    change (a₀ x).2.1 i + c.2.1 i = ((l i x + u i : ℝ) : AddCircle (1 : ℝ))
+    rw [AddCircle.coe_add, hlift i x]
+    exact congrArg ((a₀ x).2.1 i + ·) hui.symm
+  · change (a₀ x).2.2 + c.2.2 = c.2.2
+    rw [hDiscrete, zero_add]
+
+/-- Paper: (D.1.3.7), p. 750. The monomial weight in the real and integer coordinates. -/
+private def elementarySchwartzMonomial (α : Fin m → ℕ) (δ : Fin r → ℕ)
+    (x : EuclideanSpace ℝ (Fin m)) (a : Fin r → ℤ) : ℂ :=
+  (∏ k, (x k : ℂ) ^ α k) * (∏ k, (a k : ℂ) ^ δ k)
+
+omit [DiscreteTopology F] in
+/-- A weighted coordinate monomial composed with an elementary group automorphism
+is a finite linear combination of coordinate monomials on the same group.
+The projection onto the real and lattice factors kills the compact torus and finite
+factors, and additivity gives linear coordinate forms on the remaining two factors. -/
+private theorem elementarySchwartz_monomial_comp
+    (φ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F)
+    (α : Fin m → ℕ) (δ : Fin r → ℕ) :
+    ∃ (s : Finset ((Fin m → ℕ) × (Fin r → ℕ)))
+      (c : ((Fin m → ℕ) × (Fin r → ℕ)) → ℂ), ∀ g,
+        elementarySchwartzMonomial α δ (φ g).1 (φ g).2.2.1 =
+          ∑ p ∈ s, c p * elementarySchwartzMonomial p.1 p.2 g.1 g.2.2.1 := by
+  classical
+  let V := EuclideanSpace ℝ (Fin m)
+  let Z := Fin r → ℤ
+  let K := (Fin n → AddCircle (1 : ℝ)) × F
+  let G := ElementaryLieGroup m n r F
+  let J := Fin m ⊕ Fin r
+  let eR : V →+ G :=
+    ⟨⟨fun x ↦ (x, 0, 0, 0), rfl⟩, fun _ _ ↦
+      Prod.ext rfl (Prod.ext (zero_add _).symm (Prod.ext (zero_add _).symm (zero_add _).symm))⟩
+  let eZ : Z →+ G :=
+    ⟨⟨fun a ↦ (0, 0, a, 0), rfl⟩, fun _ _ ↦
+      Prod.ext (zero_add _).symm (Prod.ext (zero_add _).symm (Prod.ext rfl (zero_add _).symm))⟩
+  let eK : K →+ G :=
+    ⟨⟨fun z ↦ (0, z.1, 0, z.2), rfl⟩, fun _ _ ↦
+      Prod.ext (zero_add _).symm (Prod.ext rfl (Prod.ext (zero_add _).symm rfl))⟩
+  let e (j : J) : G := Sum.elim
+    (fun i ↦ eR (EuclideanSpace.single i 1)) (fun i ↦ eZ (Pi.single i 1)) j
+  let coord (j : J) : G →+ ℝ := Sum.elim
+    (fun i : Fin m ↦
+      ⟨⟨fun g : G ↦ g.1 i, rfl⟩, fun _ _ ↦ rfl⟩)
+    (fun i : Fin r ↦
+      (Int.castAddHom ℝ).comp ⟨⟨fun g : G ↦ g.2.2.1 i, rfl⟩, fun _ _ ↦ rfl⟩) j
+  have hcoord (j : J) : Continuous (coord j) := by
+    cases j with
+    | inl i => exact (PiLp.continuous_apply 2 _ i).comp continuous_fst
+    | inr i =>
+      exact (continuous_of_discreteTopology (f := fun z : ℤ ↦ (z : ℝ))).comp
+        ((continuous_apply i).comp continuous_snd.snd.fst)
+  have hlinear (h : G →+ ℝ) (hh : Continuous h) (g : G) :
+      h g = ∑ j, coord j g * h (e j) := by
+    let : Fact (0 < (1 : ℝ)) := ⟨zero_lt_one⟩
+    let hK := h.comp eK
+    have hKcont : Continuous hK :=
+      hh.comp (continuous_const.prodMk (continuous_fst.prodMk
+        (continuous_const.prodMk continuous_snd)))
+    have hvanish (z : K) : hK z = 0 := by
+      obtain ⟨M, hM⟩ := (isCompact_range hKcont.norm).bddAbove
+      by_contra hz
+      obtain ⟨N, hN⟩ := exists_nat_gt (M / ‖hK z‖)
+      have hle := hM (Set.mem_range_self (N • z))
+      change ‖hK (N • z)‖ ≤ M at hle
+      rw [map_nsmul, nsmul_eq_mul, norm_mul, Real.norm_natCast] at hle
+      exact (not_lt_of_ge hle) ((div_lt_iff₀ (norm_pos_iff.mpr hz)).mp hN)
+    let hR := (h.comp eR).toRealLinearMap (hh.comp (continuous_id.prodMk continuous_const))
+    let basisR := (EuclideanSpace.basisFun (Fin m) ℝ).toBasis
+    let basisZ := Pi.basisFun ℤ (Fin r)
+    have hr (x : V) : h (eR x) = ∑ i, x i * h (eR (EuclideanSpace.single i 1)) := by
+      have he := congrArg hR (basisR.sum_repr x)
+      simpa [hR, basisR, smul_eq_mul] using he.symm
+    have hz (a : Z) : h (eZ a) = ∑ i, (a i : ℝ) * h (eZ (Pi.single i 1)) := by
+      have he := congrArg (h.comp eZ) (basisZ.sum_repr a)
+      rw [map_sum] at he
+      simp_rw [map_zsmul, zsmul_eq_mul] at he
+      simpa [basisZ] using he.symm
+    rcases g with ⟨x, z, a, b⟩
+    have hdecomp : (x, z, a, b) = eR x + eZ a + eK (z, b) := by
+      change (x, z, a, b) = ((x + 0) + 0, (0 + 0) + z, (0 + a) + 0, (0 + 0) + b)
+      simp
+    have hKzero : h (eK (z, b)) = 0 := hvanish (z, b)
+    rw [Fintype.sum_sum_type]
+    change h (x, z, a, b) =
+      (∑ i, x i * h (eR (EuclideanSpace.single i 1))) +
+        ∑ i, (a i : ℝ) * h (eZ (Pi.single i 1))
+    rw [hdecomp, map_add, map_add, hKzero, add_zero, hr, hz]
+  let v (g : G) (j : J) : ℂ := Complex.ofRealHom (coord j g)
+  have hvR (g : G) (i : Fin m) : v g (.inl i) = (g.1 i : ℂ) := rfl
+  have hvZ (g : G) (i : Fin r) : v g (.inr i) = (g.2.2.1 i : ℂ) :=
+    Complex.ofReal_intCast _
+  let P (j : J) : MvPolynomial J ℂ :=
+    ∑ k : J, MvPolynomial.C (v (φ (e k)) j) * MvPolynomial.X k
+  have hP (g : G) (j : J) : MvPolynomial.eval (v g) (P j) = v (φ g) j := by
+    have he : coord j (φ g) = ∑ k, coord k g * coord j (φ (e k)) :=
+      hlinear ((coord j).comp φ.toAddEquiv.toAddMonoidHom)
+        ((hcoord j).comp φ.continuous) g
+    calc
+      MvPolynomial.eval (v g) (P j) = ∑ k, v g k * v (φ (e k)) j := by
+        simp only [P, map_sum, map_mul, MvPolynomial.eval_C, MvPolynomial.eval_X]
+        exact Finset.sum_congr rfl fun k _ ↦ mul_comm _ _
+      _ = v (φ g) j := by
+        simpa only [v, map_sum, map_mul] using congrArg Complex.ofRealHom he.symm
+  let Q := (∏ i, P (.inl i) ^ α i) * (∏ i, P (.inr i) ^ δ i)
+  have hQ (g : G) :
+      MvPolynomial.eval (v g) Q = elementarySchwartzMonomial α δ (φ g).1 (φ g).2.2.1 := by
+    simp only [Q, map_mul, map_prod, map_pow, hP, hvR, hvZ, elementarySchwartzMonomial]
+  let orders : (J →₀ ℕ) ≃ ((Fin m → ℕ) × (Fin r → ℕ)) :=
+    Finsupp.equivFunOnFinite.trans (Equiv.sumArrowEquivProdArrow _ _ _)
+  refine ⟨Q.support.map orders.toEmbedding, fun p ↦ Q.coeff (orders.symm p), fun g ↦ ?_⟩
+  rw [← hQ, MvPolynomial.eval_eq', Finset.sum_map]
+  refine Finset.sum_congr rfl fun d _ ↦ ?_
+  rw [Fintype.prod_sum_type]
+  have hOrdersR (i : Fin m) : (orders d).1 i = d (.inl i) := rfl
+  have hOrdersZ (i : Fin r) : (orders d).2 i = d (.inr i) := rfl
+  simp only [Equiv.coe_toEmbedding, Equiv.symm_apply_apply, hvR, hvZ,
+    elementarySchwartzMonomial, hOrdersR, hOrdersZ]
+
+omit [AddCommGroup F] [TopologicalSpace F] [DiscreteTopology F] [Finite F] in
+/-- The chain rule on a lifted fibre expresses each mixed partial after an affine
+change of variables as a finite linear combination of mixed partials before the
+change. Its coefficients depend only on the linear part and the derivative orders. -/
+private theorem elementaryPartial_comp_affine
+    (L : (EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) →L[ℝ]
+      (EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)))
+    (β : Fin m → ℕ) (γ : Fin n → ℕ) :
+    ∃ (s : Finset ((Fin m → ℕ) × (Fin n → ℕ)))
+      (c : ((Fin m → ℕ) × (Fin n → ℕ)) → ℝ),
+      ∀ (f h : ElementaryLieGroup m n r F → ℂ) y a b a' b',
+        ContDiff ℝ ∞ (fun x ↦ f (elementaryCover x a' b')) →
+        (∀ x, h (elementaryCover x a b) = f (elementaryCover (L x + y) a' b')) →
+        ∀ x, elementaryPartial h β γ x a b =
+          ∑ p ∈ s, c p • elementaryPartial f p.1 p.2 (L x + y) a' b' := by
+  classical
+  let X := EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)
+  let J := Fin m ⊕ Fin n
+  let B : Module.Basis J ℝ X :=
+    (EuclideanSpace.basisFun (Fin m) ℝ).toBasis.prod (EuclideanSpace.basisFun (Fin n) ℝ).toBasis
+  let dirs (b : Fin m → ℕ) (g : Fin n → ℕ) : List J :=
+    (List.ofFn fun i ↦ List.replicate (b i) (Sum.inl i)).flatten ++
+      (List.ofFn fun i ↦ List.replicate (g i) (Sum.inr i)).flatten
+  have hdirs (b : Fin m → ℕ) (g : Fin n → ℕ) :
+      (dirs b g).map B =
+        (List.ofFn fun i ↦ List.replicate (b i) (EuclideanSpace.single i 1, 0)).flatten ++
+        (List.ofFn fun i ↦ List.replicate (g i) (0, EuclideanSpace.single i 1)).flatten := by
+    have hInl (i : Fin m) : B (.inl i) = (EuclideanSpace.single i 1, 0) := by
+      dsimp only [B]
+      rw [Module.Basis.prod_apply]
+      simp only [Sum.elim_inl, Function.comp_apply, OrthonormalBasis.coe_toBasis,
+        EuclideanSpace.basisFun_apply, LinearMap.inl_apply]
+    have hInr (i : Fin n) : B (.inr i) = (0, EuclideanSpace.single i 1) := by
+      dsimp only [B]
+      rw [Module.Basis.prod_apply]
+      simp only [Sum.elim_inr, Function.comp_apply, OrthonormalBasis.coe_toBasis,
+        EuclideanSpace.basisFun_apply, LinearMap.inr_apply]
+    simp only [dirs, List.map_append, List.map_flatten, List.map_ofFn, Function.comp_def,
+      List.map_replicate, hInl, hInr]
+  have hpartial (f : ElementaryLieGroup m n r F → ℂ) (a : Fin r → ℤ) (b : F)
+      (d : Fin m → ℕ) (e : Fin n → ℕ) (x : X) :
+      elementaryPartial f d e x a b =
+        iteratedFDeriv ℝ (dirs d e).length (fun z ↦ f (elementaryCover z a b)) x
+          (fun i ↦ B ((dirs d e).get i)) := by
+    dsimp only [elementaryPartial]
+    rw [← hdirs d e]
+    have hlength (k : ℕ) (hk : k = (dirs d e).length) :
+        iteratedFDeriv ℝ k (fun z ↦ f (elementaryCover z a b)) x
+          (fun i ↦ B ((dirs d e).get (Fin.cast hk i))) =
+          iteratedFDeriv ℝ (dirs d e).length (fun z ↦ f (elementaryCover z a b)) x
+            (fun i ↦ B ((dirs d e).get i)) := by
+      subst k
+      rfl
+    have hlen : ((dirs d e).map B).length = (dirs d e).length := List.length_map B
+    have hget : ((dirs d e).map B).get =
+        fun i ↦ B ((dirs d e).get (Fin.cast hlen i)) := by
+      funext i
+      simp only [List.get_eq_getElem, List.getElem_map, Fin.val_cast]
+    rw [hget]
+    exact hlength _ hlen
+  let l := dirs β γ
+  let T := Fin l.length → J
+  let indices (t : T) : (Fin m → ℕ) × (Fin n → ℕ) :=
+    (fun i ↦ (List.ofFn t).count (.inl i), fun j ↦ (List.ofFn t).count (.inr j))
+  let coeff (t : T) := ∏ i, B.repr (L (B (l.get i))) (t i)
+  let s := Finset.univ.image indices
+  refine ⟨s, fun p ↦ ∑ t ∈ Finset.univ.filter (fun t ↦ indices t = p), coeff t, ?_⟩
+  intro f h y a b a' b' hf hEq x
+  let f₀ : X → ℂ := fun z ↦ f (elementaryCover z a' b')
+  let D := iteratedFDeriv ℝ l.length f₀ (L x + y)
+  have hPerm (t : T) : (List.ofFn t).Perm (dirs (indices t).1 (indices t).2) := by
+    apply List.perm_iff_count.mpr
+    intro j
+    cases j with
+    | inl i =>
+      simp [dirs, indices, List.count_flatten, List.map_ofFn, List.count_replicate, List.sum_ofFn]
+      rw [Finset.sum_eq_single i]
+      · simp
+      · intro j _ hj
+        exact ite_eq_right (fun h ↦ hj (Sum.inl.inj h))
+      · simp
+    | inr i =>
+      simp [dirs, indices, List.count_flatten, List.map_ofFn, List.count_replicate, List.sum_ofFn]
+      rw [Finset.sum_eq_single i]
+      · simp
+      · intro j _ hj
+        exact ite_eq_right (fun h ↦ hj (Sum.inr.inj h))
+      · simp
+  have hterm (t : T) : D (fun i ↦ B (t i)) =
+      elementaryPartial f (indices t).1 (indices t).2 (L x + y) a' b' := by
+    rw [hpartial]
+    have hlength (k : ℕ) (hk : k = l.length) :
+        iteratedFDeriv ℝ k f₀ (L x + y) (fun i ↦ B (t (Fin.cast hk i))) =
+          D (fun i ↦ B (t i)) := by
+      subst k
+      rfl
+    rw [← hlength _ List.length_ofFn]
+    simpa only [f₀, List.get_ofFn] using
+      iteratedFDeriv_apply_list_perm hf B (hPerm t) (L x + y)
+  have hchain :
+      elementaryPartial h β γ x a b = D (fun i ↦ L (B (l.get i))) := by
+    rw [hpartial, show (fun z ↦ h (elementaryCover z a b)) =
+      (fun z ↦ f₀ (z + y)) ∘ L from funext hEq,
+      L.iteratedFDeriv_comp_right
+        (show ContDiff ℝ ∞ (fun z : X ↦ f₀ (z + y)) from hf.comp
+          (contDiff_id.add contDiff_const)) x (by simp),
+      ContinuousMultilinearMap.compContinuousLinearMap_apply, iteratedFDeriv_comp_add_right]
+  rw [hchain]
+  let v (i : Fin l.length) := L (B (l.get i))
+  change D.toMultilinearMap v = _
+  conv_lhs => rw [show v = (fun i ↦ ∑ j, B.repr (v i) j • B j) from
+    funext fun i ↦ (B.sum_repr (v i)).symm]
+  rw [D.toMultilinearMap.map_sum]
+  simp_rw [D.toMultilinearMap.map_smul_univ, ContinuousMultilinearMap.coe_coe,
+    hterm, Finset.sum_smul]
+  rw [← Finset.sum_fiberwise_of_maps_to (t := s)
+    (fun t _ ↦ Finset.mem_image_of_mem indices (Finset.mem_univ t))]
+  refine Finset.sum_congr rfl fun p _ ↦ Finset.sum_congr rfl fun t ht ↦ ?_
+  rw [(Finset.mem_filter.mp ht).2]
+  rfl
+
+/-- Each weighted bound of the pullback is controlled by a continuous seminorm
+of the original Schwartz function. -/
+private theorem elementarySchwartzBound_pullback_le
+    (φ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F)
+    (i : ElementarySchwartzIndex m n r) :
+    ∃ q : Seminorm ℂ (ElementarySchwartz m n r F), Continuous q ∧
+      ∀ f : ElementarySchwartz m n r F,
+        elementarySchwartzBound (fun g ↦ f (φ g)) i ≤ ENNReal.ofReal (q f) := by
+  obtain ⟨L, hL⟩ := elementaryCover_pullback_affine φ
+  obtain ⟨s, c, hw⟩ := elementarySchwartz_monomial_comp φ.symm i.1 i.2.2.2
+  obtain ⟨t, d, hd⟩ := elementaryPartial_comp_affine (r := r) (F := F) L i.2.1 i.2.2.1
+  let p (u : (Fin m → ℕ) × (Fin r → ℕ)) (v : (Fin m → ℕ) × (Fin n → ℕ)) :
+      Seminorm ℂ (ElementarySchwartz m n r F) :=
+    (‖c u * (d v : ℂ)‖₊ : ℝ≥0) • elementarySchwartzSeminorm (u.1, v.1, v.2, u.2)
+  let q : Seminorm ℂ (ElementarySchwartz m n r F) := ∑ u ∈ s, ∑ v ∈ t, p u v
+  have hq : ∀ f : ElementarySchwartz m n r F, q f = ∑ u ∈ s, ∑ v ∈ t, p u v f := by
+    intro f
+    change FunLike.coeAddMonoidHom _ _ _ (∑ u ∈ s, ∑ v ∈ t, p u v) f = _
+    rw [map_sum, Finset.sum_apply]
+    refine Finset.sum_congr rfl fun u _ ↦ ?_
+    change FunLike.coeAddMonoidHom _ _ _ (∑ v ∈ t, p u v) f = _
+    simp [map_sum, Finset.sum_apply]
+  refine ⟨q, ?_, fun f ↦ ?_⟩
+  · exact Seminorm.continuous_finsetSum fun u _ ↦ Seminorm.continuous_finsetSum fun v _ ↦ by
+      change Continuous fun f : ElementarySchwartz m n r F ↦
+        ‖c u * (d v : ℂ)‖ * elementarySchwartzSeminorm (u.1, v.1, v.2, u.2) f
+      exact continuous_const.mul (elementarySchwartz_withSeminorms.continuous_seminorm _)
+  · refine iSup_le fun x ↦ iSup_le fun a ↦ iSup_le fun b ↦ ?_
+    obtain ⟨y, a', b', hφ⟩ := hL a b
+    have hw' := hw (φ (elementaryCover x a b))
+    rw [φ.symm_apply_apply, hφ x] at hw'
+    change elementarySchwartzMonomial i.1 i.2.2.2 x.1 a =
+      ∑ u ∈ s, c u * elementarySchwartzMonomial u.1 u.2 (L x + y).1 a' at hw'
+    have hd' := hd f (fun g ↦ f (φ g)) y a b a' b' (f.property.1 a' b')
+      (fun z ↦ congrArg (fun g ↦ f g) (hφ z)) x
+    change (‖elementarySchwartzMonomial i.1 i.2.2.2 x.1 a *
+      elementaryPartial (fun g ↦ f (φ g)) i.2.1 i.2.2.1 x a b‖₊ : ℝ≥0∞) ≤ _
+    rw [← ENNReal.ofReal_coe_nnreal]
+    apply ENNReal.ofReal_le_ofReal
+    rw [coe_nnNorm, hw', hd', Finset.sum_mul, hq]
+    refine (norm_sum_le _ _).trans (Finset.sum_le_sum fun u _ ↦ ?_)
+    rw [Finset.mul_sum]
+    refine (norm_sum_le _ _).trans (Finset.sum_le_sum fun v _ ↦ ?_)
+    rw [Complex.real_smul]
+    rw [show c u * elementarySchwartzMonomial u.1 u.2 (L x + y).1 a' *
+        ((d v : ℂ) * elementaryPartial f.val v.1 v.2 (L x + y) a' b') =
+        (c u * (d v : ℂ)) * (elementarySchwartzMonomial u.1 u.2 (L x + y).1 a' *
+          elementaryPartial f.val v.1 v.2 (L x + y) a' b') by ring]
+    rw [norm_mul]
+    apply mul_le_mul_of_nonneg_left _ (norm_nonneg _)
+    let j : ElementarySchwartzIndex m n r := (u.1, v.1, v.2, u.2)
+    change (‖elementarySchwartzMonomial u.1 u.2 (L x + y).1 a' *
+      elementaryPartial f.val v.1 v.2 (L x + y) a' b'‖₊ : ℝ≥0∞).toReal ≤
+      (elementarySchwartzBound f.val j).toReal
+    exact ENNReal.toReal_mono (f.property.2 j).ne
+      (le_iSup_of_le (L x + y) (le_iSup_of_le a' (le_iSup_of_le b' le_rfl)))
+
 /-- Paper: Lemma D.1.3.3, p. 750. Pullback by a topological group automorphism
 gives a linear topological automorphism of the elementary Schwartz space. -/
 theorem elementarySchwartz_pullback (φ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F) :
     ∃ e : ElementarySchwartz m n r F ≃L[ℂ] ElementarySchwartz m n r F,
-      ∀ f g, e f g = f (φ g) := by sorry
+      ∀ f g, e f g = f (φ g) := by
+  have hmem (ψ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F)
+      (f : ElementarySchwartz m n r F) :
+      (fun g ↦ f (ψ g)) ∈ elementarySchwartzSubmodule m n r F := by
+    obtain ⟨L, hL⟩ := elementaryCover_pullback_affine ψ
+    refine ⟨fun a b ↦ ?_, fun i ↦ ?_⟩
+    · obtain ⟨y, a', b', hψ⟩ := hL a b
+      simp_rw [hψ]
+      exact (f.property.1 a' b').comp (L.contDiff.add contDiff_const)
+    · obtain ⟨q, _, hq⟩ := elementarySchwartzBound_pullback_le ψ i
+      exact (hq f).trans_lt ENNReal.ofReal_lt_top
+  let pull (ψ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F) :
+      ElementarySchwartz m n r F →ₗ[ℂ] ElementarySchwartz m n r F :=
+    { toFun := fun f ↦ ⟨fun g ↦ f (ψ g), hmem ψ f⟩
+      map_add' := fun _ _ ↦ Subtype.ext rfl
+      map_smul' := fun _ _ ↦ Subtype.ext rfl }
+  have hcont (ψ : ElementaryLieGroup m n r F ≃ₜ+ ElementaryLieGroup m n r F) :
+      Continuous (pull ψ) := by
+    apply elementarySchwartz_withSeminorms.continuous_of_continuous_comp
+    intro i
+    obtain ⟨q, hq, hq'⟩ := elementarySchwartzBound_pullback_le ψ i
+    refine Seminorm.continuous_of_le hq (fun f ↦ ?_)
+    change (elementarySchwartzBound (fun g ↦ f (ψ g)) i).toReal ≤ q f
+    simpa only [ENNReal.toReal_ofReal (apply_nonneg q f)] using
+      ENNReal.toReal_mono ENNReal.ofReal_ne_top (hq' f)
+  exact ⟨ContinuousLinearEquiv.equivOfInverse ⟨pull φ, hcont φ⟩ ⟨pull φ.symm, hcont φ.symm⟩
+    (fun f ↦ Subtype.ext (funext fun g ↦ congrArg (fun x ↦ f x) (φ.apply_symm_apply g)))
+    (fun f ↦ Subtype.ext (funext fun g ↦ congrArg (fun x ↦ f x) (φ.symm_apply_apply g))),
+    fun _ _ ↦ rfl⟩
+
+/-- `1 + ‖x‖ ^ j` is controlled by the constant term and the pure powers of the coordinates. -/
+lemma one_add_euclidean_pow_le {d : ℕ} (x : EuclideanSpace ℝ (Fin d)) (j : ℕ) :
+    1 + ‖x‖ ^ j ≤
+      (1 + (Real.sqrt (d : ℝ)) ^ j) * (1 + ∑ i : Fin d, |x i| ^ j) := by
+  cases j with
+  | zero =>
+    simp only [pow_zero]
+    have hsum : (0 : ℝ) ≤ ∑ i : Fin d, (1 : ℝ) :=
+      Finset.sum_nonneg fun _ _ => zero_le_one
+    linarith
+  | succ j =>
+    cases d with
+    | zero =>
+      have : IsEmpty (Fin 0) := ⟨Fin.elim0⟩
+      have hx0 : ‖x‖ = 0 := by
+        rw [← sq_eq_zero_iff, EuclideanSpace.real_norm_sq_eq]
+        simp [Finset.univ_eq_empty]
+      simp [hx0, Real.sqrt_zero, zero_pow (Nat.succ_ne_zero _), Finset.univ_eq_empty]
+    | succ d =>
+      have : Nonempty (Fin (Nat.succ d)) := ⟨0⟩
+      obtain ⟨i0, hi0, hmax⟩ :=
+        Finset.exists_max_image (Finset.univ : Finset (Fin (Nat.succ d)))
+          (fun i => |x i|) Finset.univ_nonempty
+      have hsq : ‖x‖ ^ 2 ≤ (Nat.succ d : ℝ) * |x i0| ^ 2 := by
+        rw [EuclideanSpace.real_norm_sq_eq]
+        calc
+          ∑ i, (x i) ^ 2 = ∑ i, |x i| ^ 2 := by
+            refine Finset.sum_congr rfl fun i _ => ?_
+            rw [← sq_abs]
+          _ ≤ ∑ i, |x i0| ^ 2 :=
+            Finset.sum_le_sum fun i hi => pow_le_pow_left₀ (abs_nonneg _) (hmax i hi) 2
+          _ = (Nat.succ d : ℝ) * |x i0| ^ 2 := by
+            simp [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+      have hnorm : ‖x‖ ≤ Real.sqrt (Nat.succ d : ℝ) * |x i0| := by
+        refine le_of_sq_le_sq ?_ (mul_nonneg (Real.sqrt_nonneg _) (abs_nonneg _))
+        rw [mul_pow, Real.sq_sqrt (Nat.cast_nonneg _)]
+        exact hsq
+      set t : ℝ := (Real.sqrt (Nat.succ d : ℝ)) ^ Nat.succ j
+      have ht : 0 ≤ t := pow_nonneg (Real.sqrt_nonneg _) _
+      have hpow : ‖x‖ ^ Nat.succ j ≤ t * |x i0| ^ Nat.succ j := by
+        calc
+          ‖x‖ ^ Nat.succ j ≤ (Real.sqrt (Nat.succ d : ℝ) * |x i0|) ^ Nat.succ j :=
+            pow_le_pow_left₀ (norm_nonneg _) hnorm _
+          _ = t * |x i0| ^ Nat.succ j := by rw [mul_pow]
+      have hi0le : |x i0| ^ Nat.succ j ≤ ∑ i, |x i| ^ Nat.succ j :=
+        Finset.single_le_sum (fun i _ => pow_nonneg (abs_nonneg (x i)) (Nat.succ j)) hi0
+      have hnormsum : ‖x‖ ^ Nat.succ j ≤ t * ∑ i, |x i| ^ Nat.succ j :=
+        hpow.trans (mul_le_mul_of_nonneg_left hi0le ht)
+      have hS : 0 ≤ ∑ i : Fin (Nat.succ d), |x i| ^ Nat.succ j :=
+        Finset.sum_nonneg fun _ _ => pow_nonneg (abs_nonneg _) _
+      calc
+        1 + ‖x‖ ^ Nat.succ j ≤ 1 + t * ∑ i, |x i| ^ Nat.succ j :=
+          add_le_add_right hnormsum 1
+        _ ≤ (1 + t) * (1 + ∑ i, |x i| ^ Nat.succ j) := by nlinarith
+
+/-- A monomial in the coordinates is at most the corresponding power of the Euclidean norm. -/
+lemma prod_abs_pow_le_norm_pow {d : ℕ} (x : EuclideanSpace ℝ (Fin d)) (α : Fin d → ℕ) :
+    ∏ k, |x k| ^ α k ≤ ‖x‖ ^ ∑ k, α k := by
+  calc
+    ∏ k, |x k| ^ α k ≤ ∏ k, ‖x‖ ^ α k := by
+      refine Finset.prod_le_prod₀ (fun _ _ => pow_nonneg (abs_nonneg _) _) fun k _ => ?_
+      exact pow_le_pow_left₀ (abs_nonneg _)
+        (by simpa [Real.norm_eq_abs] using PiLp.norm_apply_le x k) (α k)
+    _ = ‖x‖ ^ ∑ k, α k := Finset.prod_pow_eq_pow_sum _ _ _
+
+/-- Mixed partials are additive on fibrewise smooth functions. -/
+lemma elementaryPartial_add {f g : ElementaryLieGroup m n r F → ℂ}
+    (hf : ∀ a b, ContDiff ℝ ∞ (fun xt ↦ f (elementaryCover xt a b)))
+    (hg : ∀ a b, ContDiff ℝ ∞ (fun xt ↦ g (elementaryCover xt a b)))
+    (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    elementaryPartial (f + g) β γ xt a b =
+      elementaryPartial f β γ xt a b + elementaryPartial g β γ xt a b := by
+  have hadd (n : ℕ) :
+      iteratedFDeriv ℝ n (fun v ↦ (f + g) (elementaryCover v a b)) xt =
+        iteratedFDeriv ℝ n (fun v ↦ f (elementaryCover v a b)) xt +
+        iteratedFDeriv ℝ n (fun v ↦ g (elementaryCover v a b)) xt :=
+    iteratedFDeriv_add_apply ((hf a b).of_le (by simp)).contDiffAt
+      ((hg a b).of_le (by simp)).contDiffAt
+  dsimp only [elementaryPartial]
+  rw [hadd]
+  rfl
+
+/-- Mixed partials are homogeneous on fibrewise smooth functions. -/
+lemma elementaryPartial_smul (c : ℂ) {f : ElementaryLieGroup m n r F → ℂ}
+    (hf : ∀ a b, ContDiff ℝ ∞ (fun xt ↦ f (elementaryCover xt a b)))
+    (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    elementaryPartial (c • f) β γ xt a b = c • elementaryPartial f β γ xt a b := by
+  have hsmul (n : ℕ) :
+      iteratedFDeriv ℝ n (fun v ↦ (c • f) (elementaryCover v a b)) xt =
+        c • iteratedFDeriv ℝ n (fun v ↦ f (elementaryCover v a b)) xt :=
+    iteratedFDeriv_const_smul_apply ((hf a b).of_le (by simp)).contDiffAt
+  dsimp only [elementaryPartial]
+  rw [hsmul]
+  rfl
+
+/-- A coordinate monomial times a partial is bounded by the corresponding Euclidean weight. -/
+lemma monomial_norm_le_p1 (f : ElementaryLieGroup m n r F → ℂ)
+    (α : Fin m → ℕ) (β : Fin m → ℕ) (γ : Fin n → ℕ) (δ : Fin r → ℕ)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    ‖((∏ k, (xt.1 k : ℂ) ^ α k) * (∏ k, (a k : ℂ) ^ δ k)) *
+        elementaryPartial f β γ xt a b‖ ≤
+      (1 + ‖xt.1‖ ^ ∑ k, α k) *
+        (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ ∑ k, δ k) *
+        ‖elementaryPartial f β γ xt a b‖ := by
+  let aVec : EuclideanSpace ℝ (Fin r) := WithLp.toLp 2 (fun k ↦ (a k : ℝ))
+  have hX : ‖∏ k, (xt.1 k : ℂ) ^ α k‖ = ∏ k, |xt.1 k| ^ α k := by
+    simp [norm_prod, norm_pow, Complex.norm_real, Real.norm_eq_abs]
+  have hA : ‖∏ k, (a k : ℂ) ^ δ k‖ = ∏ k, |aVec k| ^ δ k := by
+    simp [aVec, norm_prod, norm_pow, Complex.norm_intCast]
+  rw [norm_mul, norm_mul, hX, hA]
+  have hx : ∏ k, |xt.1 k| ^ α k ≤ 1 + ‖xt.1‖ ^ ∑ k, α k :=
+    (prod_abs_pow_le_norm_pow xt.1 α).trans (le_add_of_nonneg_left zero_le_one)
+  have ha : ∏ k, |aVec k| ^ δ k ≤ 1 + ‖aVec‖ ^ ∑ k, δ k :=
+    (prod_abs_pow_le_norm_pow aVec δ).trans (le_add_of_nonneg_left zero_le_one)
+  have hprod :
+      (∏ k, |xt.1 k| ^ α k) * (∏ k, |aVec k| ^ δ k) ≤
+        (1 + ‖xt.1‖ ^ ∑ k, α k) * (1 + ‖aVec‖ ^ ∑ k, δ k) :=
+    mul_le_mul hx ha (Finset.prod_nonneg fun _ _ => pow_nonneg (abs_nonneg _) _)
+      (add_nonneg zero_le_one (pow_nonneg (norm_nonneg _) _))
+  simpa [aVec, mul_assoc] using
+    mul_le_mul_of_nonneg_right hprod (norm_nonneg (elementaryPartial f β γ xt a b))
+
+/-- A monomial times a partial is bounded by the corresponding Schwartz seminorm. -/
+lemma monomial_partial_le_seminorm (α : Fin m → ℕ) (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (δ : Fin r → ℕ) (f : ElementarySchwartz m n r F)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    ‖((∏ k, (xt.1 k : ℂ) ^ α k) * (∏ k, (a k : ℂ) ^ δ k)) *
+        elementaryPartial f β γ xt a b‖ ≤
+      elementarySchwartzSeminorm (α, β, γ, δ) f := by
+  let z : ℂ := ((∏ k, (xt.1 k : ℂ) ^ α k) * (∏ k, (a k : ℂ) ^ δ k)) *
+      elementaryPartial f β γ xt a b
+  have hcoe : (‖z‖₊ : ℝ≥0∞) ≤ elementarySchwartzBound f.val (α, β, γ, δ) :=
+    le_iSup_of_le xt (le_iSup_of_le a (le_iSup_of_le b le_rfl))
+  change ‖z‖ ≤ (elementarySchwartzBound f.val (α, β, γ, δ)).toReal
+  rw [← toReal_coe_nnNorm z]
+  exact ENNReal.toReal_mono (f.property.2 (α, β, γ, δ)).ne hcoe
+
+lemma prod_abs_pow_single {d : ℕ} (x : Fin d → ℝ) (i : Fin d) (j : ℕ) :
+    ∏ k, |x k| ^ (Pi.single i j k) = |x i| ^ j := by
+  rw [Finset.prod_eq_single i]
+  · simp [Pi.single_eq_same]
+  · intro k _ hk
+    simp [Pi.single_eq_of_ne hk, pow_zero]
+  · intro hk
+    exact (hk (Finset.mem_univ i)).elim
+
+lemma zero_monomial_partial_le (β : Fin m → ℕ) (γ : Fin n → ℕ) (f : ElementarySchwartz m n r F)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    ‖elementaryPartial f β γ xt a b‖ ≤ elementarySchwartzSeminorm (0, β, γ, 0) f := by
+  have h := monomial_partial_le_seminorm (0 : Fin m → ℕ) β γ (0 : Fin r → ℕ) f xt a b
+  simpa only [Pi.zero_apply, pow_zero, Finset.prod_const_one, one_mul] using h
+
+lemma single_real_partial_le (i : Fin m) (j : ℕ) (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (f : ElementarySchwartz m n r F)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    |xt.1 i| ^ j * ‖elementaryPartial f β γ xt a b‖ ≤
+      elementarySchwartzSeminorm (Pi.single i j, β, γ, 0) f := by
+  have h := monomial_partial_le_seminorm (Pi.single i j) β γ (0 : Fin r → ℕ) f xt a b
+  have hnorm : ‖((∏ k, (xt.1 k : ℂ) ^ (Pi.single i j k)) * (∏ k, (a k : ℂ) ^ (0 : ℕ))) *
+        elementaryPartial f β γ xt a b‖ =
+      |xt.1 i| ^ j * ‖elementaryPartial f β γ xt a b‖ := by
+    rw [norm_mul, norm_mul]
+    simp only [norm_prod, norm_pow, Complex.norm_real, Real.norm_eq_abs, Complex.norm_intCast,
+      Pi.zero_apply, pow_zero, Finset.prod_const_one, norm_one, mul_one]
+    rw [prod_abs_pow_single (fun k => xt.1 k) i j]
+  rw [← hnorm]
+  exact h
+
+lemma single_int_partial_le (k0 : Fin r) (j' : ℕ) (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (f : ElementarySchwartz m n r F)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    |(a k0 : ℝ)| ^ j' * ‖elementaryPartial f β γ xt a b‖ ≤
+      elementarySchwartzSeminorm ((0 : Fin m → ℕ), β, γ, Pi.single k0 j') f := by
+  have h := monomial_partial_le_seminorm (0 : Fin m → ℕ) β γ (Pi.single k0 j') f xt a b
+  have hnorm : ‖((∏ k, (xt.1 k : ℂ) ^ (0 : ℕ)) * (∏ k, (a k : ℂ) ^ (Pi.single k0 j' k))) *
+        elementaryPartial f β γ xt a b‖ =
+      |(a k0 : ℝ)| ^ j' * ‖elementaryPartial f β γ xt a b‖ := by
+    rw [norm_mul, norm_mul]
+    simp only [norm_prod, norm_pow, Complex.norm_real, Real.norm_eq_abs, Complex.norm_intCast,
+      Pi.zero_apply, pow_zero, Finset.prod_const_one, norm_one, one_mul]
+    rw [prod_abs_pow_single (fun k => (a k : ℝ)) k0 j']
+  rw [← hnorm]
+  exact h
+
+lemma single_both_partial_le (i : Fin m) (k0 : Fin r) (j j' : ℕ) (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (f : ElementarySchwartz m n r F)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    |xt.1 i| ^ j * |(a k0 : ℝ)| ^ j' * ‖elementaryPartial f β γ xt a b‖ ≤
+      elementarySchwartzSeminorm (Pi.single i j, β, γ, Pi.single k0 j') f := by
+  have h := monomial_partial_le_seminorm (Pi.single i j) β γ (Pi.single k0 j') f xt a b
+  have hnorm : ‖((∏ k, (xt.1 k : ℂ) ^ (Pi.single i j k)) *
+        (∏ k, (a k : ℂ) ^ (Pi.single k0 j' k))) * elementaryPartial f β γ xt a b‖ =
+      |xt.1 i| ^ j * |(a k0 : ℝ)| ^ j' * ‖elementaryPartial f β γ xt a b‖ := by
+    rw [norm_mul, norm_mul]
+    simp only [norm_prod, norm_pow, Complex.norm_real, Real.norm_eq_abs, Complex.norm_intCast]
+    rw [prod_abs_pow_single (fun k => xt.1 k) i j,
+      prod_abs_pow_single (fun k => (a k : ℝ)) k0 j']
+  rw [← hnorm]
+  exact h
 
 /-- Paper: Lemma D.1.3.4, p. 751. Polynomial weights in the two Euclidean lengths,
 with a fixed mixed partial for each seminorm, generate the Schwartz topology. -/
@@ -3002,7 +4396,362 @@ theorem elementarySchwartz_withSeminorms_P1 :
         ⨆ (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F),
           ENNReal.ofReal ((1 + ‖xt.1‖ ^ i.1) *
             (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1) *
-            ‖elementaryPartial f i.2.2.1 i.2.2.2 xt a b‖) := by sorry
+            ‖elementaryPartial f i.2.2.1 i.2.2.2 xt a b‖) := by
+  let bound (i : ℕ × ℕ × (Fin m → ℕ) × (Fin n → ℕ)) (f : ElementarySchwartz m n r F) : ℝ≥0∞ :=
+    ⨆ (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F),
+      ENNReal.ofReal ((1 + ‖xt.1‖ ^ i.1) *
+        (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1) *
+        ‖elementaryPartial f i.2.2.1 i.2.2.2 xt a b‖)
+  letI : DecidableEq (ElementarySchwartzIndex m n r) := Classical.decEq _
+  have hest (i : ℕ × ℕ × (Fin m → ℕ) × (Fin n → ℕ)) :
+      ∃ (s : Finset (ElementarySchwartzIndex m n r)) (C : ℝ), 0 ≤ C ∧
+        ∀ f, bound i f ≤ ENNReal.ofReal (C * ((s.sup elementarySchwartzSeminorm) f)) := by
+    let j := i.1
+    let j' := i.2.1
+    let β := i.2.2.1
+    let γ := i.2.2.2
+    let Cx : ℝ := 1 + (Real.sqrt (m : ℝ)) ^ j
+    let Ca : ℝ := 1 + (Real.sqrt (r : ℝ)) ^ j'
+    let s0 : Finset (ElementarySchwartzIndex m n r) := {(0, β, γ, (0 : Fin r → ℕ))}
+    let sx : Finset (ElementarySchwartzIndex m n r) :=
+      Finset.univ.image fun t : Fin m => (Pi.single t j, β, γ, (0 : Fin r → ℕ))
+    let sy : Finset (ElementarySchwartzIndex m n r) :=
+      Finset.univ.image fun t : Fin r => ((0 : Fin m → ℕ), β, γ, Pi.single t j')
+    let sz : Finset (ElementarySchwartzIndex m n r) :=
+      Finset.univ.image fun q : Fin m × Fin r => (Pi.single q.1 j, β, γ, Pi.single q.2 j')
+    let s := ((s0 ∪ sx) ∪ sy) ∪ sz
+    let C : ℝ := Cx * Ca * ((m + 1) * (r + 1) : ℝ)
+    refine ⟨s, C, by positivity, fun f => ?_⟩
+    refine iSup_le fun xt => iSup_le fun a => iSup_le fun b => ?_
+    let aVec := (WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))
+    let N : ℝ := ‖elementaryPartial f β γ xt a b‖
+    let Sx : ℝ := ∑ t : Fin m, |xt.1 t| ^ j
+    let Sa : ℝ := ∑ t : Fin r, |aVec t| ^ j'
+    let supS : ℝ := (s.sup elementarySchwartzSeminorm) f
+    have hx : 1 + ‖xt.1‖ ^ j ≤ Cx * (1 + Sx) := by
+      simpa only [Cx, Sx] using one_add_euclidean_pow_le xt.1 j
+    have ha : 1 + ‖aVec‖ ^ j' ≤ Ca * (1 + Sa) := by
+      simpa only [Ca, Sa] using one_add_euclidean_pow_le aVec j'
+    have hcoord (t : Fin r) : aVec t = (a t : ℝ) := by
+      simp [aVec]
+    have hmem0 : ((0 : Fin m → ℕ), β, γ, (0 : Fin r → ℕ)) ∈ s :=
+      Finset.mem_union_left sz (Finset.mem_union_left sy (Finset.mem_union_left sx
+        (Finset.mem_singleton_self _)))
+    have hmemx (t : Fin m) : (Pi.single t j, β, γ, (0 : Fin r → ℕ)) ∈ s :=
+      Finset.mem_union_left sz (Finset.mem_union_left sy (Finset.mem_union_right s0
+        (Finset.mem_image_of_mem _ (Finset.mem_univ t))))
+    have hmemy (t : Fin r) : ((0 : Fin m → ℕ), β, γ, Pi.single t j') ∈ s :=
+      Finset.mem_union_left sz (Finset.mem_union_right (s0 ∪ sx)
+        (Finset.mem_image_of_mem _ (Finset.mem_univ t)))
+    have hmemz (t : Fin m) (u : Fin r) : (Pi.single t j, β, γ, Pi.single u j') ∈ s :=
+      Finset.mem_union_right ((s0 ∪ sx) ∪ sy)
+        (Finset.mem_image_of_mem _ (Finset.mem_univ (t, u)))
+    have hN : N ≤ supS :=
+      (zero_monomial_partial_le β γ f xt a b).trans (Seminorm.le_finset_sup_apply hmem0)
+    have hxle (t : Fin m) : |xt.1 t| ^ j * N ≤ supS :=
+      (single_real_partial_le t j β γ f xt a b).trans (Seminorm.le_finset_sup_apply (hmemx t))
+    have hale (t : Fin r) : |aVec t| ^ j' * N ≤ supS := by
+      rw [hcoord t]
+      exact (single_int_partial_le t j' β γ f xt a b).trans (Seminorm.le_finset_sup_apply (hmemy t))
+    have hboth (t : Fin m) (u : Fin r) : |xt.1 t| ^ j * |aVec u| ^ j' * N ≤ supS := by
+      rw [hcoord u]
+      exact (single_both_partial_le t u j j' β γ f xt a b).trans
+        (Seminorm.le_finset_sup_apply (hmemz t u))
+    have hweights : (1 + ‖xt.1‖ ^ j) * (1 + ‖aVec‖ ^ j') * N ≤
+        Cx * Ca * ((1 + Sx) * (1 + Sa) * N) := by
+      have hmul : (1 + ‖xt.1‖ ^ j) * (1 + ‖aVec‖ ^ j') ≤ (Cx * (1 + Sx)) * (Ca * (1 + Sa)) :=
+        mul_le_mul hx ha (by positivity) (by positivity)
+      calc
+        (1 + ‖xt.1‖ ^ j) * (1 + ‖aVec‖ ^ j') * N ≤
+            ((Cx * (1 + Sx)) * (Ca * (1 + Sa))) * N :=
+          mul_le_mul_of_nonneg_right hmul (norm_nonneg _)
+        _ = Cx * Ca * ((1 + Sx) * (1 + Sa) * N) := by ring
+    have hexpand : (1 + Sx) * (1 + Sa) * N =
+        N + ∑ t : Fin m, |xt.1 t| ^ j * N + ∑ t : Fin r, |aVec t| ^ j' * N +
+          ∑ t : Fin m, ∑ u : Fin r, |xt.1 t| ^ j * |aVec u| ^ j' * N := by
+      have hSx : Sx * N = ∑ t : Fin m, |xt.1 t| ^ j * N := by simp only [Sx, Finset.sum_mul]
+      have hSa : Sa * N = ∑ t : Fin r, |aVec t| ^ j' * N := by simp only [Sa, Finset.sum_mul]
+      have hSS : Sx * Sa * N =
+          ∑ t : Fin m, ∑ u : Fin r, |xt.1 t| ^ j * |aVec u| ^ j' * N := by
+        simp only [Sx, Sa]
+        rw [mul_assoc, Finset.sum_mul, Finset.sum_mul]
+        simp_rw [Finset.mul_sum, ← mul_assoc]
+      calc
+        (1 + Sx) * (1 + Sa) * N = N + Sx * N + Sa * N + Sx * Sa * N := by ring
+        _ = N + ∑ t : Fin m, |xt.1 t| ^ j * N + ∑ t : Fin r, |aVec t| ^ j' * N +
+            ∑ t : Fin m, ∑ u : Fin r, |xt.1 t| ^ j * |aVec u| ^ j' * N := by rw [hSx, hSa, hSS]
+    have hconst : supS + ∑ _t : Fin m, supS + ∑ _t : Fin r, supS +
+        ∑ _t : Fin m, ∑ _u : Fin r, supS = ((m + 1) * (r + 1) : ℝ) * supS := by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+      ring
+    have hsumle : (1 + Sx) * (1 + Sa) * N ≤ ((m + 1) * (r + 1) : ℝ) * supS := by
+      rw [hexpand]
+      refine (add_le_add (add_le_add (add_le_add hN ?_) ?_) ?_).trans_eq hconst
+      · exact Finset.sum_le_sum fun t _ => hxle t
+      · exact Finset.sum_le_sum fun t _ => hale t
+      · exact Finset.sum_le_sum fun t _ => Finset.sum_le_sum fun u _ => hboth t u
+    have hfinal : (1 + ‖xt.1‖ ^ j) * (1 + ‖aVec‖ ^ j') * N ≤ C * supS := by
+      calc
+        (1 + ‖xt.1‖ ^ j) * (1 + ‖aVec‖ ^ j') * N ≤
+            Cx * Ca * ((1 + Sx) * (1 + Sa) * N) := hweights
+        _ ≤ Cx * Ca * (((m + 1) * (r + 1) : ℝ) * supS) :=
+          mul_le_mul_of_nonneg_left hsumle (by positivity)
+        _ = C * supS := by ring
+    have hEnn := ENNReal.ofReal_le_ofReal hfinal
+    simpa only [j, j', β, γ, aVec, N, supS] using hEnn
+  have hfin (i) (f : ElementarySchwartz m n r F) : bound i f ≠ ⊤ := by
+    obtain ⟨_, _, _, hle⟩ := hest i
+    exact ((hle f).trans_lt ENNReal.ofReal_lt_top).ne
+  have hadd (i) (f g : ElementarySchwartz m n r F) :
+      bound i (f + g) ≤ bound i f + bound i g := by
+    refine iSup_le fun xt => iSup_le fun a => iSup_le fun b => ?_
+    have hp := elementaryPartial_add f.property.1 g.property.1 i.2.2.1 i.2.2.2 xt a b
+    set w : ℝ := (1 + ‖xt.1‖ ^ i.1) *
+      (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1)
+    have hw : 0 ≤ w := by positivity
+    have hsum : w * ‖elementaryPartial (↑(f + g)) i.2.2.1 i.2.2.2 xt a b‖ ≤
+        w * ‖elementaryPartial (↑f) i.2.2.1 i.2.2.2 xt a b‖ +
+          w * ‖elementaryPartial (↑g) i.2.2.1 i.2.2.2 xt a b‖ := by
+      calc
+        w * ‖elementaryPartial (↑(f + g)) i.2.2.1 i.2.2.2 xt a b‖ =
+            w * ‖elementaryPartial (↑f) i.2.2.1 i.2.2.2 xt a b +
+              elementaryPartial (↑g) i.2.2.1 i.2.2.2 xt a b‖ := by
+          rw [show elementaryPartial (↑(f + g)) i.2.2.1 i.2.2.2 xt a b =
+            elementaryPartial (f.val + g.val) i.2.2.1 i.2.2.2 xt a b by rfl, hp]
+        _ ≤ w * (‖elementaryPartial (↑f) i.2.2.1 i.2.2.2 xt a b‖ +
+            ‖elementaryPartial (↑g) i.2.2.1 i.2.2.2 xt a b‖) :=
+          mul_le_mul_of_nonneg_left (norm_add_le _ _) hw
+        _ = w * ‖elementaryPartial (↑f) i.2.2.1 i.2.2.2 xt a b‖ +
+            w * ‖elementaryPartial (↑g) i.2.2.1 i.2.2.2 xt a b‖ := by ring
+    refine (ENNReal.ofReal_le_ofReal hsum).trans ?_
+    rw [ENNReal.ofReal_add (mul_nonneg hw (norm_nonneg _)) (mul_nonneg hw (norm_nonneg _))]
+    exact add_le_add
+      (le_iSup_of_le xt (le_iSup_of_le a (le_iSup_of_le b le_rfl)))
+      (le_iSup_of_le xt (le_iSup_of_le a (le_iSup_of_le b le_rfl)))
+  have hsmul (i) (c : ℂ) (f : ElementarySchwartz m n r F) :
+      bound i (c • f) = ENNReal.ofReal ‖c‖ * bound i f := by
+    have hbody : ∀ (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ)
+        (b : F),
+        ENNReal.ofReal ((1 + ‖xt.1‖ ^ i.1) *
+          (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1) *
+          ‖elementaryPartial (↑(c • f)) i.2.2.1 i.2.2.2 xt a b‖) =
+          ENNReal.ofReal ‖c‖ * ENNReal.ofReal ((1 + ‖xt.1‖ ^ i.1) *
+            (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1) *
+            ‖elementaryPartial (↑f) i.2.2.1 i.2.2.2 xt a b‖) := by
+      intro xt a b
+      have hp := elementaryPartial_smul c f.property.1 i.2.2.1 i.2.2.2 xt a b
+      have hfun : elementaryPartial (↑(c • f)) i.2.2.1 i.2.2.2 xt a b =
+          elementaryPartial (c • f.val) i.2.2.1 i.2.2.2 xt a b := rfl
+      rw [hfun, hp, norm_smul]
+      have hcomm : (1 + ‖xt.1‖ ^ i.1) *
+          (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1) *
+            (‖c‖ * ‖elementaryPartial f.val i.2.2.1 i.2.2.2 xt a b‖) =
+          ‖c‖ * ((1 + ‖xt.1‖ ^ i.1) *
+            (1 + ‖(WithLp.toLp 2 (fun k ↦ (a k : ℝ)) : EuclideanSpace ℝ (Fin r))‖ ^ i.2.1) *
+              ‖elementaryPartial f.val i.2.2.1 i.2.2.2 xt a b‖) := by ring
+      rw [hcomm, ENNReal.ofReal_mul (norm_nonneg _)]
+    simp_rw [bound, hbody, ENNReal.mul_iSup]
+  let p : SeminormFamily ℂ (ElementarySchwartz m n r F)
+      (ℕ × ℕ × (Fin m → ℕ) × (Fin n → ℕ)) :=
+    fun i => Seminorm.of (fun f => (bound i f).toReal)
+      (fun f g => by
+        calc
+          (bound i (f + g)).toReal ≤ (bound i f + bound i g).toReal :=
+            ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨hfin i f, hfin i g⟩) (hadd i f g)
+          _ = (bound i f).toReal + (bound i g).toReal :=
+            ENNReal.toReal_add (hfin i f) (hfin i g))
+      (fun c f => by
+        rw [hsmul i c f]
+        exact ENNReal.toReal_ofReal_mul ‖c‖ (bound i f) (norm_nonneg c))
+  refine ⟨p, ?_, ?_⟩
+  · refine elementarySchwartz_withSeminorms.congr
+      (Seminorm.IsBounded.of_real (f := LinearMap.id) ?_)
+      (Seminorm.IsBounded.of_real (f := LinearMap.id) ?_)
+    · intro i
+      obtain ⟨s, C, hC, hle⟩ := hest i
+      refine ⟨s, C, fun f => ?_⟩
+      have hreal : (bound i f).toReal ≤ C * ((s.sup elementarySchwartzSeminorm) f) := by
+        refine (ENNReal.toReal_mono ENNReal.ofReal_lt_top.ne (hle f)).trans_eq ?_
+        exact ENNReal.toReal_ofReal (mul_nonneg hC (apply_nonneg _ _))
+      change (bound i f).toReal ≤ C * ((s.sup elementarySchwartzSeminorm) f)
+      exact hreal
+    · intro idx
+      let iP : ℕ × ℕ × (Fin m → ℕ) × (Fin n → ℕ) :=
+        (∑ k, idx.1 k, ∑ k, idx.2.2.2 k, idx.2.1, idx.2.2.1)
+      refine ⟨{iP}, 1, fun f => ?_⟩
+      rw [Finset.sup_singleton, one_mul]
+      change elementarySchwartzSeminorm idx f ≤ (bound iP f).toReal
+      have hpt : elementarySchwartzBound f.val idx ≤ bound iP f := by
+        refine iSup_le fun xt => iSup_le fun a => iSup_le fun b => ?_
+        have hle := monomial_norm_le_p1 f.val idx.1 idx.2.1 idx.2.2.1 idx.2.2.2 xt a b
+        have hcoe : (‖((∏ k, (xt.1 k : ℂ) ^ idx.1 k) * (∏ k, (a k : ℂ) ^ idx.2.2.2 k)) *
+            elementaryPartial f.val idx.2.1 idx.2.2.1 xt a b‖₊ : ℝ≥0∞) =
+            ENNReal.ofReal ‖((∏ k, (xt.1 k : ℂ) ^ idx.1 k) * (∏ k, (a k : ℂ) ^ idx.2.2.2 k)) *
+              elementaryPartial f.val idx.2.1 idx.2.2.1 xt a b‖ := by
+          rw [show ‖((∏ k, (xt.1 k : ℂ) ^ idx.1 k) * (∏ k, (a k : ℂ) ^ idx.2.2.2 k)) *
+              elementaryPartial f.val idx.2.1 idx.2.2.1 xt a b‖ =
+              (‖((∏ k, (xt.1 k : ℂ) ^ idx.1 k) * (∏ k, (a k : ℂ) ^ idx.2.2.2 k)) *
+                elementaryPartial f.val idx.2.1 idx.2.2.1 xt a b‖₊ : ℝ) from rfl,
+            ENNReal.ofReal_coe_nnreal]
+        rw [hcoe]
+        exact (ENNReal.ofReal_le_ofReal hle).trans
+          (le_iSup_of_le xt (le_iSup_of_le a (le_iSup_of_le b le_rfl)))
+      exact ENNReal.toReal_mono (hfin iP f) hpt
+  · intro i f
+    change ENNReal.ofReal (bound i f).toReal = bound i f
+    exact ENNReal.ofReal_toReal (hfin i f)
+
+/-- Evaluating a fixed mixed partial derivative at a fixed point is a continuous linear functional
+on the elementary Schwartz space: it is dominated by one defining seminorm. -/
+private theorem elementaryPartial_evaluation_continuousLinear
+    (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (x : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    ∃ L : ElementarySchwartz m n r F →L[ℂ] ℂ,
+      ∀ f, L f = elementaryPartial f β γ x a b := by
+  classical
+  let E := ElementarySchwartz m n r F
+  let X := EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)
+  let dirs : List X :=
+    (List.ofFn (fun k : Fin m ↦ List.replicate (β k) (EuclideanSpace.single k 1, 0))).flatten ++
+    (List.ofFn (fun k : Fin n ↦ List.replicate (γ k) (0, EuclideanSpace.single k 1))).flatten
+  have hdiff (f : E) := (((f.property.1 a b).of_le
+    (show (dirs.length : ℕ∞ω) ≤ (↑(⊤ : ℕ∞) : WithTop ℕ∞) by
+      exact_mod_cast (le_top : (dirs.length : ℕ∞) ≤ ⊤))).contDiffAt (x := x))
+  let L : E →ₗ[ℂ] ℂ :=
+    { toFun := fun f ↦ elementaryPartial f β γ x a b
+      map_add' := fun f g ↦ by
+        change iteratedFDeriv ℝ dirs.length
+          ((fun v ↦ f (elementaryCover v a b)) + (fun v ↦ g (elementaryCover v a b))) x
+            dirs.get = _
+        rw [iteratedFDeriv_add_apply (hdiff f) (hdiff g), add_apply]
+        rfl
+      map_smul' := fun c f ↦ by
+        change iteratedFDeriv ℝ dirs.length (c • (fun v ↦ f (elementaryCover v a b))) x
+          dirs.get = _
+        rw [iteratedFDeriv_const_smul_apply (a := c) (hdiff f), smul_apply]
+        rfl }
+  let i : ElementarySchwartzIndex m n r := (0, β, γ, 0)
+  have hdom (f : E) : ‖L f‖ ≤ elementarySchwartzSeminorm i f := by
+    have h : (‖L f‖₊ : ℝ≥0∞) ≤ elementarySchwartzBound f.val i := by
+      unfold elementarySchwartzBound
+      apply le_iSup_of_le x
+      apply le_iSup_of_le a
+      apply le_iSup_of_le b
+      simp [i, L]
+    exact ENNReal.toReal_mono (f.property.2 i).ne h
+  have hc : Continuous L := by
+    apply WithSeminorms.continuous_normedSpace_rng _ elementarySchwartz_withSeminorms L
+    refine ⟨{i}, 1, ?_⟩
+    intro f
+    simp [Seminorm.comp_apply]
+    exact (hdom f).trans
+      (Finset.le_sup (f := elementarySchwartzSeminorm) (Finset.mem_singleton_self i) f)
+  exact ⟨⟨L, hc⟩, fun _ ↦ rfl⟩
+
+
+omit [AddCommGroup F] [TopologicalSpace F] [DiscreteTopology F] [Finite F] in
+/-- A polynomial weight times a mixed partial is bounded by the sum, over the monomials of the
+polynomial, of the coefficient norms times the corresponding defining seminorms. -/
+private theorem elementarySchwartz_polynomial_weight_le_monomial_sum
+    (p : MvPolynomial (Fin m ⊕ Fin r) ℂ) (f : ElementarySchwartz m n r F)
+    (β : Fin m → ℕ) (γ : Fin n → ℕ)
+    (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F) :
+    ‖MvPolynomial.eval (Sum.elim (fun k ↦ (xt.1 k : ℂ)) (fun k ↦ (a k : ℂ))) p‖ *
+      ‖elementaryPartial f β γ xt a b‖ ≤
+    ∑ d ∈ p.support, ‖p.coeff d‖ * elementarySchwartzSeminorm
+      (fun k ↦ d (Sum.inl k), β, γ, fun k ↦ d (Sum.inr k)) f := by
+  classical
+  let e := Sum.elim (fun k ↦ (xt.1 k : ℂ)) (fun k ↦ (a k : ℂ))
+  let h := elementaryPartial f β γ xt a b
+  let idx (d : (Fin m ⊕ Fin r) →₀ ℕ) : ElementarySchwartzIndex m n r :=
+    (fun k ↦ d (Sum.inl k), β, γ, fun k ↦ d (Sum.inr k))
+  let weight (d : (Fin m ⊕ Fin r) →₀ ℕ) :=
+    (∏ k, (xt.1 k:ℂ)^d (Sum.inl k)) * ∏ k, (a k:ℂ)^d (Sum.inr k)
+  have hbound (d) : ‖weight d * h‖ ≤ elementarySchwartzSeminorm (idx d) f := by
+    have hb : (‖weight d*h‖₊ : ℝ≥0∞) ≤ elementarySchwartzBound f.val (idx d) :=
+      le_iSup_of_le xt (le_iSup_of_le a (le_iSup_of_le b le_rfl))
+    exact ENNReal.toReal_mono (f.property.2 (idx d)).ne hb
+  have hmono (d : (Fin m ⊕ Fin r) →₀ ℕ) (c : ℂ) :
+      MvPolynomial.eval e (MvPolynomial.monomial d c) = c * weight d := by
+    rw [MvPolynomial.eval_monomial, d.prod_fintype _ (fun _ ↦ pow_zero _), Fintype.prod_sum_type]
+    rfl
+  have he : MvPolynomial.eval e p * h = ∑ d ∈ p.support, p.coeff d * (weight d*h) := by
+    conv_lhs => rw [p.as_sum, map_sum, Finset.sum_mul]
+    apply Finset.sum_congr rfl
+    intro d _
+    rw [hmono, mul_assoc]
+  change ‖MvPolynomial.eval e p‖ * ‖h‖ ≤ _
+  rw [← norm_mul, he]
+  apply (norm_sum_le _ _).trans
+  exact Finset.sum_le_sum (fun d _ ↦ by
+    rw [norm_mul]
+    exact mul_le_mul_of_nonneg_left (hbound d) (norm_nonneg _))
+
+
+/-- For a polynomial weight and a fixed mixed partial, the supremum of the weighted partial is a
+continuous seminorm on the elementary Schwartz space. -/
+private theorem elementarySchwartz_polynomial_weight_continuous_seminorm
+    (p : MvPolynomial (Fin m ⊕ Fin r) ℂ) (β : Fin m → ℕ) (γ : Fin n → ℕ) :
+    ∃ q : Seminorm ℂ (ElementarySchwartz m n r F), Continuous q ∧
+      ∀ f, ENNReal.ofReal (q f) =
+      ⨆ (x : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ)
+        (b : F),
+        ENNReal.ofReal
+          (‖MvPolynomial.eval (Sum.elim (fun k ↦ (x.1 k : ℂ)) (fun k ↦ (a k : ℂ))) p‖ *
+          ‖elementaryPartial f β γ x a b‖) := by
+  classical
+  let E := ElementarySchwartz m n r F
+  let X := EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)
+  let J := X × (Fin r → ℤ) × F
+  choose L hL using (elementaryPartial_evaluation_continuousLinear (F := F) β γ)
+  let c (u : J) :=
+    MvPolynomial.eval (Sum.elim (fun k ↦ (u.1.1 k : ℂ)) (fun k ↦ (u.2.1 k : ℂ))) p
+  let t (u : J) : Seminorm ℂ E :=
+    ‖c u‖₊ • (normSeminorm ℂ ℂ).comp (L u.1 u.2.1 u.2.2).toLinearMap
+  let d (v : (Fin m ⊕ Fin r) →₀ ℕ) : ElementarySchwartzIndex m n r :=
+    (fun k ↦ v (Sum.inl k), β, γ, fun k ↦ v (Sum.inr k))
+  let s (v : (Fin m ⊕ Fin r) →₀ ℕ) : Seminorm ℂ E :=
+    ‖p.coeff v‖₊ • elementarySchwartzSeminorm (d v)
+  let Q : Seminorm ℂ E := ∑ v ∈ p.support, s v
+  have hQ : Continuous Q := Seminorm.continuous_finsetSum (fun v _ ↦
+    (elementarySchwartz_withSeminorms.continuous_seminorm (d v)).const_smul ‖p.coeff v‖₊)
+  have htv (u : J) (f : E) : t u f = ‖c u‖*‖elementaryPartial f β γ u.1 u.2.1 u.2.2‖ := by
+    change ‖c u‖ * ‖L u.1 u.2.1 u.2.2 f‖ = _
+    rw [hL]
+  have hdom (u : J) : t u ≤ Q := by
+    intro f
+    rw [htv]
+    have he : Q f = ∑ v ∈ p.support, s v f := by
+      change FunLike.coeAddMonoidHom _ _ _ (∑ v ∈ p.support, s v) f = _
+      rw [map_sum, Finset.sum_apply]; rfl
+    rw [he]
+    exact elementarySchwartz_polynomial_weight_le_monomial_sum p f β γ u.1 u.2.1 u.2.2
+  have hbd : BddAbove (Set.range t) := ⟨Q, by rintro _ ⟨u, rfl⟩; exact hdom u⟩
+  let q := ⨆ u : J, t u
+  refine ⟨q, Seminorm.continuous_of_le hQ (ciSup_le hdom), ?_⟩
+  intro f
+  let U := ⨆ (x : X) (a : Fin r → ℤ) (b : F), ENNReal.ofReal (t (x, a, b) f)
+  have hU : U < ⊤ := by
+    apply lt_of_le_of_lt _ (ENNReal.ofReal_lt_top (r := Q f))
+    exact iSup_le fun x ↦ iSup_le fun a ↦ iSup_le fun b ↦
+      ENNReal.ofReal_le_ofReal (hdom (x, a, b) f)
+  have eq : ENNReal.ofReal (q f) = U := by
+    apply le_antisymm
+    · rw [← ENNReal.ofReal_toReal hU.ne]
+      apply ENNReal.ofReal_le_ofReal
+      rw [show q f = ⨆ u : J, t u f from Seminorm.iSup_apply hbd]
+      apply ciSup_le
+      rintro ⟨x, a, b⟩
+      have h : ENNReal.ofReal (t (x, a, b) f) ≤ U :=
+        le_iSup_of_le x (le_iSup_of_le a (le_iSup_of_le b le_rfl))
+      simpa only [ENNReal.toReal_ofReal (apply_nonneg _ _)] using ENNReal.toReal_mono hU.ne h
+    · apply iSup_le
+      intro x; apply iSup_le; intro a; apply iSup_le; intro b
+      exact ENNReal.ofReal_le_ofReal (le_ciSup hbd (x, a, b) f)
+  rw [eq]
+  simp only [U, htv, c]
+  rfl
+
 
 /-- Paper: Lemma D.1.3.4, p. 751. Complex polynomial weights in the real and integer
 coordinates, with a fixed mixed partial for each seminorm, generate the Schwartz topology. -/
@@ -3013,7 +4762,128 @@ theorem elementarySchwartz_withSeminorms_P2 :
         ⨆ (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F),
           ENNReal.ofReal
             (‖MvPolynomial.eval (Sum.elim (fun k ↦ (xt.1 k : ℂ)) (fun k ↦ (a k : ℂ))) i.2.2‖ *
-              ‖elementaryPartial f i.1 i.2.1 xt a b‖) := by sorry
+              ‖elementaryPartial f i.1 i.2.1 xt a b‖) := by
+  classical
+  let I := (Fin m → ℕ) × (Fin n → ℕ) × MvPolynomial (Fin m ⊕ Fin r) ℂ
+  choose Q hc hv using (fun i : I ↦
+    elementarySchwartz_polynomial_weight_continuous_seminorm (F := F) i.2.2 i.1 i.2.1)
+  refine ⟨Q, ?_, hv⟩
+  let P : SeminormFamily ℂ (ElementarySchwartz m n r F) _ := elementarySchwartzSeminorm
+  have hp : WithSeminorms P := elementarySchwartz_withSeminorms
+  have cover (i : ElementarySchwartzIndex m n r) : ∃ j : I, P i = Q j := by
+    let d : (Fin m ⊕ Fin r) →₀ ℕ := Finsupp.equivFunOnFinite.symm (Sum.elim i.1 i.2.2.2)
+    let j : I := (i.2.1, i.2.2.1, MvPolynomial.monomial d 1)
+    refine ⟨j, ?_⟩
+    ext f
+    have he : ENNReal.ofReal (Q j f) = elementarySchwartzBound f.val i := by
+      rw [hv]
+      unfold elementarySchwartzBound
+      apply iSup_congr
+      intro x
+      apply iSup_congr
+      intro a
+      apply iSup_congr
+      intro b
+      dsimp only [j]
+      rw [MvPolynomial.eval_monomial, d.prod_fintype _ (fun _ ↦ pow_zero _),
+        Fintype.prod_sum_type, one_mul, ← norm_mul, ofReal_norm]
+      rfl
+    change (elementarySchwartzBound f.val i).toReal = Q j f
+    rw [← he, ENNReal.toReal_ofReal (apply_nonneg _ _)]
+  apply (SeminormFamily.withSeminorms_iff_nhds_eq_iInf Q).mpr
+  apply le_antisymm
+  · apply le_iInf
+    intro j
+    apply Filter.tendsto_iff_comap.mp
+    exact (hc j).tendsto' 0 0 (map_zero _)
+  · rw [(SeminormFamily.withSeminorms_iff_nhds_eq_iInf P).mp hp]
+    apply le_iInf
+    intro i
+    obtain ⟨j, hij⟩ := cover i
+    rw [hij]
+    exact iInf_le _ j
+
+
+/-- For a polynomial weight and a constant-coefficient polynomial differential operator, the
+supremum of the weighted operator is a continuous seminorm on the elementary Schwartz space. -/
+private theorem elementarySchwartz_polynomial_operator_continuous_seminorm
+    (p : MvPolynomial (Fin m ⊕ Fin r) ℂ) (D : MvPolynomial (Fin m ⊕ Fin n) ℂ) :
+    ∃ q : Seminorm ℂ (ElementarySchwartz m n r F), Continuous q ∧
+      ∀ f, ENNReal.ofReal (q f) =
+      ⨆ (x : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ)
+        (b : F),
+        (‖MvPolynomial.eval (Sum.elim (fun k ↦ (x.1 k : ℂ)) (fun k ↦ (a k : ℂ))) p *
+          (∑ d ∈ D.support, D.coeff d *
+            elementaryPartial f (fun k ↦ d (.inl k)) (fun k ↦ d (.inr k)) x a b)‖₊ : ℝ≥0∞) := by
+  classical
+  let E := ElementarySchwartz m n r F
+  let X := EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)
+  let J := X × (Fin r → ℤ) × F
+  let V := (Fin m ⊕ Fin n) →₀ ℕ
+  let β (v : V) := fun k : Fin m ↦ v (.inl k)
+  let γ (v : V) := fun k : Fin n ↦ v (.inr k)
+  choose L hL using (fun v : V ↦
+    elementaryPartial_evaluation_continuousLinear (F := F) (β v) (γ v))
+  choose P hP hval using (fun v : V ↦
+    elementarySchwartz_polynomial_weight_continuous_seminorm (F := F) p (β v) (γ v))
+  let c (u : J) :=
+    MvPolynomial.eval (Sum.elim (fun k ↦ (u.1.1 k : ℂ)) (fun k ↦ (u.2.1 k : ℂ))) p
+  let A (u : J) : E →ₗ[ℂ] ℂ :=
+    ∑ v ∈ D.support, D.coeff v • (L v u.1 u.2.1 u.2.2).toLinearMap
+  let t (u : J) : Seminorm ℂ E := ‖c u‖₊ • (normSeminorm ℂ ℂ).comp (A u)
+  let s (v : V) : Seminorm ℂ E := ‖D.coeff v‖₊ • P v
+  let Q : Seminorm ℂ E := ∑ v ∈ D.support, s v
+  have hQ : Continuous Q :=
+    Seminorm.continuous_finsetSum (fun v _ ↦ (hP v).const_smul ‖D.coeff v‖₊)
+  have htv (u : J) (f : E) : t u f = ‖c u * (∑ v ∈ D.support, D.coeff v *
+      elementaryPartial f (β v) (γ v) u.1 u.2.1 u.2.2)‖ := by
+    change ‖c u‖ * ‖A u f‖ = _
+    simp only [A, LinearMap.sum_apply, LinearMap.smul_apply, ContinuousLinearMap.coe_coe,
+      smul_eq_mul, hL, norm_mul]
+  have hdom (u : J) : t u ≤ Q := by
+    intro f
+    have he : Q f = ∑ v ∈ D.support, s v f := by
+      change FunLike.coeAddMonoidHom _ _ _ (∑ v ∈ D.support, s v) f = _
+      rw [map_sum, Finset.sum_apply]; rfl
+    rw [he, htv, Finset.mul_sum]
+    apply (norm_sum_le _ _).trans
+    apply Finset.sum_le_sum
+    intro v _
+    have h : ENNReal.ofReal (‖c u‖ * ‖elementaryPartial f (β v) (γ v) u.1 u.2.1 u.2.2‖) ≤
+        ENNReal.ofReal (P v f) := by
+      rw [hval]
+      exact le_iSup_of_le u.1 (le_iSup_of_le u.2.1 (le_iSup_of_le u.2.2 le_rfl))
+    have h' := ENNReal.toReal_mono ENNReal.ofReal_ne_top h
+    rw [ENNReal.toReal_ofReal (by positivity), ENNReal.toReal_ofReal (apply_nonneg _ _)] at h'
+    change _ ≤ ‖D.coeff v‖ * P v f
+    simp only [norm_mul]
+    nlinarith only [mul_le_mul_of_nonneg_left h' (norm_nonneg (D.coeff v))]
+  have hbd : BddAbove (Set.range t) := ⟨Q, by rintro _ ⟨u, rfl⟩; exact hdom u⟩
+  let q := ⨆ u : J, t u
+  refine ⟨q, Seminorm.continuous_of_le hQ (ciSup_le hdom), ?_⟩
+  intro f
+  let U := ⨆ (x : X) (a : Fin r → ℤ) (b : F), ENNReal.ofReal (t (x, a, b) f)
+  have hU : U < ⊤ := by
+    apply lt_of_le_of_lt _ (ENNReal.ofReal_lt_top (r := Q f))
+    exact iSup_le fun x ↦ iSup_le fun a ↦ iSup_le fun b ↦
+      ENNReal.ofReal_le_ofReal (hdom (x, a, b) f)
+  have eq : ENNReal.ofReal (q f) = U := by
+    apply le_antisymm
+    · rw [← ENNReal.ofReal_toReal hU.ne]
+      apply ENNReal.ofReal_le_ofReal
+      rw [show q f = ⨆ u : J, t u f from Seminorm.iSup_apply hbd]
+      apply ciSup_le
+      rintro ⟨x, a, b⟩
+      have h : ENNReal.ofReal (t (x, a, b) f) ≤ U :=
+        le_iSup_of_le x (le_iSup_of_le a (le_iSup_of_le b le_rfl))
+      simpa only [ENNReal.toReal_ofReal (apply_nonneg _ _)] using ENNReal.toReal_mono hU.ne h
+    · apply iSup_le
+      intro x; apply iSup_le; intro a; apply iSup_le; intro b
+      exact ENNReal.ofReal_le_ofReal (le_ciSup hbd (x, a, b) f)
+  rw [eq]
+  simp only [U, htv, c, ofReal_norm]
+  rfl
+
 
 /-- Paper: Lemma D.1.3.4, p. 751. Polynomial weights applied to
 constant-coefficient polynomial differential operators generate the Schwartz topology. -/
@@ -3024,7 +4894,46 @@ theorem elementarySchwartz_withSeminorms_P3 :
         ⨆ (xt : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n)) (a : Fin r → ℤ) (b : F),
           (‖MvPolynomial.eval (Sum.elim (fun k ↦ (xt.1 k : ℂ)) (fun k ↦ (a k : ℂ))) i.1 *
             i.2.coeff.sum (fun d c ↦ c * elementaryPartial f
-              (fun k ↦ d (.inl k)) (fun k ↦ d (.inr k)) xt a b)‖₊ : ℝ≥0∞) := by sorry
+              (fun k ↦ d (.inl k)) (fun k ↦ d (.inr k)) xt a b)‖₊ : ℝ≥0∞) := by
+  classical
+  let I := MvPolynomial (Fin m ⊕ Fin r) ℂ × MvPolynomial (Fin m ⊕ Fin n) ℂ
+  choose Q hc hv using (fun i : I ↦
+    elementarySchwartz_polynomial_operator_continuous_seminorm (F := F) i.1 i.2)
+  refine ⟨Q, ?_, hv⟩
+  obtain ⟨P, hp, hP⟩ := elementarySchwartz_withSeminorms_P2 (m := m) (n := n) (r := r) (F := F)
+  have cover (i : (Fin m → ℕ) × (Fin n → ℕ) × MvPolynomial (Fin m ⊕ Fin r) ℂ) :
+      ∃ j : I, P i = Q j := by
+    let d : (Fin m ⊕ Fin n) →₀ ℕ := Finsupp.equivFunOnFinite.symm (Sum.elim i.1 i.2.1)
+    let j : I := (i.2.2, MvPolynomial.monomial d 1)
+    refine ⟨j, ?_⟩
+    ext f
+    have he : ENNReal.ofReal (P i f) = ENNReal.ofReal (Q j f) := by
+      rw [hP, hv]
+      apply iSup_congr
+      intro x
+      apply iSup_congr
+      intro a
+      apply iSup_congr
+      intro b
+      dsimp only [j]
+      simp only [MvPolynomial.support_monomial, one_ne_zero, ite_false, Finset.sum_singleton,
+        MvPolynomial.coeff_monomial, ← norm_mul, ofReal_norm]
+      simp only [ite_true, one_mul]
+      rfl
+    simpa only [ENNReal.toReal_ofReal (apply_nonneg _ _)] using congrArg ENNReal.toReal he
+  apply (SeminormFamily.withSeminorms_iff_nhds_eq_iInf Q).mpr
+  apply le_antisymm
+  · apply le_iInf
+    intro j
+    apply Filter.tendsto_iff_comap.mp
+    exact (hc j).tendsto' 0 0 (map_zero _)
+  · rw [(SeminormFamily.withSeminorms_iff_nhds_eq_iInf P).mp hp]
+    apply le_iInf
+    intro i
+    obtain ⟨j, hij⟩ := cover i
+    rw [hij]
+    exact iInf_le _ j
+
 
 /-- Paper: Lemma D.1.3.5(1), p. 752. Summing the monomial seminorms with each
 multi-index of total degree at most N gives a family of norms generating the topology. -/
@@ -3039,7 +4948,84 @@ theorem elementarySchwartz_withSeminorms_sum :
               elementarySchwartzSeminorm
                 (fun k ↦ (i.1 k).val, fun k ↦ (i.2.1 k).val,
                   fun k ↦ (i.2.2.1 k).val, fun k ↦ (i.2.2.2 k).val) f
-            else 0 := by sorry
+            else 0 := by
+  classical
+  let E := ElementarySchwartz m n r F
+  let I := (Fin m → ℕ) × (Fin m → ℕ) × (Fin n → ℕ) × (Fin r → ℕ)
+  let J (N : ℕ) := (Fin m → Fin (N+1)) × (Fin m → Fin (N+1)) ×
+    (Fin n → Fin (N+1)) × (Fin r → Fin (N+1))
+  let P : I → Seminorm ℂ E := elementarySchwartzSeminorm
+  let idx (N : ℕ) (i : J N) : I :=
+    (fun k ↦ (i.1 k).val, fun k ↦ (i.2.1 k).val, fun k ↦ (i.2.2.1 k).val,
+      fun k ↦ (i.2.2.2 k).val)
+  let good (N : ℕ) (i : I) : Prop := (∑ k, i.1 k) ≤ N ∧ (∑ k, i.2.1 k) ≤ N ∧
+    (∑ k, i.2.2.1 k) ≤ N ∧ (∑ k, i.2.2.2 k) ≤ N
+  let term (N : ℕ) (i : J N) : Seminorm ℂ E := if good N (idx N i) then P (idx N i) else 0
+  let Q (N : ℕ) : Seminorm ℂ E := ∑ i : J N, term N i
+  have hp : WithSeminorms P := elementarySchwartz_withSeminorms
+  have hm (N : ℕ) (i : J N) (hg : good N (idx N i)) : P (idx N i) ≤ Q N := by
+    have h := (Finset.le_sup (f := term N) (Finset.mem_univ i)).trans
+      (Seminorm.finset_sup_le_sum (term N) Finset.univ)
+    simpa only [Q, term, ite_eq_left hg] using h
+  have hdom (i : I) : ∃ N, P i ≤ Q N := by
+    let N := (∑ k, i.1 k)+(∑ k, i.2.1 k)+(∑ k, i.2.2.1 k)+(∑ k, i.2.2.2 k)
+    have hsum {d : ℕ} (a : Fin d → ℕ) (k : Fin d) : a k ≤ ∑ l, a l :=
+      Finset.single_le_sum (fun _ _ ↦ Nat.zero_le _) (Finset.mem_univ k)
+    let t : J N := (fun k ↦ ⟨i.1 k, by have := hsum i.1 k; dsimp [N]; omega⟩,
+      fun k ↦ ⟨i.2.1 k, by have := hsum i.2.1 k; dsimp [N]; omega⟩,
+      fun k ↦ ⟨i.2.2.1 k, by have := hsum i.2.2.1 k; dsimp [N]; omega⟩,
+      fun k ↦ ⟨i.2.2.2 k, by have := hsum i.2.2.2 k; dsimp [N]; omega⟩)
+    have hi : idx N t = i := rfl
+    refine ⟨N, hi ▸ hm N t ?_⟩
+    rw [hi]; dsimp [good, N]; omega
+  refine ⟨Q, ?_, ?_, ?_⟩
+  · apply (SeminormFamily.withSeminorms_iff_nhds_eq_iInf Q).mpr
+    apply le_antisymm
+    · apply le_iInf
+      intro N
+      apply Filter.tendsto_iff_comap.mp
+      have hcont : Continuous (Q N) := by
+        apply Seminorm.continuous_finsetSum
+        intro i _
+        dsimp only [term]
+        split_ifs
+        · exact hp.continuous_seminorm _
+        · exact continuous_const
+      exact hcont.tendsto' 0 0 (map_zero _)
+    · rw [(SeminormFamily.withSeminorms_iff_nhds_eq_iInf P).mp hp]
+      apply le_iInf
+      intro i
+      obtain ⟨N, hN⟩ := hdom i
+      apply le_trans (iInf_le _ N)
+      apply Filter.tendsto_iff_comap.mp
+      exact tendsto_of_tendsto_of_tendsto_of_le_of_le tendsto_const_nhds
+        (Filter.tendsto_comap : Filter.Tendsto (Q N) (Filter.comap (Q N) (𝓝 0)) (𝓝 0))
+        (fun f ↦ apply_nonneg (P i) f) hN
+  · intro N f
+    refine ⟨fun hz ↦ ?_, fun h ↦ by simp [h]⟩
+    let t : J N := (fun _ ↦ 0, fun _ ↦ 0, fun _ ↦ 0, fun _ ↦ 0)
+    have ht : good N (idx N t) := by simp [good, idx, t]
+    have hq := hm N t ht f
+    rw [hz] at hq
+    have hzero := le_antisymm hq (apply_nonneg (P (idx N t)) f)
+    change (elementarySchwartzBound f.val (0, 0, 0, 0)).toReal = 0 at hzero
+    have hfin := (f.property.2 (0, 0, 0, 0)).ne
+    have hz' := ((ENNReal.toReal_eq_zero_iff _).mp hzero).resolve_right hfin
+    rw [elementarySchwartzBound_zero] at hz'
+    apply Subtype.ext
+    funext g
+    change f.val g = 0
+    have hb := le_iSup (fun x ↦ (‖f.val x‖₊ : ℝ≥0∞)) g
+    rw [hz'] at hb
+    simpa using (le_antisymm hb (by positivity))
+  · intro N f
+    change FunLike.coeAddMonoidHom _ _ _ (∑ i : J N, term N i) f = _
+    rw [map_sum, Finset.sum_apply]
+    apply Finset.sum_congr rfl
+    intro i _
+    change (term N i) f = if good N (idx N i) then (P (idx N i)) f else 0
+    by_cases h : good N (idx N i) <;> simp [term, h]
+
 
 /-- Paper: Lemma D.1.3.5(2), p. 752. The elementary Schwartz space is Fréchet. -/
 theorem elementarySchwartz_isFrechet : IsFrechetTVS (ElementarySchwartz m n r F) := by sorry
@@ -3198,8 +5184,124 @@ theorem rapidDecaySequence_withSeminorms :
     WithSeminorms (E := RapidDecaySequence r) rapidDecaySequenceSeminorm :=
   withGeneratingSeminorms_spec _ _
 
+/-- Multiplication by the `j`th weight is a continuous linear map from the rapidly decreasing
+sequences to `ℓ¹` whose norm is the `j`th defining seminorm. -/
+private theorem rapidDecaySequence_weighted_l1_map (r j : ℕ) :
+    let W := fun a : Fin r → ℤ ↦
+      (1 + ‖(WithLp.toLp 2 (fun i ↦ (a i : ℝ)) : EuclideanSpace ℝ (Fin r))‖)^j
+    ∃ L : RapidDecaySequence r →L[ℂ] lp (fun _ : Fin r → ℤ ↦ ℂ) 1,
+      (∀ s a, L s a = (W a : ℂ)*s a) ∧ ∀ s, ‖L s‖ = rapidDecaySequenceSeminorm j s := by
+  classical
+  dsimp only
+  let W (a : Fin r → ℤ) : ℝ≥0 :=
+    (1 + ‖(WithLp.toLp 2 (fun i ↦ (a i : ℝ)) : EuclideanSpace ℝ (Fin r))‖₊)^j
+  let v (s : RapidDecaySequence r) (a : Fin r → ℤ) : ℂ := (W a : ℝ)*s a
+  have hn (s : RapidDecaySequence r) (a : Fin r → ℤ) :
+      ‖v s a‖₊ = W a * ‖s a‖₊ := by
+    simp [v, nnNorm_mul]
+  have he (s : RapidDecaySequence r) :
+      (∑' a, (‖v s a‖₊ : ℝ≥0∞)) = rapidDecaySequenceBound j s.val := by
+    unfold rapidDecaySequenceBound
+    apply tsum_congr
+    intro a
+    simp [hn, W, ENNReal.coe_mul, ENNReal.coe_pow, ENNReal.coe_add]
+  have hmem (s : RapidDecaySequence r) : Memℓp (v s) 1 := by
+    apply (memℓp_gen_iff (by norm_num : 0 < (1 : ℝ≥0∞).toReal)).mpr
+    have hh := ENNReal.tsum_coe_ne_top_iff_summable_coe.mp ((he s).trans_lt (s.property j)).ne
+    simpa using hh
+  let T : RapidDecaySequence r →ₗ[ℂ] lp (fun _ : Fin r → ℤ ↦ ℂ) 1 :=
+    { toFun := fun s ↦ ⟨v s, hmem s⟩
+      map_add' := fun s t ↦ by
+        ext a
+        change (_:ℂ) * (s a+t a) = _ * s a + _ * t a
+        exact mul_add _ _ _
+      map_smul' := fun c s ↦ by
+        ext a
+        change (_:ℂ) * (c * s a) = c * (_ * s a)
+        exact mul_left_comm _ _ _ }
+  have hnorm (s : RapidDecaySequence r) : ‖T s‖ = rapidDecaySequenceSeminorm j s := by
+    rw [lp.norm_eq_tsum_rpow (by norm_num : 0 < (1:ℝ≥0∞).toReal)]
+    change _ = (rapidDecaySequenceBound j s.val).toReal
+    rw [← he s, ENNReal.tsum_toReal_eq (fun _ ↦ ENNReal.coe_ne_top)]
+    simp [T]
+  have hc : Continuous T := by
+    apply WithSeminorms.continuous_normedSpace_rng _ rapidDecaySequence_withSeminorms T
+    refine ⟨{j}, 1, ?_⟩
+    intro s
+    simp [hnorm, Seminorm.comp_apply]
+    exact Finset.le_sup (f := rapidDecaySequenceSeminorm (r := r)) (Finset.mem_singleton_self j) s
+  refine ⟨⟨T, hc⟩, ?_, hnorm⟩
+  intro s a
+  change ((W a:ℝ):ℂ)*s a = _
+  simp [W]
+
+
 /-- Paper: Remark D.1.3.6, p. 753. The rapidly decreasing sequence space is Fréchet. -/
-theorem rapidDecaySequence_isFrechet : IsFrechetTVS (RapidDecaySequence r) := by sorry
+theorem rapidDecaySequence_isFrechet : IsFrechetTVS (RapidDecaySequence r) := by
+  classical
+  let W (j : ℕ) (a : Fin r → ℤ) : ℝ≥0 :=
+    (1 + ‖(WithLp.toLp 2 (fun i ↦ (a i : ℝ)) : EuclideanSpace ℝ (Fin r))‖₊)^j
+  choose L hL hn using (rapidDecaySequence_weighted_l1_map r)
+  have hcoord (j) (s : RapidDecaySequence r) (a) :
+      L j s a = ((W j a:ℝ):ℂ) * s a := by simpa [W] using hL j s a
+  have hzero (s : RapidDecaySequence r) (a) : L 0 s a = s a := by simp [hcoord, W]
+  have hp := rapidDecaySequence_withSeminorms (r := r)
+  let : FirstCountableTopology (RapidDecaySequence r) := hp.firstCountableTopology
+  let : (uniformity (RapidDecaySequence r)).IsCountablyGenerated :=
+    IsUniformAddGroup.uniformity_countably_generated
+  let : T1Space (RapidDecaySequence r) := hp.T1_of_separating (by
+    intro s hs
+    refine ⟨0, ?_⟩
+    intro h
+    have hh : L 0 s = 0 := norm_eq_zero.mp ((hn 0 s).trans h)
+    apply hs
+    apply Subtype.ext
+    funext a
+    change s a = 0
+    rw [← hzero s a, hh]
+    rfl)
+  refine ⟨inferInstance, hp.toPolynormableSpace, inferInstance, ?_⟩
+  change CompleteSpace (RapidDecaySequence r)
+  apply UniformSpace.complete_of_cauchySeq_tendsto
+  intro u hu
+  have hex (j : ℕ) := cauchySeq_tendsto_of_complete ((L j).uniformContinuous.comp_cauchySeq hu)
+  choose v hv using hex
+  have heval (j : ℕ) (a : Fin r → ℤ) :
+      Tendsto (fun n ↦ L j (u n) a) atTop (𝓝 (v j a)) :=
+    ((lp.evalCLM ℂ (fun _ : Fin r → ℤ ↦ ℂ) 1 a).continuous.tendsto _).comp (hv j)
+  have hcompat (j : ℕ) (a : Fin r → ℤ) : v j a = ((W j a:ℝ):ℂ)*v 0 a := by
+    apply tendsto_nhds_unique (heval j a)
+    have h := (tendsto_const_nhds (x := ((W j a:ℝ):ℂ)) (f := atTop (α := ℕ))).mul (heval 0 a)
+    simp only [hzero] at h
+    simpa only [hcoord] using h
+  have hmem : (fun a ↦ v 0 a) ∈ rapidDecaySequenceSubmodule r := by
+    intro j
+    have hseq := (memℓp_gen_iff (by norm_num : 0 < (1:ℝ≥0∞).toReal)).mp (v j).property
+    have hs : Summable (fun a ↦ ((‖v j a‖₊ : ℝ≥0):ℝ)) := by simpa using hseq
+    have hfin := ENNReal.tsum_coe_ne_top_iff_summable_coe.mpr hs
+    apply lt_top_iff_ne_top.mpr
+    have heq : rapidDecaySequenceBound j (fun a ↦ v 0 a) =
+        ∑' a, (‖v j a‖₊ : ℝ≥0∞) := by
+      unfold rapidDecaySequenceBound
+      apply tsum_congr
+      intro a
+      have hw : ‖((W j a:ℝ):ℂ)‖₊ = W j a := by simp
+      rw [hcompat j a, nnNorm_mul, hw, ENNReal.coe_mul]
+      simp [W, ENNReal.coe_pow, ENNReal.coe_add]
+    rwa [heq]
+  let s : RapidDecaySequence r :=
+    (⟨fun a ↦ v 0 a, hmem⟩ : rapidDecaySequenceSubmodule r)
+  have hvj (j : ℕ) : L j s = v j := by
+    ext a
+    exact (hcoord j s a).trans (hcompat j a).symm
+  refine ⟨s, (hp.tendsto_nhds u s).mpr ?_⟩
+  intro j ε hε
+  have hb := (Metric.tendsto_nhds.mp (hv j)) ε hε
+  filter_upwards [hb] with n h
+  apply (hn j (u n - s)).symm.trans_lt
+  rw [map_sub, hvj]
+  simpa only [Function.comp_apply, dist_eq_norm] using h
+
 
 /-- Paper: Remark D.1.3.6, p. 752. Reading a sequence as a function on the
 integer lattice identifies it with the elementary Schwartz space of that lattice. -/
