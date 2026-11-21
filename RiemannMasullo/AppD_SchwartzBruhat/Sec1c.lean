@@ -1363,6 +1363,74 @@ theorem elementary_schwartzBruhat_average (e : ElementaryLCAPresentation G)
 
 end CompactAveraging
 
+section FibreIntegral
+
+omit hTop hT2 hLC in
+/-- Paper: Definition D.1.3.1, p. 750. An elementary Schwartz function is continuous
+on the elementary group. Its lifts along the covering map are smooth on each discrete
+fibre, and the covering map is open. -/
+theorem elementarySchwartz_continuous {m n r : ℕ} {F : Type*} [AddCommGroup F]
+    [TopologicalSpace F] [DiscreteTopology F] [Finite F] (f : ElementarySchwartz m n r F) :
+    Continuous (f : ElementaryLieGroup m n r F → ℂ) := by sorry
+
+omit hTop hT2 hLC in
+/-- Paper: Definition D.1.5.1(1), p. 760. A good subgroup is compact. It is the
+annihilator of its open annihilator (Lemma D.1.4.6(1)), and by duality the annihilator
+of an open subgroup of the dual is compact (Lemma D.1.4.6(4)). -/
+theorem IsBruhatGoodSubgroup.isCompact [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] {k : Subgroup G} (hk : IsBruhatGoodSubgroup k) :
+    IsCompact (k : Set G) := by sorry
+
+/-- Paper: Theorem D.1.7.1, p. 776. The images of the two subgroups of a structural
+pair in the quotient by a closed subgroup form a structural pair of the quotient.
+The image of the good subgroup is compact, and its annihilator is a closed subgroup
+of the compactly generated annihilator of the good subgroup. -/
+theorem BruhatStructuralPair.exists_quotient (hK : IsClosed (K : Set G))
+    (a : BruhatStructuralPair G) :
+    ∃ b : BruhatStructuralPair (G ⧸ K),
+      b.val.1 = a.val.1.map (QuotientGroup.mk' K) ∧
+        OrderDual.ofDual b.val.2 = (OrderDual.ofDual a.val.2).map (QuotientGroup.mk' K) := by
+  sorry
+
+/-- Paper: Theorem D.1.7.1, p. 776. When the structural pair `b` of the quotient by `K`
+is the image of the structural pair `a`, the quotient map of `G` induces a continuous,
+open and surjective homomorphism from the elementary quotient of `a` to that of `b`.
+Its kernel is the image of `K ∩ a.val.1`. -/
+theorem BruhatStructuralPair.exists_quotient_hom (a : BruhatStructuralPair G)
+    (b : BruhatStructuralPair (G ⧸ K))
+    (hb₁ : b.val.1 = a.val.1.map (QuotientGroup.mk' K))
+    (hb₂ : OrderDual.ofDual b.val.2 = (OrderDual.ofDual a.val.2).map (QuotientGroup.mk' K)) :
+    ∃ p : a.quotient →* b.quotient, Continuous p ∧ IsOpenMap p ∧ Function.Surjective p ∧
+      p.ker = (K.comap a.val.1.subtype).map
+        (QuotientGroup.mk' ((OrderDual.ofDual a.val.2).comap a.val.1.subtype)) ∧
+      ∀ (x : G) (hx : x ∈ a.val.1) (hq : (QuotientGroup.mk x : G ⧸ K) ∈ b.val.1),
+        p (QuotientGroup.mk ⟨x, hx⟩) = QuotientGroup.mk ⟨QuotientGroup.mk x, hq⟩ := by
+  sorry
+
+-- TODO(paper-gap): The proof of D.1.7.1 cites Lemma D.1.6.18 for the elementary case,
+-- but that lemma only averages over compact subgroups. The kernel below can be
+-- noncompact, as for ℤ ⊂ ℝ, where the coset integral is a periodization.
+
+omit hTop hT2 hLC in
+/-- Paper: Lemma D.1.6.18 and Theorem D.1.7.1, pp. 772 and 776. On an elementary group,
+the integral of a Schwartz function along the kernel of a continuous, open and surjective
+homomorphism onto another elementary group exists on every coset, and is a Schwartz
+function on the target.
+Deviation: The kernel is any closed subgroup, not only a compact one. The target
+presentation is arbitrary. -/
+theorem elementary_fiberIntegral {A B : Type*} [CommGroup A] [TopologicalSpace A]
+    [IsTopologicalGroup A] [T2Space A] [LocallyCompactSpace A] [MeasurableSpace A]
+    [BorelSpace A] [CommGroup B] [TopologicalSpace B]
+    (e : ElementaryLCAPresentation A) (e' : ElementaryLCAPresentation B)
+    (p : A →* B) (hp : Continuous p) (hpo : IsOpenMap p) (hps : Function.Surjective p)
+    (ν : Measure p.ker) [ν.IsHaarMeasure] (φ : SchwartzBruhatStage e) :
+    (∀ y : A, Integrable (fun l : p.ker ↦ φ (Multiplicative.toAdd (e.equiv (y * l)))) ν) ∧
+      ∃ ψ : SchwartzBruhatStage e', ∀ y : A,
+        ψ (Multiplicative.toAdd (e'.equiv (p y))) =
+          ∫ l : p.ker, φ (Multiplicative.toAdd (e.equiv (y * l))) ∂ν := by sorry
+
+end FibreIntegral
+
 variable [MeasurableSpace G] [hBorel : BorelSpace G]
 
 local instance sec1cDualMeasurableSpace : MeasurableSpace (PontryaginDual G) := borel _
@@ -1425,11 +1493,186 @@ include hK hHaarK hRegularK
 -- TODO(paper-gap): The proof of D.1.7.1 uses properness of G → G/k and
 -- openness of k. For k = ℤ in G = ℝ both assertions fail.
 
+open Classical in
+/-- Paper: Theorem D.1.7.1, p. 776. Let `π` be the quotient of an open subgroup `H` by a
+compact subgroup, and `L` the image of `K ∩ H` under it. For a suitable Haar measure on `L`,
+integrating a function on `H`, extended by zero, over a coset of `K` through a point of `H`
+is the same as integrating its descent over the matching coset of `L`. -/
+theorem exists_haar_fiberIntegral_eq {A : Type*} [CommGroup A] [TopologicalSpace A]
+    [IsTopologicalGroup A] [T2Space A] [LocallyCompactSpace A] [MeasurableSpace A]
+    [BorelSpace A] (H : Subgroup G) (hH : IsOpen (H : Set G)) (π : H →* A) (hπ : Continuous π)
+    (hπo : IsOpenMap π) (hπs : Function.Surjective π) (hπk : IsCompact (π.ker : Set H))
+    (L : Subgroup A) (hL : L = (K.comap H.subtype).map π) :
+    ∃ ν : Measure L, ν.IsHaarMeasure ∧ ∀ g : A → ℂ, Continuous g → ∀ h : H,
+      (Integrable (fun k : K ↦ if hk : h.val * k.val ∈ H then g (π ⟨_, hk⟩) else 0) μK ↔
+        Integrable (fun l : L ↦ g (π h * l)) ν) ∧
+      ∫ k : K, (if hk : h.val * k.val ∈ H then g (π ⟨_, hk⟩) else 0) ∂μK =
+        ∫ l : L, g (π h * l) ∂ν := by sorry
+
+/-- Paper: Theorem D.1.7.1, p. 776. A single stage function, pulled back from the
+elementary quotient of a structural pair and extended by zero, is integrable on every
+coset, and its coset integral is a Schwartz–Bruhat function on the quotient.
+Deviation: This is the case of one stage of the inductive limit; the general case
+follows by additivity. -/
+theorem lcaCosetIntegral_stageRealization_mem (a : BruhatStructuralPair G)
+    (e : ElementaryLCAPresentation a.quotient) (φ : SchwartzBruhatStage e) :
+    (∀ x : G, Integrable (fun k : K ↦ schwartzBruhatStageRealization a e φ (x * k.val)) μK) ∧
+      lcaCosetIntegral K μK (schwartzBruhatStageRealization a e φ) ∈
+        schwartzBruhatSubmodule (G ⧸ K) := by
+  classical
+  let H := a.val.1
+  let C := OrderDual.ofDual a.val.2
+  obtain ⟨hHo, -, hCgood, hCH⟩ := a.property
+  have hCc : IsCompact (C : Set G) := hCgood.isCompact
+  have : IsClosed (K : Set G) := hK
+  obtain ⟨b, hb₁, hb₂⟩ := a.exists_quotient K hK
+  have : LocallyCompactSpace H := hHo.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  obtain ⟨e'⟩ := BruhatStructuralPair.elementary b
+  let : MeasurableSpace a.quotient := borel _
+  have : BorelSpace a.quotient := ⟨rfl⟩
+  let N := C.comap H.subtype
+  have : IsClosed (N : Set H) := hCc.isClosed.preimage continuous_subtype_val
+  let π : H →* a.quotient := QuotientGroup.mk' N
+  have hπ : Continuous π := QuotientGroup.continuous_mk
+  have hπo : IsOpenMap π := QuotientGroup.isOpenMap_coe
+  have hπs : Function.Surjective π := QuotientGroup.mk'_surjective N
+  have hπk : IsCompact (π.ker : Set H) := by
+    rw [QuotientGroup.ker_mk', Subtype.isCompact_iff]
+    convert hCc using 1
+    ext x
+    simp only [Set.mem_image, SetLike.mem_coe]
+    exact ⟨fun ⟨y, hy, hyx⟩ ↦ hyx ▸ hy, fun hx ↦ ⟨⟨x, hCH hx⟩, hx, rfl⟩⟩
+  obtain ⟨p, hpc, hpo, hps, hpker, hpmk⟩ := a.exists_quotient_hom K b hb₁ hb₂
+  obtain ⟨ν, hν, hfib⟩ := exists_haar_fiberIntegral_eq K μK hK H hHo π hπ hπo hπs hπk p.ker hpker
+  obtain ⟨hint, ψ, hψ⟩ := elementary_fiberIntegral (A := a.quotient) (B := b.quotient) e e' p hpc hpo hps ν φ
+  let g : a.quotient → ℂ := fun y ↦ φ (Multiplicative.toAdd (e.equiv y))
+  have hg : Continuous g :=
+    (elementarySchwartz_continuous φ).comp (continuous_toAdd.comp e.equiv.continuous)
+  have hR : ∀ x : G, schwartzBruhatStageRealization a e φ x =
+      if hx : x ∈ H then g (π ⟨x, hx⟩) else 0 := fun x ↦ by
+    rw [schwartzBruhatStageRealization_apply]
+    rfl
+  -- On a coset through a point of `H`, the integral is computed in the elementary quotient.
+  have hkey : ∀ h : H,
+      Integrable (fun k : K ↦ schwartzBruhatStageRealization a e φ (h.val * k.val)) μK ∧
+        ∫ k : K, schwartzBruhatStageRealization a e φ (h.val * k.val) ∂μK =
+          ψ (Multiplicative.toAdd (e'.equiv (p (π h)))) := fun h ↦ by
+    have hh := hfib g hg h
+    have hfun : (fun k : K ↦ schwartzBruhatStageRealization a e φ (h.val * k.val)) =
+        fun k ↦ if hk : h.val * k.val ∈ H then g (π ⟨_, hk⟩) else 0 := by
+      funext k
+      rw [schwartzBruhatStageRealization_apply]
+      split_ifs with hk
+      · exact congrArg (fun y ↦ φ (Multiplicative.toAdd (e.equiv y)))
+          (QuotientGroup.mk'_apply N _).symm
+      · rfl
+    exact ⟨(congrArg (fun F : K → ℂ ↦ Integrable F μK) hfun).mpr (hh.1.mpr (hint (π h))),
+      (congrArg (fun F : K → ℂ ↦ ∫ k, F k ∂μK) hfun).trans (hh.2.trans (hψ (π h)).symm)⟩
+  -- A point whose coset meets `H` is a point of `H` times a point of `K`.
+  have hsplit : ∀ x : G, (QuotientGroup.mk x : G ⧸ K) ∈ b.val.1 →
+      ∃ h : H, ∃ k₀ : K, x = h.val * k₀.val := fun x hx ↦ by
+    rw [hb₁] at hx
+    obtain ⟨y, hy, hyx⟩ := hx
+    refine ⟨⟨y, hy⟩, ⟨y⁻¹ * x, QuotientGroup.eq.mp hyx⟩, ?_⟩
+    simp
+  -- Off the cosets meeting `H` the function vanishes.
+  have hzero : ∀ x : G, (QuotientGroup.mk x : G ⧸ K) ∉ b.val.1 →
+      ∀ k : K, schwartzBruhatStageRealization a e φ (x * k.val) = 0 := fun x hx k ↦ by
+    rw [hR]
+    refine dite_eq_right fun hxk ↦ hx ?_
+    rw [hb₁]
+    exact ⟨x * k.val, hxk, by simp⟩
+  have htrans : ∀ (h : H) (k₀ : K),
+      (fun k : K ↦ schwartzBruhatStageRealization a e φ (h.val * k₀.val * k.val)) =
+        fun k ↦ schwartzBruhatStageRealization a e φ (h.val * (k₀ * k).val) := fun h k₀ ↦ by
+    funext k
+    simp [mul_assoc]
+  have hintegrable : ∀ x : G,
+      Integrable (fun k : K ↦ schwartzBruhatStageRealization a e φ (x * k.val)) μK := by
+    intro x
+    by_cases hx : (QuotientGroup.mk x : G ⧸ K) ∈ b.val.1
+    · obtain ⟨h, k₀, rfl⟩ := hsplit x hx
+      rw [htrans h k₀]
+      exact (hkey h).1.comp_mul_left k₀
+    · simp_rw [hzero x hx]
+      exact integrable_zero _ _ _
+  refine ⟨hintegrable, ?_⟩
+  have hfun : lcaCosetIntegral K μK (schwartzBruhatStageRealization a e φ) =
+      schwartzBruhatStageRealization b e' ψ := by
+    funext q
+    have h1 := schwartzBruhatStageRealization_apply b e' ψ q
+    show (∫ k : K, schwartzBruhatStageRealization a e φ ((Quotient.out q) * k.val) ∂μK) = _
+    have hq : (QuotientGroup.mk (Quotient.out q) : G ⧸ K) = q := QuotientGroup.out_eq' q
+    split_ifs at h1 with hqb
+    · have hqb' : (QuotientGroup.mk (Quotient.out q) : G ⧸ K) ∈ b.val.1 := by rw [hq]; exact hqb
+      refine Eq.trans ?_ h1.symm
+      have hs := hsplit (Quotient.out q) hqb'
+      let h : H := Classical.choose hs
+      have hs' := Classical.choose_spec hs
+      let k₀ : K := Classical.choose hs'
+      have hx : Quotient.out q = h.val * k₀.val := Classical.choose_spec hs'
+      clear_value h k₀
+      have hhq : (QuotientGroup.mk h.val : G ⧸ K) = q := by
+        rw [← hq, hx, QuotientGroup.eq]
+        simp
+      have hhb : (QuotientGroup.mk h.val : G ⧸ K) ∈ b.val.1 := by rw [hhq]; exact hqb
+      have hpq : p (π h) = QuotientGroup.mk ⟨q, hqb⟩ :=
+        (hpmk h.val h.2 hhb).trans (congrArg _ (Subtype.ext hhq))
+      have e1 : (fun k : K ↦ schwartzBruhatStageRealization a e φ (Quotient.out q * k.val)) =
+          fun k ↦ schwartzBruhatStageRealization a e φ (h.val * (k₀ * k).val) := by
+        funext k
+        simp only [hx, mul_assoc, Subgroup.coe_mul]
+      calc ∫ k : K, schwartzBruhatStageRealization a e φ (Quotient.out q * k.val) ∂μK
+          = ∫ k : K, schwartzBruhatStageRealization a e φ (h.val * (k₀ * k).val) ∂μK :=
+            congrArg (fun F : K → ℂ ↦ ∫ k, F k ∂μK) e1
+        _ = ∫ k : K, schwartzBruhatStageRealization a e φ (h.val * k.val) ∂μK :=
+            integral_mul_left_eq_self
+              (fun k : K ↦ schwartzBruhatStageRealization a e φ (h.val * k.val)) k₀
+        _ = ψ (Multiplicative.toAdd (e'.equiv (p (π h)))) := (hkey h).2
+        _ = _ := congrArg (fun y ↦ ψ (Multiplicative.toAdd (e'.equiv y))) hpq
+    · have hqb' : (QuotientGroup.mk (Quotient.out q) : G ⧸ K) ∉ b.val.1 := by rw [hq]; exact hqb
+      refine Eq.trans ?_ h1.symm
+      simp_rw [hzero (Quotient.out q) hqb']
+      exact integral_zero _ _
+  rw [hfun]
+  exact Submodule.mem_iSup_of_mem b (Submodule.mem_iSup_of_mem e' ⟨ψ, rfl⟩)
+
+omit [TopologicalSpace G] hTop hT2 hLC hBorel hK hHaarK hRegularK in
+/-- The coset integral is additive on functions whose restrictions to all cosets
+are integrable. -/
+theorem lcaCosetIntegral_add (f g : G → ℂ)
+    (hf : ∀ x : G, Integrable (fun k : K ↦ f (x * k.val)) μK)
+    (hg : ∀ x : G, Integrable (fun k : K ↦ g (x * k.val)) μK) :
+    lcaCosetIntegral K μK (f + g) = lcaCosetIntegral K μK f + lcaCosetIntegral K μK g := by
+  funext q
+  simp only [lcaCosetIntegral, Pi.add_apply]
+  exact integral_add (hf _) (hg _)
+
 /-- Paper: Theorem D.1.7.1, p. 776. The integral of a Schwartz–Bruhat function
 over each coset exists and gives a Schwartz–Bruhat function on the quotient. -/
 theorem lcaCosetIntegral_mem_schwartzBruhat (f : SchwartzBruhat G) :
     (∀ x : G, Integrable (fun k : K ↦ f (x * k.val)) μK) ∧
-      lcaCosetIntegral K μK f ∈ schwartzBruhatSubmodule (G ⧸ K) := by sorry
+      lcaCosetIntegral K μK f ∈ schwartzBruhatSubmodule (G ⧸ K) := by
+  have hf := (show schwartzBruhatSubmodule G from f).property
+  generalize (show schwartzBruhatSubmodule G from f).val = g at hf ⊢
+  let P : (G → ℂ) → Prop := fun g ↦
+    (∀ x : G, Integrable (fun k : K ↦ g (x * k.val)) μK) ∧
+      lcaCosetIntegral K μK g ∈ schwartzBruhatSubmodule (G ⧸ K)
+  have hzero : P 0 := by
+    refine ⟨fun x ↦ integrable_zero _ _ _, ?_⟩
+    have : lcaCosetIntegral K μK (0 : G → ℂ) = 0 := by
+      funext q
+      simp [lcaCosetIntegral]
+    rw [this]
+    exact zero_mem _
+  have hadd : ∀ g₁ g₂, P g₁ → P g₂ → P (g₁ + g₂) := fun g₁ g₂ h₁ h₂ ↦ by
+    refine ⟨fun x ↦ (h₁.1 x).add (h₂.1 x), ?_⟩
+    rw [lcaCosetIntegral_add K μK g₁ g₂ h₁.1 h₂.1]
+    exact add_mem h₁.2 h₂.2
+  refine Submodule.iSup_induction (motive := P) _ hf (fun a g ha ↦ ?_) hzero hadd
+  refine Submodule.iSup_induction (motive := P) _ ha (fun e g he ↦ ?_) hzero hadd
+  obtain ⟨φ, rfl⟩ := LinearMap.mem_range.mp he
+  exact lcaCosetIntegral_stageRealization_mem K μK hK a e φ
 
 /-- Paper: (D.1.7.1)–(D.1.7.2), p. 776. Take the existing coset integral with
 values in the Schwartz–Bruhat space on the quotient. -/
