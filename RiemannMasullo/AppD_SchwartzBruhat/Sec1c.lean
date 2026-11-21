@@ -1646,7 +1646,36 @@ on the elementary group. Its lifts along the covering map are smooth on each dis
 fibre, and the covering map is open. -/
 theorem elementarySchwartz_continuous {m n r : ℕ} {F : Type*} [AddCommGroup F]
     [TopologicalSpace F] [DiscreteTopology F] [Finite F] (f : ElementarySchwartz m n r F) :
-    Continuous (f : ElementaryLieGroup m n r F → ℂ) := by sorry
+    Continuous (f : ElementaryLieGroup m n r F → ℂ) := by
+  have hf := (show elementarySchwartzSubmodule m n r F from f).property.1
+  let π : EuclideanSpace ℝ (Fin m) × EuclideanSpace ℝ (Fin n) →
+      EuclideanSpace ℝ (Fin m) × (Fin n → AddCircle (1 : ℝ)) :=
+    fun xt ↦ (xt.1, fun i ↦ (xt.2 i : AddCircle (1 : ℝ)))
+  have hπ : IsOpenQuotientMap π := by
+    have h1 : IsOpenQuotientMap
+        (Pi.map fun _ : Fin n ↦ (QuotientAddGroup.mk : ℝ → AddCircle (1 : ℝ))) :=
+      IsOpenQuotientMap.piMap fun _ ↦ QuotientAddGroup.isOpenQuotientMap_mk
+    let e := (EuclideanSpace.equiv (Fin n) ℝ).toHomeomorph
+    have h2 : IsOpenQuotientMap e := ⟨e.surjective, e.continuous, e.isOpenMap⟩
+    exact IsOpenQuotientMap.id.prodMap (h1.comp h2)
+  have hfib : ∀ a b, Continuous
+      (fun p : EuclideanSpace ℝ (Fin m) × (Fin n → AddCircle (1 : ℝ)) ↦ f (p.1, p.2, a, b)) :=
+    fun a b ↦ by
+      rw [← hπ.continuous_comp_iff]
+      exact (hf a b).continuous
+  rw [continuous_iff_continuousAt]
+  rintro ⟨x, z, a, b⟩
+  have hopen : IsOpen {p : ElementaryLieGroup m n r F | p.2.2 = (a, b)} :=
+    (isOpen_discrete {(a, b)}).preimage (continuous_snd.comp continuous_snd)
+  have heq : (f : ElementaryLieGroup m n r F → ℂ) =ᶠ[𝓝 (x, z, a, b)]
+      fun p ↦ f (p.1, p.2.1, a, b) := by
+    filter_upwards [hopen.mem_nhds rfl] with p hp
+    obtain ⟨p1, p2, p3, p4⟩ := p
+    simp only [Prod.mk.injEq] at hp
+    obtain ⟨rfl, rfl⟩ := hp
+    rfl
+  exact ((hfib a b).comp (continuous_fst.prodMk (continuous_fst.comp continuous_snd))).continuousAt.congr
+    heq.symm
 
 omit hTop hT2 hLC in
 /-- Paper: Definition D.1.5.1(1), p. 760. A good subgroup is compact. It is the
