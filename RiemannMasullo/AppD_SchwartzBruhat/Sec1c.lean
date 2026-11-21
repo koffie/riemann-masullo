@@ -1674,8 +1674,8 @@ theorem elementarySchwartz_continuous {m n r : ℕ} {F : Type*} [AddCommGroup F]
     simp only [Prod.mk.injEq] at hp
     obtain ⟨rfl, rfl⟩ := hp
     rfl
-  exact ((hfib a b).comp (continuous_fst.prodMk (continuous_fst.comp continuous_snd))).continuousAt.congr
-    heq.symm
+  exact ((hfib a b).comp
+    (continuous_fst.prodMk (continuous_fst.comp continuous_snd))).continuousAt.congr heq.symm
 
 omit hTop hT2 hLC in
 /-- Paper: Definition D.1.5.1(1), p. 760. A good subgroup is compact. It is the
@@ -1853,7 +1853,8 @@ theorem BruhatStructuralPair.exists_quotient_hom (a : BruhatStructuralPair G)
     rw [hcomp]
     exact QuotientGroup.continuous_mk.comp hf₀c
   · intro U hU
-    have hU' : p '' U = ((QuotientGroup.mk' Nb) ∘ f₀) '' ((QuotientGroup.mk : H → a.quotient) ⁻¹' U) := by
+    have hU' : p '' U =
+        ((QuotientGroup.mk' Nb) ∘ f₀) '' ((QuotientGroup.mk : H → a.quotient) ⁻¹' U) := by
       rw [← hcomp, Set.image_comp, Set.image_preimage_eq _ (QuotientGroup.mk_surjective)]
     rw [hU', Set.image_comp]
     exact QuotientGroup.isOpenMap_coe _ (hf₀o _ (hU.preimage QuotientGroup.continuous_mk))
@@ -1987,7 +1988,111 @@ theorem exists_haar_fiberIntegral_eq {A : Type*} [CommGroup A] [TopologicalSpace
       (Integrable (fun k : K ↦ if hk : h.val * k.val ∈ H then g (π ⟨_, hk⟩) else 0) μK ↔
         Integrable (fun l : L ↦ g (π h * l)) ν) ∧
       ∫ k : K, (if hk : h.val * k.val ∈ H then g (π ⟨_, hk⟩) else 0) ∂μK =
-        ∫ l : L, g (π h * l) ∂ν := by sorry
+        ∫ l : L, g (π h * l) ∂ν := by
+  subst hL
+  -- `π` is proper: it is closed, with compact fibres.
+  have hπp : IsProperMap π := by
+    refine isProperMap_iff_isClosedMap_and_compact_fibers.2 ⟨hπ, fun F hF ↦ ?_, fun y ↦ ?_⟩
+    · have hq : IsQuotientMap π := hπo.isQuotientMap hπ hπs
+      rw [← hq.isClosed_preimage]
+      convert hF.mul_right_of_isCompact hπk using 1
+      ext x
+      simp only [Set.mem_preimage, Set.mem_image, Set.mem_mul, SetLike.mem_coe, MonoidHom.mem_ker]
+      constructor
+      · rintro ⟨f, hf, hfx⟩
+        exact ⟨f, hf, f⁻¹ * x, by rw [map_mul, map_inv, hfx, inv_mul_cancel], by simp⟩
+      · rintro ⟨f, hf, k, hk, rfl⟩
+        exact ⟨f, hf, by rw [map_mul, hk, mul_one]⟩
+    · obtain ⟨h₀, rfl⟩ := hπs y
+      convert hπk.image (Homeomorph.mulLeft h₀).continuous using 1
+      ext x
+      constructor
+      · intro hx
+        have hx' : π x = π h₀ := hx
+        refine ⟨h₀⁻¹ * x, ?_, by simp⟩
+        change π (h₀⁻¹ * x) = 1
+        rw [map_mul, map_inv, hx', inv_mul_cancel]
+      · rintro ⟨k, hk, rfl⟩
+        have hk' : π k = 1 := hk
+        change π (h₀ * k) = π h₀
+        rw [map_mul, hk', mul_one]
+  -- The open subgroup `K ∩ H` of `K` and the restricted Haar measure.
+  have : LocallyCompactSpace K := hK.isClosedEmbedding_subtypeVal.locallyCompactSpace
+  let K' : Subgroup K := H.comap K.subtype
+  have hK'o : IsOpen (K' : Set K) := hH.preimage continuous_subtype_val
+  have hK'c : IsClosed (K' : Set K) := Subgroup.isClosed_of_isOpen K' hK'o
+  have : LocallyCompactSpace K' := hK'o.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  let μ' : Measure K' := Measure.comap Subtype.val μK
+  have hμ' : μ'.IsHaarMeasure := Measure.IsHaarMeasure.comap μK (mH := inferInstance)
+    (f := K'.subtype) hK'o.isOpenEmbedding_subtypeVal
+  let ι : K' →* H := (K.subtype.comp K'.subtype).codRestrict H fun k ↦ k.2
+  have hιc : Continuous ι :=
+    (continuous_subtype_val.comp continuous_subtype_val).subtype_mk _
+  have hLc : IsClosed (((K.comap H.subtype).map π : Subgroup A) : Set A) := by
+    rw [Subgroup.coe_map]
+    exact hπp.isClosedMap _ (hK.preimage continuous_subtype_val)
+  have : LocallyCompactSpace ((K.comap H.subtype).map π) :=
+    hLc.isClosedEmbedding_subtypeVal.locallyCompactSpace
+  let ρ : K' →* (K.comap H.subtype).map π :=
+    (π.comp ι).codRestrict _ fun k ↦ ⟨ι k, k.val.2, rfl⟩
+  have hρc : Continuous ρ := (hπ.comp hιc).subtype_mk _
+  have hρs : Function.Surjective ρ := by
+    rintro ⟨_, x, hx, rfl⟩
+    exact ⟨⟨⟨x.val, hx⟩, x.2⟩, rfl⟩
+  have hK'G : IsClosedEmbedding (fun k : K' ↦ k.val.val) :=
+    hK.isClosedEmbedding_subtypeVal.comp hK'c.isClosedEmbedding_subtypeVal
+  have hρp : Tendsto ρ (cocompact K') (cocompact _) := by
+    refine (isProperMap_iff_tendsto_cocompact.mp
+      (isProperMap_iff_isCompact_preimage.mpr ⟨hρc, fun S hS ↦ ?_⟩)).2
+    have hT := (hπp.isCompact_preimage (hS.image continuous_subtype_val)).image
+      continuous_subtype_val
+    convert hK'G.isCompact_preimage hT using 1
+    ext k
+    simp only [Set.mem_preimage, Set.mem_image]
+    constructor
+    · intro hk
+      exact ⟨ι k, ⟨ρ k, hk, rfl⟩, rfl⟩
+    · rintro ⟨x, ⟨s, hs, hsx⟩, hxk⟩
+      have : x = ι k := Subtype.ext hxk
+      subst this
+      have : s = ρ k := Subtype.ext hsx
+      rwa [← this]
+  let ν : Measure ((K.comap H.subtype).map π) := μ'.map ρ
+  have hν : ν.IsHaarMeasure := Measure.isHaarMeasure_map μ' ρ hρc hρs hρp
+  refine ⟨ν, hν, fun g hg h ↦ ?_⟩
+  set F : K → ℂ := fun k ↦ if hk : h.val * k.val ∈ H then g (π ⟨_, hk⟩) else 0 with hFdef
+  let Φ : (K.comap H.subtype).map π → ℂ := fun l ↦ g (π h * l)
+  have hΦ : Continuous Φ := hg.comp (continuous_const.mul continuous_subtype_val)
+  have hF0 : ∀ k, k ∉ (K' : Set K) → F k = 0 := by
+    intro k hk
+    refine dite_eq_right fun hhk ↦ hk ?_
+    have : k.val = h.val⁻¹ * (h.val * k.val) := by group
+    change k.val ∈ H
+    rw [this]
+    exact H.mul_mem (H.inv_mem h.2) hhk
+  have hFρ : ∀ k : K', F k.val = Φ (ρ k) := by
+    intro k
+    have hhk : h.val * k.val.val ∈ H := H.mul_mem h.2 k.2
+    simp only [F, dite_eq_left hhk, Φ]
+    rw [show (⟨_, hhk⟩ : H) = h * ι k from rfl, map_mul]
+    rfl
+  have hmeas : MeasurableSet (K' : Set K) := hK'o.measurableSet
+  have hsupp : Function.support F ⊆ (K' : Set K) := fun k hk ↦ by
+    by_contra h'
+    exact hk (hF0 k h')
+  have hcomp : F ∘ (Subtype.val : K' → K) = Φ ∘ ρ := funext hFρ
+  constructor
+  · rw [← integrableOn_iff_integrable_of_support_subset hsupp,
+      integrableOn_iff_comap_subtypeVal hmeas]
+    change _ ↔ Integrable Φ (μ'.map ρ)
+    rw [integrable_map_measure hΦ.aestronglyMeasurable hρc.aemeasurable]
+    exact iff_of_eq (congrArg (fun f : K' → ℂ ↦ Integrable f μ') hcomp)
+  · calc ∫ k : K, F k ∂μK = ∫ k in (K' : Set K), F k ∂μK :=
+          (setIntegral_eq_integral_of_forall_compl_eq_zero hF0).symm
+      _ = ∫ k : K', F k.val ∂μ' := (integral_subtype_comap hmeas F).symm
+      _ = ∫ k : K', Φ (ρ k) ∂μ' := integral_congr_ae (Eventually.of_forall hFρ)
+      _ = ∫ l, Φ l ∂ν :=
+          (integral_map hρc.aemeasurable hΦ.aestronglyMeasurable).symm
 
 /-- Paper: Theorem D.1.7.1, p. 776. A single stage function, pulled back from the
 elementary quotient of a structural pair and extended by zero, is integrable on every
@@ -2024,7 +2129,8 @@ theorem lcaCosetIntegral_stageRealization_mem (a : BruhatStructuralPair G)
     exact ⟨fun ⟨y, hy, hyx⟩ ↦ hyx ▸ hy, fun hx ↦ ⟨⟨x, hCH hx⟩, hx, rfl⟩⟩
   obtain ⟨p, hpc, hpo, hps, hpker, hpmk⟩ := a.exists_quotient_hom K b hb₁ hb₂
   obtain ⟨ν, hν, hfib⟩ := exists_haar_fiberIntegral_eq K μK hK H hHo π hπ hπo hπs hπk p.ker hpker
-  obtain ⟨hint, ψ, hψ⟩ := elementary_fiberIntegral (A := a.quotient) (B := b.quotient) e e' p hpc hpo hps ν φ
+  obtain ⟨hint, ψ, hψ⟩ :=
+    elementary_fiberIntegral (A := a.quotient) (B := b.quotient) e e' p hpc hpo hps ν φ
   let g : a.quotient → ℂ := fun y ↦ φ (Multiplicative.toAdd (e.equiv y))
   have hg : Continuous g :=
     (elementarySchwartz_continuous φ).comp (continuous_toAdd.comp e.equiv.continuous)
