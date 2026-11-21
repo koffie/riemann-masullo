@@ -6,6 +6,8 @@ public import Mathlib.Topology.Algebra.InfiniteSum.UniformOn
 public import RiemannMasullo.AppB_AnalyticNT.Sec2
 public import RiemannMasullo.Ch03_IdelicZeta.Sec2
 import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Cotangent
+import Mathlib.NumberTheory.ModularForms.EisensteinSeries.Summable
 import RiemannMasullo.ForMathlib.Analysis.MellinTransform
 import RiemannMasullo.ForMathlib.MeasureTheory.Integral.IntegralEqImproper
 
@@ -614,11 +616,83 @@ pole terms in (B.4.1.21) converges locally uniformly off the integers. -/
 theorem summableLocallyUniformlyOn_expPoleTerms :
     SummableLocallyUniformlyOn (fun m z ↦ ‖poleTerm m z‖) Complex.integerComplement := by sorry
 
+/-- The products `n * (z - n)` over the integers have summable reciprocals. -/
+theorem summable_inv_intCast_mul_sub (z : ℂ) :
+    Summable fun n : ℤ ↦ ((n : ℂ) * (z - n))⁻¹ := by
+  apply EisensteinSeries.summable_inv_of_isBigO_rpow_inv (a := 2) (by norm_num)
+  have h1 : (fun n : ℤ ↦ ((n : ℂ))⁻¹) =O[cofinite] fun n ↦ ((n : ℝ))⁻¹ :=
+    Asymptotics.isBigO_of_le _ fun n ↦ by simp
+  have h2 : (fun n : ℤ ↦ (z - n)⁻¹) =O[cofinite] fun n ↦ ((n : ℝ))⁻¹ := by
+    simpa [sub_eq_add_neg] using (EisensteinSeries.linear_inv_isBigO_right 1 z).comp_neg_int
+  refine ((h1.mul h2).trans (Asymptotics.isBigO_of_le _ fun n ↦ ?_)).congr_left fun n ↦ ?_
+  · rw [Real.rpow_two, sq_abs, ← mul_inv, ← pow_two]
+  · rw [mul_inv]
+
+/-- Each regularized pole term equals `z / (n * (z - n))` off the integers. -/
+theorem poleTerm_eq {z : ℂ} (hz : z ∈ Complex.integerComplement) (m : {m : ℤ // m ≠ 0}) :
+    poleTerm m z = z * (((m.val : ℤ) : ℂ) * (z - (m.val : ℤ)))⁻¹ := by
+  have h1 : ((m.val : ℤ) : ℂ) ≠ 0 := by exact_mod_cast m.2
+  have h2 : z - ((m.val : ℤ) : ℂ) ≠ 0 := by
+    simpa [sub_eq_add_neg] using Complex.integerComplement_add_ne_zero hz (-m.val)
+  simp only
+  field_simp
+  ring
+
+/-- The regularized pole terms sum to the Mittag-Leffler remainder of `π cot (π z)`. -/
+theorem tsum_poleTerm_eq {z : ℂ} (hz : z ∈ Complex.integerComplement) :
+    ∑' m, poleTerm m z = Real.pi * Complex.cot (Real.pi * z) - 1 / z := by
+  set f : ℤ → ℂ := fun n ↦ z * ((n : ℂ) * (z - n))⁻¹ with hf
+  have hs : Summable f := (summable_inv_intCast_mul_sub z).mul_left z
+  have hsupp : Function.support f ⊆ {m : ℤ | m ≠ 0} := by
+    intro n hn
+    by_contra h0
+    simp only [Set.mem_ofPred_eq, not_not] at h0
+    exact hn (by simp [f, h0])
+  have e1 : ∑' m, poleTerm m z = ∑' n : ℤ, f n := by
+    rw [← tsum_subtype_eq_of_support_subset hsupp]
+    exact tsum_congr fun m ↦ poleTerm_eq hz m
+  rw [e1, cot_series_rep' hz]
+  have h0 : f 0 = 0 := by simp [f]
+  have hnat := hs.hasSum.nat_add_neg
+  rw [h0, add_zero] at hnat
+  rw [← hnat.tsum_eq]
+  have hsn : Summable fun n : ℕ ↦ f n + f (-n) := hnat.summable
+  rw [hsn.tsum_eq_zero_add]
+  simp only [Nat.cast_zero, neg_zero, h0, add_zero, zero_add]
+  refine tsum_congr fun n ↦ ?_
+  have hn : ((n : ℂ) + 1) ≠ 0 := by exact_mod_cast Nat.succ_ne_zero n
+  have h2 : z - ((n : ℂ) + 1) ≠ 0 := by
+    simpa [sub_eq_add_neg] using Complex.integerComplement_add_ne_zero hz (-((n : ℤ) + 1))
+  have h3 : z + ((n : ℂ) + 1) ≠ 0 := by
+    simpa using Complex.integerComplement_add_ne_zero hz ((n : ℤ) + 1)
+  have h4 : (-((n : ℂ) + 1)) ≠ 0 := neg_ne_zero.mpr hn
+  have h5 : z - -((n : ℂ) + 1) ≠ 0 := by rwa [sub_neg_eq_add]
+  simp only [f, Nat.cast_succ, Int.cast_add, Int.cast_natCast, Int.cast_one, Int.cast_neg,
+    Int.cast_natCast]
+  rw [mul_inv, mul_inv, sub_neg_eq_add]
+  field_simp
+  ring
+
 /-- Paper: Lemma B.4.1.9, p. 612. The reciprocal of one minus the
 exponential has the regularized partial-fraction expansion (B.4.1.21). -/
 theorem inv_one_sub_exp_eq_mittagLeffler {z : ℂ} (hz : z ∈ Complex.integerComplement) :
     (1 - Complex.exp (twoPiI * z))⁻¹ =
-      1 / 2 - 1 / (twoPiI * z) - (1 / twoPiI) * ∑' m, poleTerm m z := by sorry
+      1 / 2 - 1 / (twoPiI * z) - (1 / twoPiI) * ∑' m, poleTerm m z := by
+  rw [tsum_poleTerm_eq hz, Complex.cot_pi_eq_exp_ratio]
+  have hz0 : z ≠ 0 := Complex.integerComplement.ne_zero hz
+  have hπ : (Real.pi : ℂ) ≠ 0 := by exact_mod_cast Real.pi_ne_zero
+  have he : 1 - Complex.exp (2 * Real.pi * Complex.I * z) ≠ 0 := by
+    intro h
+    obtain ⟨n, hn⟩ := Complex.exp_eq_one_iff.mp (sub_eq_zero.mp h).symm
+    apply hz
+    refine ⟨n, ?_⟩
+    have : (2 * Real.pi * Complex.I : ℂ) ≠ 0 := by simp [hπ, Complex.I_ne_zero]
+    apply mul_left_cancel₀ this
+    rw [hn]; ring
+  field_simp
+  ring_nf
+  simp [Complex.I_sq]
+  ring
 
 /-- Paper: Lemma B.4.1.9, p. 612. The norm of the sum of the regularized
 pole terms is bounded on each horizontal line of nonzero height, as in (B.4.1.22). -/
