@@ -271,7 +271,11 @@ theorem strongCoprimalityJetMatrix_det (S : Finset V)
     (hS : ideleClassNormTwist χ⁻¹ 0 ∈ unramifiedOutside F S) (s : ℂ)
     (hL : AnalyticAt ℂ (heckeEulerProductOutside S χ⁻¹ hS) (1 - s)) (N : ℕ) :
     (strongCoprimalityJetMatrix χ S hS s hL N).det =
-      heckeEulerProductOutside S χ⁻¹ hS (1 - s) ^ N := by sorry
+      heckeEulerProductOutside S χ⁻¹ hS (1 - s) ^ N := by
+  rw [Matrix.det_of_isUpperTriangular]
+  · simp [strongCoprimalityJetMatrix, Finset.prod_const]
+  · intro i j hij
+    simp [strongCoprimalityJetMatrix, not_le.mpr (show j < i from hij)]
 
 /-- Paper: Equation (7.5.0.13), p. 378.
 The regular block is invertible at a spectral point on the imaginary axis.
