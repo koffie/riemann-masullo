@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.AppB_AnalyticNT.Sec1
+public import RiemannMasullo.ForMathlib.RingTheory.DedekindDomain.Ideal.Lemmas
 public import Mathlib.Analysis.Calculus.LogDeriv
 public import Mathlib.NumberTheory.ArithmeticFunction.VonMangoldt
 
@@ -67,7 +68,12 @@ theorem heckeIdealValue_prime_pow (χ : 𝒳[F]) (v : HeightOneSpectrum (𝓞 F)
     {k : ℕ} (hk : 0 < k) :
     heckeIdealValue χ (v.asIdeal ^ k) =
       if χ.IsUnramifiedAt v then χ.localValue v ^ k else 0 := by
-  sorry
+  have hne : v.asIdeal ^ k ≠ ⊥ := pow_ne_zero _ v.ne_bot
+  unfold heckeIdealValue
+  rw [ite_eq_right hne, finprod_eq_single _ v, multiplicity_pow_self_of_prime v.prime]
+  · split_ifs <;> simp [hk.ne']
+  · intro w hw
+    rw [multiplicity_eq_zero_of_not_dvd fun hd ↦ hw (HeightOneSpectrum.eq_of_dvd_pow hd), pow_zero]
 
 /-- Paper: Equation (B.6.1.2), p. 636. To the right of one, the series indexed
 by nonzero integral ideals converges absolutely to the finite Hecke L-function. -/
@@ -84,7 +90,24 @@ def heckeIdealSummatory (χ : 𝒳[F]) (x : ℝ) : ℂ :=
 
 /-- Paper: Equation (B.6.1.3), p. 636. At `x = 1` only the unit ideal contributes. -/
 theorem heckeIdealSummatory_one (χ : 𝒳[F]) : heckeIdealSummatory χ 1 = 1 := by
-  sorry
+  have hmem : ∀ I : Ideal (𝓞 F), I ≠ ⊥ ∧ (I.absNorm : ℝ) ≤ 1 ↔ I = ⊤ := fun I ↦ by
+    constructor
+    · rintro ⟨h0, h1⟩
+      have h1' : Ideal.absNorm I ≤ 1 := by exact_mod_cast h1
+      have h0' : Ideal.absNorm I ≠ 0 := fun h ↦ h0 (Ideal.absNorm_eq_zero_iff.mp h)
+      exact Ideal.absNorm_eq_one_iff.mp (by omega)
+    · rintro rfl
+      exact ⟨top_ne_bot, by simp⟩
+  let : Unique {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) ≤ 1} :=
+    { default := ⟨⊤, (hmem ⊤).mpr rfl⟩
+      uniq := fun I ↦ Subtype.ext ((hmem I.val).mp I.2) }
+  unfold heckeIdealSummatory
+  rw [finsum_unique]
+  show heckeIdealValue χ ⊤ = 1
+  unfold heckeIdealValue
+  rw [ite_eq_right top_ne_bot]
+  refine finprod_eq_one_of_forall_eq_one fun w ↦ ?_
+  rw [← Ideal.one_eq_top, multiplicity_one_right, pow_zero]
 
 /-- Paper: Equation (B.6.1.4), p. 636. The coefficient at `x` sums the
 values at nonzero integral ideals of norm exactly `x`. The sum is zero if
@@ -171,7 +194,13 @@ def idealVonMangoldt (I : Ideal (𝓞 F)) : ℝ :=
 power is the logarithm of the prime's norm, independently of the exponent. -/
 theorem idealVonMangoldt_prime_pow (v : HeightOneSpectrum (𝓞 F)) {k : ℕ} (hk : 0 < k) :
     idealVonMangoldt (v.asIdeal ^ k) = Real.log (v.asIdeal.absNorm : ℝ) := by
-  sorry
+  have h : ∃ w : HeightOneSpectrum (𝓞 F), ∃ j : ℕ, 0 < j ∧ v.asIdeal ^ k = w.asIdeal ^ j :=
+    ⟨v, k, hk, rfl⟩
+  unfold idealVonMangoldt
+  split_ifs with h'
+  · obtain ⟨hj, hw⟩ := h'.choose_spec.choose_spec
+    rw [HeightOneSpectrum.eq_of_dvd_pow ((dvd_pow_self _ hj.ne').trans hw.symm.dvd)]
+  · exact absurd h h'
 
 /-- Paper: §B.6.1.2, p. 638. The twisted von Mangoldt value is the product
 of the ideal character value and the ideal von Mangoldt weight. -/
@@ -184,7 +213,9 @@ theorem heckeIdealVonMangoldt_prime_pow (χ : 𝒳[F]) (v : HeightOneSpectrum (�
     (hv : χ.IsUnramifiedAt v) {k : ℕ} (hk : 0 < k) :
     heckeIdealVonMangoldt χ (v.asIdeal ^ k) =
       χ.localValue v ^ k * (Real.log (v.asIdeal.absNorm : ℝ) : ℂ) := by
-  sorry
+  classical
+  rw [heckeIdealVonMangoldt, heckeIdealValue_prime_pow χ v hk, ite_eq_left hv,
+    idealVonMangoldt_prime_pow v hk]
 
 /-- Paper: Equation (B.6.1.12), p. 638. To the right of one, the negative of
 the Dirichlet series weighted by the ideal von Mangoldt function converges
