@@ -228,11 +228,53 @@ theorem divisorialThetaStage_above (χ : PontryaginDual C𝔽) (p : Vℚ) :
   with_reducible rfl
 
 /-- Paper: (11.3.1.3), p. 494. Divide the kth principal-value theta image
-by the next image, viewed inside the kth stage. -/
-abbrev PrimaryDivisorialThetaSubquotient (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :=
+by the next image, viewed inside the kth stage.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def PrimaryDivisorialThetaSubquotient (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :=
   ↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
     (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
       (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype
+
+namespace PrimaryDivisorialThetaSubquotient
+
+instance instAddCommGroup (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    AddCommGroup (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (AddCommGroup
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instModule (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    Module ℂ (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (Module ℂ
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instTopologicalSpace (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    TopologicalSpace (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (TopologicalSpace
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instIsTopologicalAddGroup (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    IsTopologicalAddGroup (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (IsTopologicalAddGroup
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+instance instContinuousSMul (S : Finset V) (ω : PontryaginDual C₁) (k : ℕ) :
+    ContinuousSMul ℂ (PrimaryDivisorialThetaSubquotient S ω k) :=
+  inferInstanceAs (ContinuousSMul ℂ
+    (↥(divisorialThetaStage ω (primaryDivisorialPlaces F S k)) ⧸
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S (k + 1))).comap
+    (divisorialThetaStage ω (primaryDivisorialPlaces F S k)).subtype))
+
+end PrimaryDivisorialThetaSubquotient
 
 /-- Paper: (11.3.1.3), p. 494. A representative in the kth stage has zero
 class precisely when it belongs to the next stage. -/

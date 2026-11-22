@@ -259,9 +259,35 @@ def finiteNuclearityDenominator (p : HeightOneSpectrum (𝓞 ℚ)) : Submodule �
       nuclearityPrincipalValue_mem_polar (F := F) p f⟩ : Θ₀(χ))))
 
 /-- Paper: Equation (7.4.0.2), p. 366.
-The finite orbital quotient is taken by the principal-value image. -/
-abbrev FiniteNuclearityQuotient (p : HeightOneSpectrum (𝓞 ℚ)) :=
+The finite orbital quotient is taken by the principal-value image.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def FiniteNuclearityQuotient (p : HeightOneSpectrum (𝓞 ℚ)) :=
   Θ₀(χ) ⧸ finiteNuclearityDenominator χ p
+
+namespace FiniteNuclearityQuotient
+
+instance instAddCommGroup (p : HeightOneSpectrum (𝓞 ℚ)) :
+    AddCommGroup (FiniteNuclearityQuotient χ p) :=
+  inferInstanceAs (AddCommGroup (Θ₀(χ) ⧸ finiteNuclearityDenominator χ p))
+
+instance instModule (p : HeightOneSpectrum (𝓞 ℚ)) : Module ℂ (FiniteNuclearityQuotient χ p) :=
+  inferInstanceAs (Module ℂ (Θ₀(χ) ⧸ finiteNuclearityDenominator χ p))
+
+instance instTopologicalSpace (p : HeightOneSpectrum (𝓞 ℚ)) :
+    TopologicalSpace (FiniteNuclearityQuotient χ p) :=
+  inferInstanceAs (TopologicalSpace (Θ₀(χ) ⧸ finiteNuclearityDenominator χ p))
+
+instance instIsTopologicalAddGroup (p : HeightOneSpectrum (𝓞 ℚ)) :
+    IsTopologicalAddGroup (FiniteNuclearityQuotient χ p) :=
+  inferInstanceAs (IsTopologicalAddGroup (Θ₀(χ) ⧸ finiteNuclearityDenominator χ p))
+
+instance instContinuousSMul (p : HeightOneSpectrum (𝓞 ℚ)) :
+    ContinuousSMul ℂ (FiniteNuclearityQuotient χ p) :=
+  inferInstanceAs (ContinuousSMul ℂ (Θ₀(χ) ⧸ finiteNuclearityDenominator χ p))
+
+end FiniteNuclearityQuotient
 
 private theorem mkQ_span_range_eq_zero {E M : Type*} [AddCommGroup E] [AddCommGroup M]
     [Module ℂ E] [Module ℂ M] (L : E →ₗ[ℂ] M) (x : M) :
@@ -429,8 +455,30 @@ theorem mem_archNuclearityDenominator_iff_flatPolarImage (x : Θ₀(χ)) :
       ∃ f : P, f.val ∈ globalArchimedeanFlatTests F ∧ x = mkΘ(χ, f) := by sorry
 
 /-- Paper: Equation (7.4.3.13), p. 372.
-The archimedean orbital quotient divides the zero-moment theta space by its flat image. -/
-abbrev ArchNuclearityQuotient := Θ₀(χ) ⧸ archNuclearityDenominator χ
+The archimedean orbital quotient divides the zero-moment theta space by its flat image.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def ArchNuclearityQuotient := Θ₀(χ) ⧸ archNuclearityDenominator χ
+
+namespace ArchNuclearityQuotient
+
+instance instAddCommGroup : AddCommGroup (ArchNuclearityQuotient χ) :=
+  inferInstanceAs (AddCommGroup (Θ₀(χ) ⧸ archNuclearityDenominator χ))
+
+instance instModule : Module ℂ (ArchNuclearityQuotient χ) :=
+  inferInstanceAs (Module ℂ (Θ₀(χ) ⧸ archNuclearityDenominator χ))
+
+instance instTopologicalSpace : TopologicalSpace (ArchNuclearityQuotient χ) :=
+  inferInstanceAs (TopologicalSpace (Θ₀(χ) ⧸ archNuclearityDenominator χ))
+
+instance instIsTopologicalAddGroup : IsTopologicalAddGroup (ArchNuclearityQuotient χ) :=
+  inferInstanceAs (IsTopologicalAddGroup (Θ₀(χ) ⧸ archNuclearityDenominator χ))
+
+instance instContinuousSMul : ContinuousSMul ℂ (ArchNuclearityQuotient χ) :=
+  inferInstanceAs (ContinuousSMul ℂ (Θ₀(χ) ⧸ archNuclearityDenominator χ))
+
+end ArchNuclearityQuotient
 
 /-- Paper: Equation (7.4.3.13), p. 372.
 A test represents zero in the archimedean quotient exactly when its theta class

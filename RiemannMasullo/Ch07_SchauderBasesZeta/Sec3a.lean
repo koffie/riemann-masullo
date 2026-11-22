@@ -233,9 +233,36 @@ local notation "Rₚ(" p ", " ω ")" => sLocalPrimaryOrbitalSubmodule (F := F) (
 
 /-- Paper: Definition 7.3.1.3, p. 343.
 The p-primary orbital quotient is the homogeneous theta space modulo its primary
-principal-value image. It carries the quotient topology. -/
-abbrev SLocalPrimaryOrbitalQuotient (p : Vℚ) (ω : PontryaginDual J₁) :=
+principal-value image. It carries the quotient topology.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def SLocalPrimaryOrbitalQuotient (p : Vℚ) (ω : PontryaginDual J₁) :=
   Θₛ(ω) ⧸ Rₚ(p, ω)
+
+namespace SLocalPrimaryOrbitalQuotient
+
+instance instAddCommGroup (p : Vℚ) (ω : PontryaginDual J₁) :
+    AddCommGroup (SLocalPrimaryOrbitalQuotient p ω) :=
+  inferInstanceAs (AddCommGroup (Θₛ(ω) ⧸ Rₚ(p, ω)))
+
+instance instModule (p : Vℚ) (ω : PontryaginDual J₁) :
+    Module ℂ (SLocalPrimaryOrbitalQuotient p ω) :=
+  inferInstanceAs (Module ℂ (Θₛ(ω) ⧸ Rₚ(p, ω)))
+
+instance instTopologicalSpace (p : Vℚ) (ω : PontryaginDual J₁) :
+    TopologicalSpace (SLocalPrimaryOrbitalQuotient p ω) :=
+  inferInstanceAs (TopologicalSpace (Θₛ(ω) ⧸ Rₚ(p, ω)))
+
+instance instIsTopologicalAddGroup (p : Vℚ) (ω : PontryaginDual J₁) :
+    IsTopologicalAddGroup (SLocalPrimaryOrbitalQuotient p ω) :=
+  inferInstanceAs (IsTopologicalAddGroup (Θₛ(ω) ⧸ Rₚ(p, ω)))
+
+instance instContinuousSMul (p : Vℚ) (ω : PontryaginDual J₁) :
+    ContinuousSMul ℂ (SLocalPrimaryOrbitalQuotient p ω) :=
+  inferInstanceAs (ContinuousSMul ℂ (Θₛ(ω) ⧸ Rₚ(p, ω)))
+
+end SLocalPrimaryOrbitalQuotient
 
 local notation "Q(" p ", " ω ")" => SLocalPrimaryOrbitalQuotient (F := F) (S := S) p ω
 local notation "π(" p ", " ω ")" => (Rₚ(p, ω)).mkQ

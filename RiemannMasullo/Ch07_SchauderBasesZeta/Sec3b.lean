@@ -453,10 +453,42 @@ local notation "Rₚ₀(" p ", " ω ")" =>
 /-- Paper: Definition 7.3.3.3(1)–(2), p. 359, and (7.3.3.18)–(7.3.3.19), p. 361.
 The denominator inside the level consists of principal values with a zero-moment preimage.
 Deviation: Uses the intersection from the proof on p. 361. The displayed quotients on
-p. 359 require a containment that fails even for one added rational prime. -/
-abbrev SLocalPWOrbitalQuotient (ω : PontryaginDual J₁(T)) (p : Vℚ)
+p. 359 require a containment that fails even for one added rational prime.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def SLocalPWOrbitalQuotient (ω : PontryaginDual J₁(T)) (p : Vℚ)
     (W : Submodule ℂ (Θ(T, ω))) :=
   W ⧸ (Rₚ₀(p, ω)).comap W.subtype
+
+namespace SLocalPWOrbitalQuotient
+
+instance instAddCommGroup (ω : PontryaginDual J₁(T)) (p : Vℚ)
+    (W : Submodule ℂ (Θ(T, ω))) :
+    AddCommGroup (SLocalPWOrbitalQuotient ω p W) :=
+  inferInstanceAs (AddCommGroup (W ⧸ (Rₚ₀(p, ω)).comap W.subtype))
+
+instance instModule (ω : PontryaginDual J₁(T)) (p : Vℚ)
+    (W : Submodule ℂ (Θ(T, ω))) :
+    Module ℂ (SLocalPWOrbitalQuotient ω p W) :=
+  inferInstanceAs (Module ℂ (W ⧸ (Rₚ₀(p, ω)).comap W.subtype))
+
+instance instTopologicalSpace (ω : PontryaginDual J₁(T)) (p : Vℚ)
+    (W : Submodule ℂ (Θ(T, ω))) :
+    TopologicalSpace (SLocalPWOrbitalQuotient ω p W) :=
+  inferInstanceAs (TopologicalSpace (W ⧸ (Rₚ₀(p, ω)).comap W.subtype))
+
+instance instIsTopologicalAddGroup (ω : PontryaginDual J₁(T)) (p : Vℚ)
+    (W : Submodule ℂ (Θ(T, ω))) :
+    IsTopologicalAddGroup (SLocalPWOrbitalQuotient ω p W) :=
+  inferInstanceAs (IsTopologicalAddGroup (W ⧸ (Rₚ₀(p, ω)).comap W.subtype))
+
+instance instContinuousSMul (ω : PontryaginDual J₁(T)) (p : Vℚ)
+    (W : Submodule ℂ (Θ(T, ω))) :
+    ContinuousSMul ℂ (SLocalPWOrbitalQuotient ω p W) :=
+  inferInstanceAs (ContinuousSMul ℂ (W ⧸ (Rₚ₀(p, ω)).comap W.subtype))
+
+end SLocalPWOrbitalQuotient
 
 /-- Paper: Equations (7.3.3.18)–(7.3.3.19), p. 361.
 A class vanishes precisely when its vector is the principal value of a zero-moment class. -/
@@ -784,8 +816,34 @@ local notation "Γker(" ω ")" => sLocalGammaEntireSubmodule (F := F) (S := S) �
 
 /-- Paper: Notation 7.3.4.1, p. 364.
 The archimedean polar quotient divides the full finite principal-value image
-by the subspace with entire Mellin transform, and carries the quotient topology. -/
-abbrev SLocalGammaOrbitalQuotient (ω : PontryaginDual J₁(S)) := fullPV(ω) ⧸ Γker(ω)
+by the subspace with entire Mellin transform, and carries the quotient topology.
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its definition (#5398). -/
+def SLocalGammaOrbitalQuotient (ω : PontryaginDual J₁(S)) := fullPV(ω) ⧸ Γker(ω)
+
+namespace SLocalGammaOrbitalQuotient
+
+instance instAddCommGroup (ω : PontryaginDual J₁(S)) :
+    AddCommGroup (SLocalGammaOrbitalQuotient ω) :=
+  inferInstanceAs (AddCommGroup (fullPV(ω) ⧸ Γker(ω)))
+
+instance instModule (ω : PontryaginDual J₁(S)) : Module ℂ (SLocalGammaOrbitalQuotient ω) :=
+  inferInstanceAs (Module ℂ (fullPV(ω) ⧸ Γker(ω)))
+
+instance instTopologicalSpace (ω : PontryaginDual J₁(S)) :
+    TopologicalSpace (SLocalGammaOrbitalQuotient ω) :=
+  inferInstanceAs (TopologicalSpace (fullPV(ω) ⧸ Γker(ω)))
+
+instance instIsTopologicalAddGroup (ω : PontryaginDual J₁(S)) :
+    IsTopologicalAddGroup (SLocalGammaOrbitalQuotient ω) :=
+  inferInstanceAs (IsTopologicalAddGroup (fullPV(ω) ⧸ Γker(ω)))
+
+instance instContinuousSMul (ω : PontryaginDual J₁(S)) :
+    ContinuousSMul ℂ (SLocalGammaOrbitalQuotient ω) :=
+  inferInstanceAs (ContinuousSMul ℂ (fullPV(ω) ⧸ Γker(ω)))
+
+end SLocalGammaOrbitalQuotient
 
 /-- Paper: Notation 7.3.4.1, p. 364.
 A representative of the zero coset has a Mellin transform with no poles on the
