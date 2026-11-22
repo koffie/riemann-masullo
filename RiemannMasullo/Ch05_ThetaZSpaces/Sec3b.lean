@@ -3,6 +3,9 @@ module
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec3a
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
+import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
+import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
+import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import Mathlib.Analysis.Calculus.InverseFunctionTheorem.ContDiff
 import Mathlib.Analysis.SpecialFunctions.Exponential
 import Mathlib.Topology.Algebra.IsOpenUnits
@@ -194,11 +197,468 @@ theorem wirtinger_puncturedTest_closedRange (conjugate : Bool) :
     ∃ D : 𝒟₀(ℂ) →L[ℂ] 𝒟₀(ℂ), IsClosed (range D) ∧
       ∀ f z, D f z = wirtinger(conjugate) f z := by sorry
 
+/-- Elementary logarithmic coordinates on the two components of the punctured line. -/
+private theorem iteratedDeriv_exponentialDecay_chart :
+    ∃ w : ℝˣ ≃ₜ* Multiplicative (ElementaryLieGroup 1 0 0 (ZMod 2)), ∀ x,
+      realBruhatCoordinate (w x).toAdd.1 = Real.log x.val ∧
+      (w x).toAdd.2.2.2 = if 0 < x.val then 0 else 1 := by
+  let X := ElementaryLieGroup 1 0 0 (ZMod 2)
+  let s (x : ℝˣ) : ZMod 2 := if 0 < x.val then 0 else 1
+  let u (x : ℝˣ) : Multiplicative X := Multiplicative.ofAdd
+    (realBruhatCoordinate.symm (Real.log x.val), 0, 0, s x)
+  let r (y : X) := Real.exp (realBruhatCoordinate y.1)
+  let v (y : Multiplicative X) : ℝˣ := Units.mk0
+    (if y.toAdd.2.2.2 = 0 then r y.toAdd else -r y.toAdd)
+    (by split <;> simp [r, Real.exp_ne_zero])
+  have hs : Continuous s := by
+    have hco : IsClopen {x : ℝˣ | 0 < x.val} := by
+      refine ⟨?_, isOpen_lt continuous_const Units.continuous_val⟩
+      have h : {x : ℝˣ | 0 < x.val} = {x | 0 ≤ x.val} :=
+        Set.ext fun x ↦ (show 0 < x.val ↔ 0 ≤ x.val from ⟨le_of_lt, fun h ↦ lt_of_le_of_ne h x.ne_zero.symm⟩)
+      rw [h]
+      exact isClosed_le continuous_const Units.continuous_val
+    exact Continuous.if (by simp [hco.frontier_eq]) continuous_const continuous_const
+  have hlog : Continuous (fun x : ℝˣ ↦ Real.log x.val) := continuous_iff_continuousAt.mpr
+    fun x ↦ (Real.continuousAt_log x.ne_zero).comp Units.continuous_val.continuousAt
+  let w : ℝˣ ≃ₜ* Multiplicative X :=
+    { toFun := u
+      invFun := v
+      left_inv := fun x ↦ by
+        apply Units.ext
+        change (if s x = 0 then Real.exp (Real.log x.val) else -Real.exp (Real.log x.val)) = x.val
+        rw [Real.exp_log_eq_abs x.ne_zero]
+        by_cases h : 0 < x.val
+        · simp [s, h, abs_of_pos h]
+        · simp [s, h, abs_of_nonpos (le_of_not_gt h)]
+      right_inv := fun y ↦ by
+        change (realBruhatCoordinate.symm (Real.log (v y).val), 0, 0, s (v y)) = y.toAdd
+        refine Prod.ext ?_ (Prod.ext (Subsingleton.elim _ _) (Prod.ext (Subsingleton.elim _ _) ?_))
+        · change realBruhatCoordinate.symm (Real.log (if y.toAdd.2.2.2 = 0 then _ else _)) = _
+          split <;> simp only [r, Real.log_neg_eq_log, Real.log_exp, realBruhatCoordinate.symm_apply_apply]
+        · have hb : ∀ z : ZMod 2, z = 0 ∨ z = 1 := by decide
+          rcases hb y.toAdd.2.2.2 with h | h <;> simp [s, v, h, r, Real.exp_pos, (Real.exp_pos _).le]
+      map_mul' := fun x y ↦ by
+        change (realBruhatCoordinate.symm (Real.log (x.val * y.val)), 0, 0, s (x*y)) =
+          ((realBruhatCoordinate.symm (Real.log x.val), 0, 0, s x) : X) +
+          (realBruhatCoordinate.symm (Real.log y.val), 0, 0, s y)
+        refine Prod.ext ?_ (Prod.ext (Subsingleton.elim _ _) (Prod.ext (Subsingleton.elim _ _) ?_))
+        · change realBruhatCoordinate.symm (Real.log (x.val * y.val)) = _
+          rw [Real.log_mul x.ne_zero y.ne_zero, map_add]
+          rfl
+        · change s (x*y) = s x + s y
+          rcases lt_or_gt_of_ne x.ne_zero with hx | hx <;> rcases lt_or_gt_of_ne y.ne_zero with hy | hy
+          · simp [s, hx.not_gt, hy.not_gt, mul_pos_of_neg_of_neg hx hy]; decide
+          · simp [s, hx.not_gt, hy, (mul_neg_of_neg_of_pos hx hy).not_gt]
+          · simp [s, hx, hy.not_gt, (mul_neg_of_pos_of_neg hx hy).not_gt]
+          · simp [s, hx, hy, mul_pos hx hy]
+      continuous_toFun := (realBruhatCoordinate.symm.continuous.comp hlog).prodMk
+        (continuous_const.prodMk (continuous_const.prodMk hs))
+      continuous_invFun := by
+        apply Units.isOpenEmbedding_val.isInducing.continuous_iff.mpr
+        change Continuous (fun y : X ↦ if y.2.2.2 = 0 then r y else -r y)
+        have hco : IsClopen {y : X | y.2.2.2 = 0} :=
+          (isClopen_discrete ({0} : Set (ZMod 2))).preimage (continuous_snd.comp (continuous_snd.comp continuous_snd))
+        have hr : Continuous r := Real.continuous_exp.comp (realBruhatCoordinate.continuous.comp continuous_fst)
+        exact Continuous.if (by simp [hco.frontier_eq]) hr hr.neg }
+  exact ⟨w, fun x ↦ ⟨realBruhatCoordinate.apply_symm_apply _, rfl⟩⟩
+
+private theorem iteratedDeriv_exponentialDecay_goodBot :
+    IsCompactlyGeneratedGroup (lcaAnnihilator (⊥ : Subgroup ℝˣ)) := by
+  obtain ⟨w, _⟩ := iteratedDeriv_exponentialDecay_chart
+  let e : ElementaryLCAPresentation ℝˣ := ⟨1, 0, 0, ZMod 2, w⟩
+  exact (isBruhatGoodSubgroup_bot_iff.mpr ((lca_elementary_iff.mpr ⟨e⟩).2)).2.2
+
+/-- Glue two elementary real-line functions on the two fibres. Each output seminorm
+is controlled by the maximum of the corresponding input seminorms. -/
+private theorem iteratedDeriv_exponentialDecay_glue :
+    ∃ L : (ElementarySchwartz 1 0 0 PUnit × ElementarySchwartz 1 0 0 PUnit) →L[ℂ]
+        ElementarySchwartz 1 0 0 (ZMod 2), ∀ f p,
+      L f p = (if p.2.2.2 = 0 then f.1 else f.2) (p.1, p.2.1, p.2.2.1, PUnit.unit) := by
+  let E := ElementarySchwartz 1 0 0 PUnit
+  let X := ElementaryLieGroup 1 0 0 (ZMod 2)
+  let fn (f : E × E) (p : X) :=
+    (if p.2.2.2 = 0 then f.1 else f.2) (p.1, p.2.1, p.2.2.1, PUnit.unit)
+  have hb (f : E × E) (i : ElementarySchwartzIndex 1 0 0) :
+      elementarySchwartzBound (fn f) i ≤
+        max (elementarySchwartzBound f.1.val i) (elementarySchwartzBound f.2.val i) := by
+    refine iSup_le fun xt ↦ iSup_le fun a ↦ iSup_le fun b ↦ ?_
+    let g : E := if b = 0 then f.1 else f.2
+    have h : elementarySchwartzBound g.val i ≤
+        max (elementarySchwartzBound f.1.val i) (elementarySchwartzBound f.2.val i) := by
+      dsimp only [g]; split <;> simp
+    refine le_trans ?_ h
+    unfold elementarySchwartzBound
+    exact le_iSup_of_le xt (le_iSup_of_le a (le_iSup_of_le PUnit.unit le_rfl))
+  let A : E × E →ₗ[ℂ] ElementarySchwartz 1 0 0 (ZMod 2) :=
+    { toFun := fun f ↦ ⟨fn f, fun a b ↦ (if b = 0 then f.1 else f.2).property.1 a PUnit.unit,
+        fun i ↦ (hb f i).trans_lt (max_lt (f.1.property.2 i) (f.2.property.2 i))⟩
+      map_add' := fun f g ↦ Subtype.ext (funext fun p ↦ by
+        change fn (f+g) p = fn f p + fn g p
+        by_cases h : p.2.2.2 = 0 <;> simp [fn, h] <;> rfl)
+      map_smul' := fun c f ↦ Subtype.ext (funext fun p ↦ by
+        change fn (c • f) p = c • fn f p
+        by_cases h : p.2.2.2 = 0 <;> simp [fn, h] <;> rfl) }
+  refine ⟨⟨A, elementarySchwartz_withSeminorms.continuous_of_continuous_comp A fun i ↦ ?_⟩,
+    fun _ _ ↦ rfl⟩
+  let q : Seminorm ℂ E := elementarySchwartzSeminorm i
+  have hq : Continuous q := elementarySchwartz_withSeminorms.continuous_seminorm i
+  let Q := (q.comp (LinearMap.fst ℂ E E)) ⊔ (q.comp (LinearMap.snd ℂ E E))
+  have hQ : Continuous Q := (hq.comp continuous_fst).max (hq.comp continuous_snd)
+  apply Seminorm.continuous_of_le hQ
+  intro f
+  change (elementarySchwartzBound (fn f) i).toReal ≤
+    max (elementarySchwartzBound f.1.val i).toReal (elementarySchwartzBound f.2.val i).toReal
+  rw [← ENNReal.toReal_max (f.1.property.2 i).ne (f.2.property.2 i).ne]
+  exact ENNReal.toReal_mono (max_lt (f.1.property.2 i) (f.2.property.2 i)).ne (hb f i)
+
+/-- Continuous forward realization from an elementary presentation; only the stage
+inclusion is needed, not its inverse. -/
+private theorem iteratedDeriv_exponentialDecay_realize {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+    (e : ElementaryLCAPresentation G) :
+    ∃ j : SchwartzBruhatStage e →L[ℂ] SchwartzBruhat G, ∀ g x, j g x = g (e.equiv x).toAdd := by
+  have hE := (lca_elementary_iff (G := G)).mpr ⟨e⟩
+  let hk := (isBruhatGoodSubgroup_bot_iff (G := G)).mpr hE.2
+  let a := fullBruhatStage hE.1 hk
+  have hV := fullBruhatStage_quotientEquiv hE.1 hk (MonoidHom.id G) IsOpenQuotientMap.id (by simp)
+  let v := hV.choose
+  let d : ElementaryLCAPresentation a.quotient := {e with equiv := v.trans e.equiv}
+  let j : SchwartzBruhatStage e →L[ℂ] SchwartzBruhat G :=
+    ⟨schwartzBruhatStageInclusion a d, (withGeneratingSeminorms_spec _ _).continuous_of_continuous_comp _
+      fun q ↦ q.property a d⟩
+  refine ⟨j, fun g x ↦ ?_⟩
+  change schwartzBruhatStageRealization a d g x = _
+  have hx : x ∈ a.val.1 := Subgroup.mem_top x
+  rw [schwartzBruhatStageRealization_apply, dite_eq_left hx]
+  exact congrArg (fun y : G ↦ g (e.equiv y).toAdd) (hV.choose_spec x)
+
+/-- Assemble independently prescribed logarithmic profiles by realizing them in the
+full elementary stage with trivial kernel. -/
+private theorem iteratedDeriv_exponentialDecay_assemble :
+    ∃ J : (𝓢(ℝ, ℂ) × 𝓢(ℝ, ℂ)) →L[ℂ] SchwartzBruhat ℝˣ,
+      ∀ f x, J f x = if 0 < x.val then f.1 (Real.log x.val) else f.2 (Real.log x.val) := by
+  let w := iteratedDeriv_exponentialDecay_chart.choose
+  have hw := iteratedDeriv_exponentialDecay_chart.choose_spec
+  let e : ElementaryLCAPresentation ℝˣ := ⟨1, 0, 0, ZMod 2, w⟩
+  let j := (iteratedDeriv_exponentialDecay_realize e).choose
+  have hj := (iteratedDeriv_exponentialDecay_realize e).choose_spec
+  let I := (elementarySchwartz_real_equiv PUnit.{1}).choose
+  have hI := (elementarySchwartz_real_equiv PUnit.{1}).choose_spec
+  let L := iteratedDeriv_exponentialDecay_glue.choose
+  have hL := iteratedDeriv_exponentialDecay_glue.choose_spec
+  refine ⟨j.comp (L.comp (I.toContinuousLinearMap.prodMap I.toContinuousLinearMap)), fun f x ↦ ?_⟩
+  change j (L (I f.1, I f.2)) x = _
+  rw [hj, hL]
+  change (if (w x).toAdd.2.2.2 = 0 then I f.1 else I f.2)
+    ((w x).toAdd.1, (w x).toAdd.2.1, (w x).toAdd.2.2.1, PUnit.unit) = _
+  rw [(hw x).2]
+  by_cases hx : 0 < x.val <;> simp only [hx, ite_true, ite_false, one_ne_zero]
+  · exact (hI f.1 _).trans (congrArg (f.1 : ℝ → ℂ) (hw x).1)
+  · exact (hI f.2 _).trans (congrArg (f.2 : ℝ → ℂ) (hw x).1)
+
+/-- Exponential coordinates on either component restrict an elementary Bruhat stage
+of the real units to the elementary Schwartz space of a line. -/
+private theorem iteratedDeriv_exponentialDecay_stage_slice
+    (u : ℝˣ) (q : ℝ ≃ₜ+ ElementaryLieGroup 1 0 0 PUnit.{1})
+    (a : BruhatStructuralPair ℝˣ) (e : ElementaryLCAPresentation a.quotient)
+    (s : SchwartzBruhatStage e) :
+    (fun x ↦ schwartzBruhatStageRealization a e s
+      (u * Units.mk0 (Real.exp (q.symm x)) (Real.exp_pos _).ne')) ∈
+        elementarySchwartzSubmodule 1 0 0 PUnit.{1} := by
+  classical
+  let expU : Multiplicative ℝ →* ℝˣ :=
+    { toFun := fun x ↦ Units.mk0 (Real.exp x.toAdd) (Real.exp_pos _).ne'
+      map_one' := Units.ext Real.exp_zero
+      map_mul' := fun x y ↦ Units.ext (Real.exp_add _ _) }
+  have hc : Continuous expU := Units.isEmbedding_val₀.continuous_iff.mpr Real.continuous_exp
+  have ho : IsOpenMap expU :=
+    (IsOpenUnits.isOpenEmbedding_unitsVal (M := ℝ)).isOpenMap_iff.mpr Real.isOpenEmbedding_exp.isOpenMap
+  have hmem (t : Multiplicative ℝ) : expU t ∈ a.val.1 := by
+    let V : OpenSubgroup ℝˣ := ⟨a.val.1, a.property.1⟩
+    have h : IsClopen ((fun x : ℝ ↦ expU (.ofAdd x)) ⁻¹' (V : Set ℝˣ)) := V.isClopen.preimage hc
+    have h1 : (0 : ℝ) ∈ (fun x : ℝ ↦ expU (.ofAdd x)) ⁻¹' (V : Set ℝˣ) := by
+      change expU 1 ∈ a.val.1
+      rw [map_one]; exact a.val.1.one_mem
+    exact (Set.eq_univ_iff_forall.mp (h.eq_univ ⟨0, h1⟩)) t.toAdd
+  by_cases hu : u ∈ a.val.1
+  · let E := ElementaryLieGroup e.realDim e.torusDim e.latticeRank e.finiteFactor
+    let j : Multiplicative ℝ →* a.val.1 := expU.codRestrict _ hmem
+    let k : a.val.1 →* Multiplicative E := e.equiv.toMulEquiv.toMonoidHom.comp (QuotientGroup.mk' _)
+    let p : ℝ →+ E := MonoidHom.toAdditive (k.comp j)
+    have hkc : Continuous k := e.equiv.continuous.comp QuotientGroup.continuous_mk
+    have hko : IsOpenMap k := e.equiv.toHomeomorph.isOpenMap.comp (QuotientGroup.isOpenMap_coe
+      (N := (OrderDual.ofDual a.val.2).comap a.val.1.subtype))
+    have hpc : Continuous p := hkc.comp (hc.subtype_mk hmem)
+    have hpo : IsOpenMap p := hko.comp (ho.subtype_mk hmem)
+    have hk : p.ker ≤ q.toAddEquiv.toAddMonoidHom.ker := by
+      intro t ht
+      have hqt : (QuotientGroup.mk (j (.ofAdd t)) : a.quotient) = 1 :=
+        e.equiv.injective ((show k (j (.ofAdd t)) = 1 from ht).trans (map_one e.equiv).symm)
+      have hkernel := (a.quotient_mk_eq_one _).mp hqt
+      let m := archimedeanUnitModulation ℝ 1
+      have hm : m (expU (.ofAdd t)) = 1 := compactSubgroup_le_modulation_ker m _ (compact_bruhat_kernel a) hkernel
+      have ht0 := congrArg (fun v : ℝ≥0ˣ ↦ (v.val : ℝ)) hm
+      change ((archimedeanUnitModulation ℝ 1 (expU (.ofAdd t))).val : ℝ) = 1 at ht0
+      rw [archimedeanUnitModulation_apply, pow_one] at ht0
+      change ‖Real.exp t‖ = 1 at ht0
+      rw [Real.norm_of_nonneg (Real.exp_pos t).le] at ht0
+      rw [(Real.exp_eq_one_iff t).mp ht0]
+      exact q.toAddEquiv.toAddMonoidHom.ker.zero_mem
+    obtain ⟨T, hT⟩ := elementarySchwartz_translate_jointly (m := e.realDim) (n := e.torusDim)
+      (r := e.latticeRank) (F := e.finiteFactor)
+    let v : a.val.1 := ⟨u, hu⟩
+    apply elementarySchwartz_of_common_pullback p hpc hpo q.toAddEquiv.toAddMonoidHom q.continuous
+      q.toHomeomorph.isOpenMap q.surjective hk (T ((k v).toAdd, s))
+    intro t
+    rw [hT]
+    change s ((k v).toAdd + p t) = schwartzBruhatStageRealization a e s (u * expU (.ofAdd (q.symm (q t))))
+    rw [q.symm_apply_apply, schwartzBruhatStageRealization_apply, dite_eq_left (a.val.1.mul_mem hu (hmem _))]
+    exact congrArg (fun w ↦ s w.toAdd) (map_mul k v (j (.ofAdd t))).symm
+  · have hz (t : ℝ) : schwartzBruhatStageRealization a e s (u * expU (.ofAdd t)) = 0 := by
+      rw [schwartzBruhatStageRealization_apply, dite_eq_right ((a.val.1.mul_mem_cancel_right (hmem _)).not.mpr hu)]
+    convert (elementarySchwartzSubmodule 1 0 0 PUnit.{1}).zero_mem using 1
+    exact funext fun x ↦ hz (q.symm x)
+
+/-- Stagewise restriction assembles into a continuous linear map, since the
+source has the final seminorm topology and each stage is Fréchet. -/
+private theorem iteratedDeriv_exponentialDecay_elementary_slice (u : ℝˣ)
+    (v : ElementaryLieGroup 1 0 0 PUnit.{1} ≃ₜ+ ℝ) :
+    ∃ A : SchwartzBruhat ℝˣ →L[ℂ] ElementarySchwartz 1 0 0 PUnit.{1},
+      ∀ f x, A f x = f (u * Units.mk0 (Real.exp (v x)) (Real.exp_pos _).ne') := by
+  let E := ElementaryLieGroup 1 0 0 PUnit.{1}
+  let X := ElementarySchwartz 1 0 0 PUnit.{1}
+  let pt (x : E) := u * Units.mk0 (Real.exp (v x)) (Real.exp_pos _).ne'
+  let L := LinearMap.funLeft ℂ ℂ pt
+  have hmem : schwartzBruhatSubmodule ℝˣ ≤ (elementarySchwartzSubmodule 1 0 0 PUnit.{1}).comap L := by
+    unfold schwartzBruhatSubmodule
+    apply iSup_le fun a ↦ iSup_le fun e ↦ ?_
+    rintro _ ⟨s, rfl⟩
+    exact iteratedDeriv_exponentialDecay_stage_slice u v.symm a e s
+  let A : SchwartzBruhat ℝˣ →ₗ[ℂ] X :=
+    (L.comp (schwartzBruhatSubmodule ℝˣ).subtype).codRestrict _ fun f ↦ hmem f.property
+  have hA : Continuous A := by
+    let : PolynormableSpace ℂ X := elementarySchwartz_withSeminorms.toPolynormableSpace
+    apply continuous_out_of_schwartzBruhat
+    intro a e
+    let : BarrelledSpace ℂ (SchwartzBruhatStage e) := isFrechetTVS_barrelled elementarySchwartz_isFrechet
+    apply continuous_toElementarySchwartz_of_eval (A.comp (schwartzBruhatStageCLM a e).toLinearMap)
+    intro x
+    let ev := (LinearMap.proj (pt x)).comp (schwartzBruhatStageRealization a e)
+    exact ⟨⟨ev, continuous_schwartzBruhatStage_eval a e (pt x)⟩, fun _ ↦ rfl⟩
+  exact ⟨⟨A, hA⟩, fun _ _ ↦ rfl⟩
+
+/-- Pulling back along a translate of the exponential gives an ordinary
+Schwartz function, continuously and linearly in the Schwartz–Bruhat test. -/
+private theorem iteratedDeriv_exponentialDecay_slice (u : ℝˣ) :
+    ∃ S : SchwartzBruhat ℝˣ →L[ℂ] 𝓢(ℝ, ℂ),
+      ∀ f (t : ℝ), S f t = f (u * Units.mk0 (Real.exp t) (Real.exp_pos t).ne') := by
+  classical
+  let E := ElementaryLieGroup 1 0 0 PUnit.{1}
+  let X := ElementarySchwartz 1 0 0 PUnit.{1}
+  let line := realBruhatCoordinate
+  let : Unique ((Fin 0 → AddCircle (1 : ℝ)) × (Fin 0 → ℤ) × PUnit.{1}) := uniqueOfSubsingleton 0
+  let v : E ≃ₜ+ ℝ := ContinuousAddEquiv.mk' ((Homeomorph.prodUnique _ _).trans line.toHomeomorph)
+    (fun x y ↦ line.map_add x.1 y.1)
+  refine (iteratedDeriv_exponentialDecay_elementary_slice u v).elim fun A hA ↦ ?_
+  refine (elementarySchwartz_real_equiv PUnit.{1}).elim fun T hT ↦ ?_
+  refine ⟨T.symm.toContinuousLinearMap.comp A, fun f t ↦ ?_⟩
+  let x : E := (line.symm t, 0)
+  have hv : v x = t := line.apply_symm_apply t
+  calc
+    _ = (T (T.symm (A f))) x := ((hT (T.symm (A f)) x).trans (congrArg (⇑(T.symm (A f))) hv)).symm
+    _ = A f x := congrArg (fun g : X ↦ g x) (T.apply_symm_apply (A f))
+    _ = _ := (hA f x).trans (congrArg (fun z : ℝ ↦ f (u * Units.mk0 (Real.exp z) (Real.exp_pos z).ne')) hv)
+
+/-- If the trivial subgroup gives an admissible stage, its inclusion is surjective,
+so the ambient topology is induced by the joint Schwartz–Bruhat twists. -/
+private theorem iteratedDeriv_exponentialDecay_inducing_of_bot {G : Type*}
+    [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) (I : Set ℝ) (hb : IsCompactlyGeneratedGroup (lcaAnnihilator (⊥ : Subgroup G))) :
+    IsInducing (fun (f : ModulatedExponentialDecay m I) (a : I) ↦ modulatedExponentialDecayTwist m I a f) := by
+  let E := ModulatedExponentialDecay m I
+  let K := {k : Subgroup G // IsCompact (k : Set G) ∧
+    IsCompactlyGeneratedGroup (lcaAnnihilator k)}
+  let k : K := ⟨⊥, by rw [Subgroup.coe_bot]; exact isCompact_singleton, hb⟩
+  let S := ModulatedExponentialDecayStage m I k
+  let j : S →ₗ[ℂ] E := modulatedExponentialDecayStageInclusion m I k
+  have hj : Continuous j := (withGeneratingSeminorms_spec _ _).continuous_of_continuous_comp
+    j fun p ↦ p.property k
+  have hsur : Surjective j := fun f ↦ ((modulatedExponentialDecayStageInclusion_range m I k).2 f).mpr
+    fun g u ↦ congrArg f.val (by rw [show u.val = 1 from Subgroup.mem_bot.mp u.property, mul_one])
+  let e : G ⧸ k.val ≃ₜ* G := QuotientGroup.quotientBot.toContinuousMulEquiv fun _ ↦
+    (QuotientGroup.isQuotientMap_mk k.val).isOpen_preimage.symm
+  let P := schwartzBruhatPullbackEquiv e
+  let T (f : E) (a : I) := modulatedExponentialDecayTwist m I a f
+  have hT : Continuous T := continuous_pi (continuous_decay_twist m I)
+  let d (F : I → SchwartzBruhat G) (a : I) := P (F a)
+  have hd : Continuous d := continuous_pi fun a ↦ P.continuous.comp (continuous_apply a)
+  let U (f : S) (a : I) :=
+    modulatedExponentialDecayTwist (quotientModulation m k.val k.property.1) I a f
+  have hfac : d ∘ (T ∘ j) = U := by
+    funext f a
+    apply Subtype.ext
+    funext q
+    exact QuotientGroup.induction_on q fun g ↦ rfl
+  have hU : IsInducing U := modulatedExponentialDecayStage_twists_isInducing m I k
+  have hcomp : IsInducing (d ∘ (T ∘ j)) := Eq.mpr (congrArg IsInducing hfac) hU
+  have hi : IsInducing (T ∘ j) := IsInducing.of_comp (hT.comp hj) hd hcomp
+  refine ⟨le_antisymm hT.le_induced (fun V hV ↦ ?_)⟩
+  obtain ⟨B, hB, hpre⟩ := hi.isOpen_iff.mp (hV.preimage hj)
+  exact isOpen_induced_iff.mpr ⟨B, hB, hsur.preimage_injective hpre⟩
+
+private theorem iteratedDeriv_exponentialDecay_inducing (I : Set ℝ) :
+    IsInducing (fun (f : ModulatedExponentialDecay (archimedeanUnitModulation ℝ 1) I) (a : I) ↦
+      modulatedExponentialDecayTwist (archimedeanUnitModulation ℝ 1) I a f) :=
+  iteratedDeriv_exponentialDecay_inducing_of_bot _ _ iteratedDeriv_exponentialDecay_goodBot
+
+private theorem iteratedDeriv_exponentialDecay_logDeriv (f : ℝ → ℂ) (g : 𝓢(ℝ, ℂ))
+    (b x : ℝ) (hx : x ≠ 0) (hg : ∀ᶠ y in 𝓝 x,
+      f y = (Real.exp (Real.log y * -b) : ℂ) * g (Real.log y)) :
+    ((|x| ^ (b + 1) : ℝ) : ℂ) * deriv f x =
+      ((|x| / x : ℝ) : ℂ) * (deriv g (Real.log x) - (b : ℂ) * g (Real.log x)) := by
+  have hl := Real.hasDerivAt_log hx
+  have hw := ((hl.mul_const (-b)).exp).ofReal_comp
+  have hd := ((g.differentiableAt (x := Real.log x)).hasDerivAt.scomp x hl)
+  have h := ((hw.fun_mul hd).congr_of_eventuallyEq hg).deriv
+  have hcancel : |x| ^ b * Real.exp (Real.log x * -b) = 1 := by
+    rw [Real.rpow_def_of_pos (abs_pos.mpr hx), Real.log_abs, ← Real.exp_add]
+    ring_nf
+    exact Real.exp_zero
+  rw [h, Real.rpow_add_one (abs_ne_zero.mpr hx)]
+  simp only [Complex.ofReal_mul, Complex.ofReal_inv, Complex.ofReal_neg, Complex.ofReal_div,
+    Complex.real_smul, Function.comp_apply]
+  have hc : ((|x| ^ b : ℝ) : ℂ) * (Real.exp (Real.log x * -b) : ℂ) = 1 := by exact_mod_cast hcancel
+  linear_combination ((|x| : ℝ) : ℂ) * (x : ℂ)⁻¹ *
+    (deriv g (Real.log x) - (b : ℂ) * g (Real.log x)) * hc
+
+private theorem iteratedDeriv_exponentialDecay_twistFormula (f : ℝˣ → ℂ)
+    (g : 𝓢(ℝ, ℂ) × 𝓢(ℝ, ℂ)) (b : ℝ) (hg : ∀ x : ℝˣ,
+      (if 0 < x.val then g.1 else g.2) (Real.log x.val) = ((|x.val| ^ b : ℝ) : ℂ) * f x)
+    (x : ℝˣ) :
+    ((|x.val| ^ (b + 1) : ℝ) : ℂ) * deriv zeroExtension(f) x.val =
+      if 0 < x.val then deriv g.1 (Real.log x.val) - b * g.1 (Real.log x.val)
+      else -(deriv g.2 (Real.log x.val) - b * g.2 (Real.log x.val)) := by
+  have hlocal (y : ℝ) (hy : y ≠ 0) : zeroExtension(f) y =
+      (Real.exp (Real.log y * -b) : ℂ) *
+        (if 0 < y then g.1 else g.2) (Real.log y) := by
+    rw [show (if 0 < y then g.1 else g.2) (Real.log y) = _ from hg (Units.mk0 y hy)]
+    simp only [dite_eq_left hy]
+    change f _ = _ * (((|y| ^ b : ℝ) : ℂ) * f _)
+    rw [Real.rpow_def_of_pos (abs_pos.mpr hy), Real.log_abs, ← mul_assoc, ← Complex.ofReal_mul,
+      ← Real.exp_add, show Real.log y * -b + Real.log y * b = 0 by ring]
+    simp
+  by_cases hx : 0 < x.val
+  · rw [ite_eq_left hx]
+    have h := iteratedDeriv_exponentialDecay_logDeriv zeroExtension(f) g.1 b x.val x.ne_zero (by
+      filter_upwards [lt_mem_nhds hx] with y hy
+      simpa only [ite_eq_left hy] using hlocal y hy.ne')
+    simpa only [abs_of_pos hx, div_self x.ne_zero, Complex.ofReal_one, one_mul] using h
+  · rw [ite_eq_right hx]
+    have hx' := lt_of_le_of_ne (le_of_not_gt hx) x.ne_zero
+    have h := iteratedDeriv_exponentialDecay_logDeriv zeroExtension(f) g.2 b x.val x.ne_zero (by
+      filter_upwards [gt_mem_nhds hx'] with y hy
+      simpa only [ite_eq_right hy.not_gt] using hlocal y hy.ne)
+    simpa only [abs_of_neg hx', neg_div, div_self x.ne_zero, Complex.ofReal_neg,
+      Complex.ofReal_one, neg_one_mul] using h
+
+/-- On the two logarithmic profiles of the twist at exponent \(b\), the twist of the
+ordinary derivative at exponent \(b+1\) acts by \(\pm(\partial_t-b)\). -/
+private theorem iteratedDeriv_exponentialDecay_onTwist (b : ℝ) :
+    ∃ T : SchwartzBruhat ℝˣ →L[ℂ] SchwartzBruhat ℝˣ, ∀ (f : ℝˣ → ℂ) (w : SchwartzBruhat ℝˣ),
+      (∀ x, w x = ((|x.val| ^ b : ℝ) : ℂ) * f x) → ∀ x,
+        T w x = ((|x.val| ^ (b + 1) : ℝ) : ℂ) * deriv zeroExtension(f) x.val := by
+  refine iteratedDeriv_exponentialDecay_assemble.elim fun J hJ ↦ ?_
+  refine (iteratedDeriv_exponentialDecay_slice 1).elim fun P hP ↦ ?_
+  refine (iteratedDeriv_exponentialDecay_slice (-1)).elim fun N hN ↦ ?_
+  let B := SchwartzMap.derivCLM ℂ ℂ - (b : ℂ) • ContinuousLinearMap.id ℂ 𝓢(ℝ, ℂ)
+  refine ⟨J.comp ((B.comp P).prod (-(B.comp N))), fun f w hw x ↦ ?_⟩
+  have hchart (y : ℝˣ) :
+      (if 0 < y.val then P w else N w) (Real.log y.val) = ((|y.val| ^ b : ℝ) : ℂ) * f y := by
+    refine Eq.trans ?_ (hw y)
+    split_ifs with hy
+    · refine (hP w _).trans (congrArg w.val ?_)
+      rw [one_mul]
+      exact Units.ext (Real.exp_log hy)
+    · refine (hN w _).trans (congrArg w.val ?_)
+      apply Units.ext
+      change -1 * Real.exp (Real.log y.val) = y.val
+      rw [Real.exp_log_eq_abs y.ne_zero, abs_of_nonpos (le_of_not_gt hy), neg_one_mul, neg_neg]
+  exact (hJ _ x).trans (iteratedDeriv_exponentialDecay_twistFormula f (P w, N w) b hchart x).symm
+
+private theorem iteratedDeriv_exponentialDecay_weight (b : ℝ) (f : ℝˣ → ℂ) (x : ℝˣ) :
+    modulationWeight (archimedeanUnitModulation ℝ 1) b f x = ((|x.val| ^ b : ℝ) : ℂ) * f x := by
+  change (((((archimedeanUnitModulation ℝ 1 x).val : ℝ) ^ b : ℝ) : ℂ) * f x) = _
+  rw [archimedeanUnitModulation_apply, pow_one, Real.norm_eq_abs]
+
+/-- Construct the derivative by untwisting at one output exponent; the coordinate
+identities at all exponents give both membership and continuity. -/
+private theorem iteratedDeriv_exponentialDecay_step (a : ℝ) :
+    ∃ D : 𝓔(ℝ, 1, Ioi a) →L[ℂ] 𝓔(ℝ, 1, Ioi (a + 1)),
+      ∀ f x, (D f).val x = deriv zeroExtension(f.val) x.val := by
+  let n := archimedeanUnitModulation ℝ 1
+  let I := Ioi a
+  let J := Ioi (a + 1)
+  let E := ModulatedExponentialDecay n I
+  let d (f : E) (x : ℝˣ) := deriv zeroExtension(f.val) x.val
+  have htwist (c : J) : ∃ U : E →L[ℂ] SchwartzBruhat ℝˣ,
+      ∀ f, (U f).val = modulationWeight n c (d f) := by
+    let b : I := ⟨c.val - 1, lt_sub_iff_add_lt.mpr c.property⟩
+    let W : E →L[ℂ] SchwartzBruhat ℝˣ := ⟨modulatedExponentialDecayTwist n I b,
+      (continuous_apply b).comp (iteratedDeriv_exponentialDecay_inducing I).continuous⟩
+    refine (iteratedDeriv_exponentialDecay_onTwist b).elim fun T hT ↦ ?_
+    refine ⟨T.comp W, fun f ↦ funext fun x ↦ ?_⟩
+    have h := hT f.val (W f) (fun y ↦ iteratedDeriv_exponentialDecay_weight b f.val y) x
+    refine h.trans ?_
+    rw [show (b : ℝ) + 1 = c.val from sub_add_cancel _ _, iteratedDeriv_exponentialDecay_weight]
+  let c₀ : J := ⟨a + 1 + 1, lt_add_one _⟩
+  let U := (htwist c₀).choose
+  let L : E →ₗ[ℂ] (ℝˣ → ℂ) := (modulationWeight n (-c₀.val)).comp
+    ((schwartzBruhatSubmodule ℝˣ).subtype.comp U.toLinearMap)
+  have hL (f : E) : L f = d f := by
+    funext x
+    change modulationWeight n (-c₀.val) (U f).val x = _
+    rw [(htwist c₀).choose_spec f, iteratedDeriv_exponentialDecay_weight,
+      iteratedDeriv_exponentialDecay_weight, ← mul_assoc, ← Complex.ofReal_mul,
+      ← Real.rpow_add (abs_pos.mpr x.ne_zero), neg_add_cancel, Real.rpow_zero, Complex.ofReal_one, one_mul]
+  let D := L.codRestrict (modulatedExponentialDecaySubmodule n J) fun f ↦
+    (Submodule.mem_iInf _).mpr fun c ↦ Submodule.mem_comap.mpr (by
+      change modulationWeight n c (L f) ∈ schwartzBruhatSubmodule ℝˣ
+      rw [hL f, ← (htwist c).choose_spec f]
+      exact ((htwist c).choose f).property)
+  refine ⟨⟨D, (iteratedDeriv_exponentialDecay_inducing J).continuous_iff.mpr (continuous_pi fun c ↦ ?_)⟩, fun f ↦ congrFun (hL f)⟩
+  exact (htwist c).choose.continuous.congr fun f ↦ Subtype.ext
+    (((htwist c).choose_spec f).trans (congrArg (modulationWeight n c) (hL f).symm))
+
+private theorem iteratedDeriv_exponentialDecay_succ (m : ℕ) (g : ℝˣ → ℂ) (F : ℝ → ℂ)
+    (hg : ∀ x : ℝˣ, g x = iteratedDeriv m F x.val) (x : ℝˣ) :
+    deriv zeroExtension(g) x.val = iteratedDeriv (m + 1) F x.val := by
+  rw [iteratedDeriv_succ]
+  apply EventuallyEq.deriv_eq
+  filter_upwards [isOpen_compl_singleton.mem_nhds (show x.val ∈ ({0}ᶜ : Set ℝ) from x.ne_zero)] with y hy
+  exact (dite_eq_left (show y ≠ 0 from hy)).trans (hg (Units.mk0 y hy))
+
 /-- Paper: Proposition 5.3.3.2(2)(1), p. 249.
 An ordinary derivative of order m shifts the lower endpoint of the decay interval by m. -/
 theorem iteratedDeriv_exponentialDecay (m : ℕ) (a : ℝ) :
     ∃ D : 𝓔(ℝ, 1, Ioi a) →L[ℂ] 𝓔(ℝ, 1, Ioi (a + m)),
-      ∀ f x, (D f).val x = iteratedDeriv m zeroExtension(f.val) x.val := by sorry
+      ∀ f x, (D f).val x = iteratedDeriv m zeroExtension(f.val) x.val := by
+  let P (k : ℕ) (b : ℝ) := ∃ D : 𝓔(ℝ, 1, Ioi a) →L[ℂ] 𝓔(ℝ, 1, Ioi b),
+    ∀ f x, (D f).val x = iteratedDeriv k zeroExtension(f.val) x.val
+  change P m (a + m)
+  induction m with
+  | zero =>
+    rw [Nat.cast_zero, add_zero]
+    refine ⟨ContinuousLinearMap.id ℂ _, fun f x ↦ ?_⟩
+    change f.val x = iteratedDeriv 0 _ x.val
+    simp only [iteratedDeriv_zero, dite_eq_left x.ne_zero]
+    exact congrArg f.val (Units.ext rfl)
+  | succ m ih =>
+    rw [Nat.cast_succ, ← add_assoc]
+    refine ih.elim fun A hA ↦ ?_
+    refine (iteratedDeriv_exponentialDecay_step (a + m)).elim fun B hB ↦ ?_
+    refine ⟨B.comp A, fun f x ↦ ?_⟩
+    refine (hB (A f) x).trans ?_
+    exact iteratedDeriv_exponentialDecay_succ m (A f).val zeroExtension(f.val) (hA f) x
 
 -- TODO(paper-gap): The first Wirtinger operator in the printed weighted shift is
 -- missing the exponent m. The proof uses m derivatives for both operators.

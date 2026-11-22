@@ -408,15 +408,111 @@ theorem globalThetaPolarValues_unique (P : Θ →L[ℂ] ℂ × ℂ)
   exact globalThetaPolarValues_unique_aux _ P _ fun f ↦ (hP f).trans
     (globalThetaPolarValues_mk f).symm
 
+/-- A functional component on a quotient scales by `c` under an action given on
+representatives by `t`, when it does so on representatives. -/
+private theorem globalThetaPolarValues_translate_aux {E H G : Type*} [AddCommGroup E]
+    [Module ℂ E] [TopologicalSpace E] (K : Submodule ℂ E) (π : H → G) (hπ : Surjective π)
+    (ρ : G → (E ⧸ K) → (E ⧸ K)) (t : H → E → E)
+    (hρ : ∀ g f, ρ (π g) (Submodule.Quotient.mk f) = Submodule.Quotient.mk (t g f))
+    (P : (E ⧸ K) →L[ℂ] ℂ × ℂ) (c : G → ℂ) (pr : ℂ × ℂ → ℂ)
+    (hP : ∀ g f, pr (P (K.mkQL (t g f))) = c (π g) * pr (P (K.mkQL f))) (g : G) (x : E ⧸ K) :
+    pr (P (ρ g x)) = c g * pr (P x) := by
+  obtain ⟨g, rfl⟩ := hπ g
+  obtain ⟨f, rfl⟩ := Submodule.Quotient.mk_surjective K x
+  rw [hρ g f]
+  exact hP g f
+
+/-- On representatives, evaluation at zero is unchanged by unit translation. -/
+private theorem globalThetaPolarValues_fst_translate_rep (g : IdeleGroup (𝓞 F) F)
+    (f : ℬ(𝔸[F])) :
+    (globalThetaPolarValues (F := F) ((K𝔽).mkQL (schwartzBruhatUnitTranslate g f))).1 =
+      (fun _ : C𝔽 ↦ (1 : ℂ)) (QuotientGroup.mk g) *
+        (globalThetaPolarValues (F := F) ((K𝔽).mkQL f)).1 := by
+  refine (congrArg Prod.fst (globalThetaPolarValues_mk (F := F)
+    (schwartzBruhatUnitTranslate g f))).trans (Eq.trans ?_ (congrArg (fun z ↦ (1 : ℂ) * z)
+      (congrArg Prod.fst (globalThetaPolarValues_mk (F := F) f))).symm)
+  change schwartzBruhatUnitTranslate g f zeroAdele = 1 * f zeroAdele
+  rw [schwartzBruhatUnitTranslate_apply, mul_zero, one_mul]
+
 /-- Paper: Lemma 5.5.2.1, p. 280.
 Evaluation at zero on the global theta quotient has weight one. -/
 theorem globalThetaPolarValues_fst_translate (g : C𝔽) (x : Θ) :
-    (globalThetaPolarValues (F := F) (ρ𝔽 g x)).1 = (globalThetaPolarValues (F := F) x).1 := by sorry
+    (globalThetaPolarValues (F := F) (ρ𝔽 g x)).1 = (globalThetaPolarValues (F := F) x).1 := by
+  have hρ := (existsUnique_globalThetaAction (F := F)).exists.choose_spec.2
+  have h := globalThetaPolarValues_translate_aux (E := ℬ(𝔸[F])) (K𝔽) QuotientGroup.mk
+    QuotientGroup.mk_surjective (fun g x ↦ ρ𝔽 g x) schwartzBruhatUnitTranslate hρ
+    (globalThetaPolarValues (F := F)) (fun _ ↦ 1) Prod.fst
+    globalThetaPolarValues_fst_translate_rep g x
+  with_reducible_and_instances exact h.trans (one_mul _)
+
+open MeasureTheory in
+/-- Integration against the additive Tamagawa measure scales by the idelic norm under
+multiplication by an inverse idele. -/
+private theorem adeleSchwartzFourier_zero_unitTranslate_integral (u : IdeleGroup (𝓞 F) F)
+    (k : 𝔸[F] → ℂ) :
+    ∫ x, k ((↑u⁻¹ : 𝔸[F]) * x) ∂additiveTamagawaMeasure F =
+      (((ideleNorm F u).val : ℝ) : ℂ) * ∫ x, k x ∂additiveTamagawaMeasure F := by
+  let : MeasurableSpace 𝔸[F] := borel _
+  have : BorelSpace 𝔸[F] := ⟨rfl⟩
+  have hH : (additiveTamagawaMeasure F).IsAddHaarMeasure :=
+    (additiveTamagawaMeasure_existsUnique F).exists.choose_spec.1
+  let d : 𝔸[F] ≃ₜ 𝔸[F] := Homeomorph.smul (u⁻¹ : IdeleGroup (𝓞 F) F)
+  have hset (s : Set 𝔸[F]) :
+      d ⁻¹' s = (fun a : 𝔸[F] ↦ (u : 𝔸[F]) * a) '' s := by
+    ext y
+    constructor
+    · intro hy
+      exact ⟨(↑u⁻¹ : 𝔸[F]) * y, hy, Units.mul_inv_cancel_left u y⟩
+    · rintro ⟨a, ha, rfl⟩
+      change (↑u⁻¹ : 𝔸[F]) * ((u : 𝔸[F]) * a) ∈ s
+      rwa [Units.inv_mul_cancel_left]
+  have hmap : (additiveTamagawaMeasure F).map d =
+      ((ideleNorm F u).val : ENNReal) • additiveTamagawaMeasure F := by
+    refine Measure.ext fun s hs ↦ ?_
+    rw [Measure.map_apply d.continuous.measurable hs, hset s]
+    exact adeleHaar_mul_image F (additiveTamagawaMeasure F) u s hs
+  have h1 : ∫ x, k (d.toMeasurableEquiv x) ∂additiveTamagawaMeasure F =
+      ∫ y, k y ∂((additiveTamagawaMeasure F).map d.toMeasurableEquiv) :=
+    (integral_map_equiv d.toMeasurableEquiv k).symm
+  have h2 : ((additiveTamagawaMeasure F).map d.toMeasurableEquiv) =
+      ((ideleNorm F u).val : ENNReal) • additiveTamagawaMeasure F := hmap
+  rw [h2, integral_smul_measure, ENNReal.coe_toReal, Complex.real_smul] at h1
+  exact h1
+
+/-- Fourier evaluation at zero scales by the idelic norm under unit translation. -/
+private theorem adeleSchwartzFourier_zero_unitTranslate (u : IdeleGroup (𝓞 F) F)
+    (f : ℬ(𝔸[F])) :
+    adeleSchwartzFourier (schwartzBruhatUnitTranslate u f) zeroAdele =
+      (((ideleNorm F u).val : ℝ) : ℂ) * adeleSchwartzFourier f zeroAdele := by
+  have hA := (adeleSchwartzFourier_apply_zero (schwartzBruhatUnitTranslate u f)).2
+  have hB := (adeleSchwartzFourier_apply_zero f).2
+  have hI := adeleSchwartzFourier_zero_unitTranslate_integral u
+    (fun z : 𝔸[F] ↦ f (Multiplicative.ofAdd z))
+  exact hA.trans (hI.trans (congrArg _ hB.symm))
+
+/-- On representatives, Fourier evaluation at zero scales by the idelic norm under unit
+translation. -/
+private theorem globalThetaPolarValues_snd_translate_rep (g : IdeleGroup (𝓞 F) F)
+    (f : ℬ(𝔸[F])) :
+    (globalThetaPolarValues (F := F) ((K𝔽).mkQL (schwartzBruhatUnitTranslate g f))).2 =
+      (fun g : C𝔽 ↦ normℂ(g)) (QuotientGroup.mk g) *
+        (globalThetaPolarValues (F := F) ((K𝔽).mkQL f)).2 := by
+  have hn : normℂ((QuotientGroup.mk g : C𝔽)) = (((ideleNorm F g).val : ℝ) : ℂ) := rfl
+  refine (congrArg Prod.snd (globalThetaPolarValues_mk (F := F)
+    (schwartzBruhatUnitTranslate g f))).trans (Eq.trans ?_ (congrArg (fun z ↦ normℂ((QuotientGroup.mk g : C𝔽)) * z)
+      (congrArg Prod.snd (globalThetaPolarValues_mk (F := F) f))).symm)
+  exact (adeleSchwartzFourier_zero_unitTranslate g f).trans (congrArg (· * _) hn.symm)
 
 /-- Paper: Lemma 5.5.2.1, p. 280.
 Fourier evaluation at zero on the global theta quotient has weight equal to the idelic norm. -/
 theorem globalThetaPolarValues_snd_translate (g : C𝔽) (x : Θ) :
-    (globalThetaPolarValues (F := F) (ρ𝔽 g x)).2 = normℂ(g) * (globalThetaPolarValues (F := F) x).2 := by sorry
+    (globalThetaPolarValues (F := F) (ρ𝔽 g x)).2 = normℂ(g) * (globalThetaPolarValues (F := F) x).2 := by
+  have hρ := (existsUnique_globalThetaAction (F := F)).exists.choose_spec.2
+  have h := globalThetaPolarValues_translate_aux (E := ℬ(𝔸[F])) (K𝔽) QuotientGroup.mk
+    QuotientGroup.mk_surjective (fun g x ↦ ρ𝔽 g x) schwartzBruhatUnitTranslate hρ
+    (globalThetaPolarValues (F := F)) (fun g ↦ normℂ(g)) Prod.snd
+    globalThetaPolarValues_snd_translate_rep g x
+  with_reducible_and_instances exact h
 
 /-- Paper: Lemma 5.5.2.1, p. 280.
 On the trivial norm-one isotype the two polar values can be prescribed independently.
@@ -425,12 +521,55 @@ theorem globalThetaPolarValues_surjective_on_trivial_isotype :
     Surjective (fun x : actionIsotype ((ρ𝔽).comp (m𝔽).ker.subtype) 1 ↦
       globalThetaPolarValues (F := F) x.val) := by sorry
 
+/-- The vanishing criterion on norm-one isotypes, for any action and pair of functionals with
+the weights of Lemma 5.5.2.1 and the range on the trivial isotype. -/
+private theorem globalThetaPolarValues_vanish_on_isotype_iff_aux {E G : Type*}
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] [CommGroup G] [TopologicalSpace G]
+    (N : Subgroup G) (ρ : G →* (E →L[ℂ] E)) (P : E →L[ℂ] ℂ × ℂ) (n : G → ℂ)
+    (hn : ∀ g ∈ N, n g = 1) (hfst : ∀ (g : G) (x : E), (P (ρ g x)).1 = (P x).1)
+    (hsnd : ∀ (g : G) (x : E), (P (ρ g x)).2 = n g * (P x).2)
+    (hsurj : Surjective (fun x : actionIsotype (ρ.comp N.subtype) 1 ↦ P x.val))
+    (ω : PontryaginDual N) :
+    (∀ x : E, (∀ g : N, ρ g.val x = (ω g : ℂ) • x) → P x = 0) ↔ ω ≠ 1 := by
+  constructor
+  · intro h hω
+    obtain ⟨⟨x, hx⟩, hxv⟩ := hsurj (1, 0)
+    have hx' := (mem_actionIsotype _ _ x).mp hx
+    have h0 := h x (fun g ↦ by rw [hω]; simpa using hx' g)
+    have h1 : ((1 : ℂ), (0 : ℂ)) = 0 := hxv.symm.trans h0
+    simpa using congrArg Prod.fst h1
+  · intro hω x hx
+    obtain ⟨g0, hg0⟩ : ∃ g, ω g ≠ 1 := by
+      by_contra hcon
+      push Not at hcon
+      exact hω (ContinuousMonoidHom.ext fun g ↦ (hcon g).trans rfl)
+    have hc : (ω g0 : ℂ) ≠ 1 := fun h ↦ hg0 (Circle.ext (by simpa using h))
+    have h1 := hfst g0.val x
+    have h2 := hsnd g0.val x
+    rw [hx g0] at h1 h2
+    simp only [map_smul, Prod.smul_fst, Prod.smul_snd, smul_eq_mul] at h1 h2
+    rw [hn g0.val g0.2, one_mul] at h2
+    refine Prod.ext ?_ ?_
+    · have : ((ω g0 : ℂ) - 1) * (P x).1 = 0 := by
+        rw [sub_mul, h1, one_mul, sub_self]
+      exact (mul_eq_zero.mp this).resolve_left (sub_ne_zero.mpr hc)
+    · have : ((ω g0 : ℂ) - 1) * (P x).2 = 0 := by
+        rw [sub_mul, h2, one_mul, sub_self]
+      exact (mul_eq_zero.mp this).resolve_left (sub_ne_zero.mpr hc)
+
 /-- Paper: Lemma 5.5.2.1, p. 280.
 Both polar functionals vanish on the norm-one isotype precisely when its character
 is nontrivial. The isotype is viewed inside the ordinary theta quotient. -/
 theorem globalThetaPolarValues_vanish_on_isotype_iff (ω : PontryaginDual (m𝔽).ker) :
     (∀ x : Θ, (∀ g : (m𝔽).ker, ρ𝔽 g.val x = (ω g : ℂ) • x) →
-      globalThetaPolarValues (F := F) x = 0) ↔ ω ≠ 1 := by sorry
+      globalThetaPolarValues (F := F) x = 0) ↔ ω ≠ 1 := by
+  have hn : ∀ g ∈ (m𝔽).ker, normℂ(g) = 1 := fun g hg ↦ by simp [MonoidHom.mem_ker.mp hg]
+  have h1 := globalThetaPolarValues_fst_translate (F := F)
+  have h2 := globalThetaPolarValues_snd_translate (F := F)
+  have h3 := globalThetaPolarValues_surjective_on_trivial_isotype (F := F)
+  with_reducible_and_instances
+    exact globalThetaPolarValues_vanish_on_isotype_iff_aux (E := Θ) (m𝔽).ker ρ𝔽
+      (globalThetaPolarValues (F := F)) (fun g ↦ normℂ(g)) hn h1 h2 h3 ω
 
 -- TODO(paper-gap): In (5.5.2.3) each equality loses the value of the polar
 -- functional on the normalized Gaussian. For ℚ(i) the first value is 1/(2π).
@@ -532,6 +671,74 @@ theorem sLocalHomogeneousThetaTranspose_injective (ω : PontryaginDual (mₛ).ke
     Injective (pull(Kₛω(ω))) := by
   exact sLocalHomogeneousThetaTranspose_injective_aux _
 
+/-- Pullback values along a quotient map are related by `c` when the representatives are
+related by `c` modulo the kernel. -/
+private theorem pull_eq_smul_of_sub_mem {E : Type*} [AddCommGroup E] [Module ℂ E]
+    [TopologicalSpace E] (K : Submodule ℂ E) (T : StrongDual ℂ (E ⧸ K)) (c : ℂ) {a b : E}
+    (h : a - c • b ∈ K) :
+    pull(K) T a = c * pull(K) T b := by
+  have hq : (Submodule.Quotient.mk a : E ⧸ K) = Submodule.Quotient.mk (c • b) :=
+    (Submodule.Quotient.eq K).mpr h
+  change T (Submodule.Quotient.mk a) = c * T (Submodule.Quotient.mk b)
+  rw [hq, Submodule.Quotient.mk_smul, map_smul, smul_eq_mul]
+
+/-- Pullback along the quotient by the kernel of a linear map `θ` multiplies by `c` when
+`θ` does. -/
+private theorem pull_ker_eq_smul_of_map_eq {E G : Type*} [AddCommGroup E] [Module ℂ E]
+    [TopologicalSpace E] [AddCommGroup G] [Module ℂ G] (θ : E →ₗ[ℂ] G)
+    (T : StrongDual ℂ (E ⧸ LinearMap.ker θ)) (c : ℂ) {a b : E} (h : θ a = c • θ b) :
+    pull(LinearMap.ker θ) T a = c * pull(LinearMap.ker θ) T b :=
+  pull_eq_smul_of_sub_mem _ T c (LinearMap.sub_mem_ker_iff.mpr (h.trans (map_smul θ c b).symm))
+
+/-- Pullback along the quotient by the kernel of a linear map `θ` takes equal values on
+representatives with equal images under `θ`. -/
+private theorem pull_ker_eq_of_map_eq {E G : Type*} [AddCommGroup E] [Module ℂ E]
+    [TopologicalSpace E] [AddCommGroup G] [Module ℂ G] (θ : E →ₗ[ℂ] G)
+    (T : StrongDual ℂ (E ⧸ LinearMap.ker θ)) {a b : E} (h : θ a = θ b) :
+    pull(LinearMap.ker θ) T a = pull(LinearMap.ker θ) T b :=
+  (pull_ker_eq_smul_of_map_eq θ T 1 (h.trans (one_smul ℂ (θ b)).symm)).trans (one_mul _)
+
+/-- S-local theta of a unit translate is theta at the inversely translated S-idele. -/
+private theorem sLocalTheta_unitTranslate_apply (g x : Aₛˣ) (f : ℬ(Aₛ)) :
+    sLocalAdelicTheta F S (schwartzBruhatUnitTranslate g f) x =
+      sLocalAdelicTheta F S f (g⁻¹ * x) := by
+  let d := (Units.map ((adeleProjection F S).comp (integralAdelesOutside F S).subtype).toMonoidHom).comp
+    (Units.map (integralAdeleDiagonal F S).toMonoidHom)
+  refine (sLocalAdelicTheta_apply F S (schwartzBruhatUnitTranslate g f) x).trans
+    (Eq.trans ?_ (sLocalAdelicTheta_apply F S f (g⁻¹ * x)).symm)
+  exact tsum_congr fun t ↦ congrArg (fun y ↦ f (Multiplicative.ofAdd y))
+    (mul_left_comm g.inv (d t).val x.val)
+
+/-- The S-local theta function on classes of a unit translate is the theta function on
+classes at the inversely translated class. -/
+private theorem sLocalThetaOnClasses_unitTranslate_apply (u : Aₛˣ) (f : ℬ(Aₛ)) (x : Jₛ) :
+    sLocalAdelicThetaOnClasses F S (schwartzBruhatUnitTranslate u f) x =
+      sLocalAdelicThetaOnClasses F S f ((QuotientGroup.mk u)⁻¹ * x) := by
+  obtain ⟨x, rfl⟩ := QuotientGroup.mk_surjective x
+  have h1 := sLocalAdelicThetaOnClasses_mk F S (schwartzBruhatUnitTranslate u f) x
+  have h2 := sLocalAdelicThetaOnClasses_mk F S f (u⁻¹ * x)
+  have h3 := sLocalTheta_unitTranslate_apply u x f
+  have h4 : (QuotientGroup.mk (u⁻¹ * x) : Jₛ) = (QuotientGroup.mk u)⁻¹ * QuotientGroup.mk x := rfl
+  with_reducible_and_instances
+    exact (h1.trans (h3.trans h2.symm)).trans (congrArg (sLocalAdelicThetaOnClasses F S f) h4)
+
+/-- The homogeneous S-local theta transform multiplies by `ω g` under a unit translate
+representing `g`. -/
+private theorem sLocalHomogeneousTheta_unitTranslate (ω : PontryaginDual (mₛ).ker)
+    (g : (mₛ).ker) (u : Aₛˣ) (hu : QuotientGroup.mk u = g.val) (f : ℬ(Aₛ)) :
+    sLocalHomogeneousAdelicThetaLinearMap F S ω (schwartzBruhatUnitTranslate u f) =
+      (ω g : ℂ) • sLocalHomogeneousAdelicThetaLinearMap F S ω f := by
+  have := (sLocalNormOneQuotientMeasure_normProduct (F := F) (S := S)).1
+  refine ContinuousMap.ext fun x ↦ ?_
+  refine (sLocalHomogeneousAdelicThetaLinearMap_apply ω _ x).trans (Eq.trans ?_
+    ((sLocalHomogeneousAdelicTheta_homogeneous F S _ ω f g x).trans
+      ((ContinuousMap.smul_apply (ω g : ℂ) (sLocalHomogeneousAdelicThetaLinearMap F S ω f) x).trans
+        (smul_eq_mul _ _)).symm))
+  refine Eq.trans ?_ (sLocalHomogeneousAdelicThetaLinearMap_apply ω f _).symm
+  refine congrArg (MeasureTheory.integral _) (funext fun h ↦ ?_)
+  refine congrArg (· * (ω h : ℂ)) ((sLocalThetaOnClasses_unitTranslate_apply u f _).trans ?_)
+  rw [hu, mul_assoc]
+
 /-- Paper: Theorem 5.5.3.2(1), p. 282.
 Distributions pulled back from the homogeneous S-local theta quotient have weight
 `ω` on the norm-one classes.
@@ -541,7 +748,11 @@ theorem sLocalHomogeneousThetaTranspose_homogeneous (ω : PontryaginDual (mₛ).
     (T : D(SLocalHomogeneousThetaSpace F S ω)) (g : (mₛ).ker) (u : Aₛˣ)
     (hu : QuotientGroup.mk u = g.val) (f : ℬ(Aₛ)) :
     pull(Kₛω(ω)) T (schwartzBruhatUnitTranslate u f) =
-      (ω g : ℂ) * pull(Kₛω(ω)) T f := by sorry
+      (ω g : ℂ) * pull(Kₛω(ω)) T f := by
+  have h := sLocalHomogeneousTheta_unitTranslate ω g u hu f
+  with_reducible_and_instances
+    exact pull_ker_eq_smul_of_map_eq (E := ℬ(Aₛ)) (sLocalHomogeneousAdelicThetaLinearMap F S ω)
+      T (ω g : ℂ) h
 
 /-- Paper: Theorem 5.5.3.2(1), p. 282.
 The strong closure of the homogeneous S-local theta transpose range is the closed
@@ -564,7 +775,16 @@ Distributions pulled back from the S-local theta quotient are invariant under th
 projected diagonal S-units, the kernel of the map to S-idele classes. -/
 theorem sLocalThetaTranspose_invariant (T : D(SLocalAdelicThetaSpace F S)) (u : Aₛˣ)
     (hu : (QuotientGroup.mk u : Jₛ) = 1) (f : ℬ(Aₛ)) :
-    pull(Kₛ) T (schwartzBruhatUnitTranslate u f) = pull(Kₛ) T f := by sorry
+    pull(Kₛ) T (schwartzBruhatUnitTranslate u f) = pull(Kₛ) T f := by
+  have h : sLocalAdelicTheta F S (schwartzBruhatUnitTranslate u f) = sLocalAdelicTheta F S f := by
+    refine ContinuousMap.ext fun x ↦ (sLocalTheta_unitTranslate_apply u x f).trans ?_
+    refine sLocalAdelicTheta_factorsThrough F S f ?_
+    change (QuotientGroup.mk' _ (u⁻¹ * x) : Jₛ) = QuotientGroup.mk' _ x
+    rw [map_mul, map_inv]
+    change (QuotientGroup.mk u : Jₛ)⁻¹ * _ = _
+    rw [hu, inv_one, one_mul]
+  with_reducible_and_instances
+    exact pull_ker_eq_of_map_eq (E := ℬ(Aₛ)) (sLocalAdelicTheta F S) T h
 
 /-- Paper: Theorem 5.5.3.2(2), p. 282.
 The strong closure of the ordinary S-local theta transpose range is the closed span
@@ -720,6 +940,32 @@ for the strong dual topologies. -/
 theorem globalHomogeneousThetaTranspose_isEmbedding (ω : PontryaginDual (m𝔽).ker) :
     IsEmbedding (pull(K𝔽ω(ω))) := by sorry
 
+/-- Global theta of a unit translate is theta at the inversely translated idele class. -/
+private theorem globalTheta_unitTranslate_apply (g : IdeleGroup (𝓞 F) F) (f : ℬ(𝔸[F]))
+    (a : C𝔽) :
+    adelicTheta (schwartzBruhatUnitTranslate g f) a = adelicTheta f ((QuotientGroup.mk g)⁻¹ * a) := by
+  induction a using QuotientGroup.induction_on with | H x => ?_
+  change _ = adelicTheta f (QuotientGroup.mk (g⁻¹ * x))
+  rw [adelicTheta_mk (schwartzBruhatUnitTranslate g f) x, adelicTheta_mk f (g⁻¹ * x)]
+  exact tsum_congr fun t ↦ congrArg (fun y ↦ f (Multiplicative.ofAdd y))
+    (mul_left_comm g.inv (algebraMap F 𝔸[F] (t : F)) x.val)
+
+/-- The homogeneous global theta transform multiplies by `ω g` under a unit translate
+representing `g`. -/
+private theorem homogeneousTheta_unitTranslate (ω : PontryaginDual (m𝔽).ker) (g : (m𝔽).ker)
+    (u : IdeleGroup (𝓞 F) F) (hu : QuotientGroup.mk u = g.val) (f : ℬ(𝔸[F])) :
+    homogeneousAdelicThetaLinearMap F ω (schwartzBruhatUnitTranslate u f) =
+      (ω g : ℂ) • homogeneousAdelicThetaLinearMap F ω f := by
+  refine ContinuousMap.ext fun x ↦ ?_
+  refine Eq.trans ?_ ((homogeneousAdelicTheta_homogeneous ω f g x).trans
+    ((ContinuousMap.smul_apply (ω g : ℂ) (homogeneousAdelicThetaLinearMap F ω f) x).trans
+      (smul_eq_mul _ _)).symm)
+  change homogeneousAdelicTheta ω (schwartzBruhatUnitTranslate u f) x =
+    homogeneousAdelicTheta ω f (g.val⁻¹ * x)
+  refine congrArg (MeasureTheory.integral _) (funext fun h ↦ ?_)
+  refine congrArg (· * (ω h : ℂ)) ((globalTheta_unitTranslate_apply u f _).trans ?_)
+  rw [hu, mul_left_comm]
+
 /-- Paper: Theorem 5.5.3.4(1), p. 285.
 The global homogeneous theta transpose takes values in the distributions that
 transform by the specified character on the norm-one classes. -/
@@ -727,7 +973,11 @@ theorem globalHomogeneousThetaTranspose_homogeneous (ω : PontryaginDual (m𝔽)
     (T : D(GlobalHomogeneousThetaSpace F ω)) (g : (m𝔽).ker)
     (u : IdeleGroup (𝓞 F) F) (hu : QuotientGroup.mk u = g.val) (f : ℬ(𝔸[F])) :
     pull(K𝔽ω(ω)) T (schwartzBruhatUnitTranslate u f) =
-      (ω g : ℂ) * pull(K𝔽ω(ω)) T f := by sorry
+      (ω g : ℂ) * pull(K𝔽ω(ω)) T f := by
+  have h := homogeneousTheta_unitTranslate ω g u hu f
+  with_reducible_and_instances
+    exact pull_ker_eq_smul_of_map_eq (E := ℬ(𝔸[F])) (homogeneousAdelicThetaLinearMap F ω)
+      T (ω g : ℂ) h
 
 /-- Paper: Theorem 5.5.3.4(1), p. 285.
 The range of the global homogeneous theta transpose is strongly generated by
@@ -742,12 +992,25 @@ theorem globalHomogeneousThetaTranspose_range (ω : PontryaginDual (m𝔽).ker) 
 -- The global embedding in Theorem 5.5.3.4(2) is already stated as
 -- `globalThetaQuotient_transpose_isEmbedding` in §5.2.
 
+/-- Global theta is invariant under translation by a principal-class unit. -/
+private theorem globalTheta_unitTranslate_of_mk_eq_one (u : IdeleGroup (𝓞 F) F)
+    (hu : (QuotientGroup.mk u : C𝔽) = 1) (f : ℬ(𝔸[F])) :
+    adelicThetaLinearMap F (schwartzBruhatUnitTranslate u f) = adelicThetaLinearMap F f := by
+  refine ContinuousMap.ext fun a ↦ ?_
+  change adelicTheta (schwartzBruhatUnitTranslate u f) a = adelicTheta f a
+  refine (globalTheta_unitTranslate_apply u f a).trans ?_
+  have ha : (QuotientGroup.mk u : C𝔽)⁻¹ * a = a := by rw [hu, inv_one, one_mul]
+  exact congrArg (adelicTheta f) ha
+
 /-- Paper: Theorem 5.5.3.4(2), p. 285.
 Distributions pulled back from the ordinary global theta quotient are invariant under
 principal ideles, the kernel of the map to idele classes. -/
 theorem globalThetaTranspose_invariant (T : D(GlobalAdelicThetaSpace F))
     (u : IdeleGroup (𝓞 F) F) (hu : (QuotientGroup.mk u : C𝔽) = 1) (f : ℬ(𝔸[F])) :
-    pull(K𝔽) T (schwartzBruhatUnitTranslate u f) = pull(K𝔽) T f := by sorry
+    pull(K𝔽) T (schwartzBruhatUnitTranslate u f) = pull(K𝔽) T f := by
+  have h := globalTheta_unitTranslate_of_mk_eq_one u hu f
+  with_reducible_and_instances
+    exact pull_ker_eq_of_map_eq (E := ℬ(𝔸[F])) (adelicThetaLinearMap F) T h
 
 /-- Paper: Theorem 5.5.3.4(2), p. 285.
 The range of the ordinary global theta transpose is the strongly closed span of

@@ -40,6 +40,12 @@ one, because provers will build on it.
 - Every new definition gets at least one sanity lemma (proof `sorry`) that would be false if the
   definition were wrong, for example that a standard example satisfies it or that it agrees with
   the classical notion in a simple case.
+- A new type that carries structure (a function space with its topology, a quotient, a
+  completion) is a `def` with its own instances, each declared once with `inferInstanceAs`, and
+  never an `abbrev` over a large term. State the lemmas that characterize it (membership, the
+  coercion to the underlying space, the defining property of its topology), so that later
+  statements need not unfold it. `AGENTS.md`, "Rules for Lean code", says why: instance terms
+  of nested `abbrev`s grow exponentially and make trivial proofs impossible to check.
 - Check each statement for the usual ways Lean statements go wrong: a dropped or added
   hypothesis; quantifiers in the wrong order; junk values (`x / 0 = 0`, the `tsum` of a
   non-summable family, the integral of a non-integrable function, the derivative of a

@@ -222,7 +222,12 @@ vectors approach one another in the dual norm. A vector pairing to one
 with the first and zero with the second has norm at least the reciprocal
 of their distance. The required primal bound fails. -/
 theorem Printed.spectralLineMarkushevichBasis_primal_normalized_false :
-    ¬ Printed.spectralLineMarkushevichBasis_primal_normalized := by sorry
+    ¬ Printed.spectralLineMarkushevichBasis_primal_normalized := by
+  intro hall
+  apply Printed.spectralLineMarkushevichBasis_false
+  intro F _ _ χ hχ a s hs
+  obtain ⟨hc, h, x, Λ, hb, hΛ, _⟩ := hall F χ hχ a s hs
+  exact ⟨hc, h, x, Λ, hb, hΛ⟩
 
 /-- Paper: Theorem 10.2.2.1, p. 446. The jets indexed by the printed
 interior and boundary multiplicities belong to the reciprocal strip space

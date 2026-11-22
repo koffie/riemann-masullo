@@ -121,7 +121,9 @@ theorem spectralQuotient_comp_spectralProjection (_ha : 0 < a) :
 /-- Paper: Lemma 10.4.1.2, p. 456. The geometric projection has zero
 composition with the quotient map. -/
 theorem spectralQuotient_comp_geometricProjection (_ha : 0 < a) :
-    (Qₐ).comp Pgeom = 0 := by sorry
+    (Qₐ).comp Pgeom = 0 :=
+  ContinuousLinearMap.ext fun u ↦
+    (Submodule.Quotient.mk_eq_zero (Θ₀)).2 ((Θ₀).starProjection_apply_mem u)
 
 /-- Paper: Lemma 10.4.1.2, p. 456. The spectral projection of any representative
 is the unique orthogonal representative, canonically isometric to the quotient
@@ -129,7 +131,18 @@ via Mathlib's quotient equivalence. -/
 theorem spectralQuotient_orthogonalRepresentative (_ha : 0 < a) (u : W₀) :
     let v := (Θ₀).quotientEquivOrthogonal (Qₐ u)
     (v : W₀) = Pspec u ∧
-      ∀ w : (Θ₀).orthogonal, Qₐ w = Qₐ u → w = v := by sorry
+      ∀ w : (Θ₀).orthogonal, Qₐ w = Qₐ u → w = v := by
+  intro v
+  have hu : Qₐ u = Qₐ (Pspec u) := (Submodule.Quotient.eq (Θ₀)).2 (by
+    have h : u - Pspec u = (Θ₀).starProjection u :=
+      sub_eq_of_eq_add ((Θ₀).starProjection_add_starProjection_orthogonal u).symm
+    exact (congrArg (· ∈ Θ₀) h).mpr ((Θ₀).starProjection_apply_mem u))
+  have hv : v = ⟨Pspec u, (Θ₀).orthogonal.starProjection_apply_mem u⟩ :=
+    (congrArg (Θ₀).quotientEquivOrthogonal hu).trans
+      ((Θ₀).quotientEquivOrthogonal_mk _ ((Θ₀).orthogonal.starProjection_apply_mem u))
+  exact ⟨congrArg Subtype.val hv, fun w hw ↦
+    ((Θ₀).quotientEquivOrthogonal_mk (w : W₀) w.2).symm.trans
+      (congrArg (Θ₀).quotientEquivOrthogonal hw)⟩
 
 variable {Λ ε : ℝ} {ρ : IdeleClassGroup (𝓞 F) F → ℝ}
 local notation "innerBand" => (0 < Λ⁻¹ + ε ∧ Λ⁻¹ + ε < Λ - ε)
@@ -215,7 +228,13 @@ theorem spectralProjection_convolution_spectralProjection (φ : BruhatCompactSup
 /-- Paper: Remark 10.4.1.4, p. 458. There is no convolution block from
 the geometric subspace to the spectral subspace. -/
 theorem spectralProjection_convolution_geometricProjection (φ : BruhatCompactSupport C𝔽) :
-    (Pspec).comp ((A(φ)).comp Pgeom) = 0 := by sorry
+    (Pspec).comp ((A(φ)).comp Pgeom) = 0 := by
+  apply ContinuousLinearMap.ext
+  intro u
+  apply Submodule.starProjection_orthogonal_apply_eq_zero
+  apply (Submodule.Quotient.mk_eq_zero _).mp
+  exact hardySobolevTestAction_preserves_globalTheta (F := F) a (hStrip(hα)) hs φ
+    ((Θ₀).starProjection_apply_mem u)
 
 -- The reverse off-diagonal block on p. 458 can be nonzero. Its nonvanishing
 -- cannot be universal in the test function, since the zero test kills every block.
@@ -254,14 +273,32 @@ theorem truncatedConvolution_eq_geometric_add_spectral (hρ : IsModulatedCutoff 
     (φ : BruhatCompactSupport C𝔽) :
     (M(hρ)).comp (A(φ)) =
       geometricTruncatedConvolution a hα hs hρ φ + spectralTruncatedConvolution a hα hs hρ φ :=
-  by sorry
+  by
+  apply ContinuousLinearMap.ext
+  intro u
+  exact (DFunLike.congr_fun (geometricTruncation_add_spectralTruncation (F := F) a hα hs hρ)
+    (A(φ) u)).symm
 
 /-- Paper: (10.4.2.5), p. 459. Spectral projection after convolution is quotient
 convolution transported back along the isometric section of the quotient map. -/
 theorem spectralProjection_convolution_factor (φ : BruhatCompactSupport C𝔽) :
     (Pspec).comp (A(φ)) = ((Θ₀).orthogonal.subtypeL).comp
       ((Θ₀).quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap.comp
-        ((Aₛ(φ)).comp Qₐ)) := by sorry
+        ((Aₛ(φ)).comp Qₐ)) := by
+  let sectionMap : H₀ → W₀ := fun x ↦ ((Θ₀).quotientEquivOrthogonal x).val
+  have proj (w : W₀) : Pspec w = sectionMap ((Θ₀).mkQ w) := by
+    have hzero : (Θ₀).mkQ (Pgeom w) = 0 :=
+      (Submodule.Quotient.mk_eq_zero _).mpr ((Θ₀).starProjection_apply_mem w)
+    have hsame : (Θ₀).mkQ w = (Θ₀).mkQ (Pspec w) := calc
+      _ = (Θ₀).mkQ (Pgeom w + Pspec w) :=
+        congrArg (Θ₀).mkQ ((Θ₀).starProjection_add_starProjection_orthogonal w).symm
+      _ = _ := (map_add (Θ₀).mkQ _ _).trans (by rw [hzero, zero_add])
+    have hrep := (Θ₀).quotientEquivOrthogonal_mk (Pspec w) ((Θ₀).orthogonal.starProjection_apply_mem w)
+    exact (congrArg Subtype.val hrep).symm.trans (congrArg sectionMap hsame.symm)
+  apply ContinuousLinearMap.ext
+  intro u
+  exact (proj (A(φ) u)).trans (congrArg sectionMap
+    (spectralConvolution_mkQ (F := F) a (hStrip(hα)) hs φ u).symm)
 
 -- TODO(paper-gap): The printed unconditional assertion for 0 ≤ s ≤ 1 needs
 -- quotient nuclearity in that range. By (10.4.2.5) and Qₐ Sₐ = Id,
@@ -298,7 +335,23 @@ theorem truncatedConvolution_trace_split (hρ : IsModulatedCutoff m𝔽 Λ ε ρ
     let S := spectralTruncatedConvolution a hα hs hρ φ
     ∃ (hT : IsNuclearOperator T) (hG : IsNuclearOperator G) (hS : IsNuclearOperator S),
       hilbertTrace (H := W₀) ⟨T, hT⟩ =
-        hilbertTrace (H := W₀) ⟨G, hG⟩ + hilbertTrace (H := W₀) ⟨S, hS⟩ := by sorry
+        hilbertTrace (H := W₀) ⟨G, hG⟩ + hilbertTrace (H := W₀) ⟨S, hS⟩ := by
+  intro T G S
+  have heq : T = G + S := truncatedConvolution_eq_geometric_add_spectral (F := F) a hα hs hρ φ
+  have hG : IsNuclearOperator G := geometricTruncatedConvolution_nuclear (F := F) a hα hs hρ _hband φ _hquot
+  have hS : IsNuclearOperator S := spectralTruncatedConvolution_nuclear (F := F) a hα hs hρ φ _hquot
+  clear_value T G S
+  have addTrace {H : Type _} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+      (T G S : H →L[ℂ] H) (heq : T = G + S) (hG : IsNuclearOperator G) (hS : IsNuclearOperator S) :
+      ∃ (hT : IsNuclearOperator T) (hg : IsNuclearOperator G) (hs' : IsNuclearOperator S),
+        hilbertTrace (H := H) ⟨T, hT⟩ = hilbertTrace (H := H) ⟨G, hg⟩ + hilbertTrace (H := H) ⟨S, hs'⟩ := by
+    subst T
+    obtain ⟨L, hL⟩ := hilbertTrace_linear (H := H)
+    let g : nuclearEndomorphisms H := ⟨G, hG⟩
+    let s' : nuclearEndomorphisms H := ⟨S, hS⟩
+    refine ⟨(g + s').property, hG, hS, ?_⟩
+    exact (hL (g + s')).symm.trans ((L.map_add g s').trans (congrArg₂ (· + ·) (hL g) (hL s')))
+  exact addTrace (H := ↥W₀) T G S heq hG hS
 
 /-- Paper: Theorem 10.4.2.2, p. 460. As the cutoff radius tends to infinity
 with width times radius tending to zero, the trace of projection after

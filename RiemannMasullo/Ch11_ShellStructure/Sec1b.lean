@@ -216,10 +216,38 @@ theorem isSLocalCarvingCofinal_iff {S : Finset V} (A : ℕ → SLocalCarvingInde
       obtain ⟨k, hk⟩ := h ⟨{v}, by simpa using hv⟩
       exact Set.mem_iUnion.mpr ⟨k, hk (Finset.mem_singleton_self v)⟩
 
+/-- The finite places of a number field form a countable type: their ideals are
+finitely generated over the countable ring of integers. -/
+private theorem exists_sLocalCarvingCofinal_countable (K : Type*) [Field K] [NumberField K] :
+    Countable (HeightOneSpectrum (𝓞 K)) := by
+  have : Countable K := (Module.finBasis ℚ K).equivFun.injective.countable
+  have : Countable (𝓞 K) := (RingOfIntegers.coe_injective (K := K)).countable
+  have h : Surjective (fun s : Finset (𝓞 K) ↦ Ideal.span (s : Set (𝓞 K))) :=
+    fun I ↦ IsNoetherian.noetherian I
+  have : Countable (Ideal (𝓞 K)) := h.countable
+  exact (show Injective (HeightOneSpectrum.asIdeal (R := 𝓞 K)) from fun _ _ h ↦
+    HeightOneSpectrum.ext h).countable
+
 /-- Paper: Remark 11.1.2.2, p. 480. Every base admits a cofinal sequence
 of finite sets of outside places. -/
 theorem exists_sLocalCarvingCofinal (S : Finset V) :
-    ∃ A : ℕ → SLocalCarvingIndex (F := F) S, IsSLocalCarvingCofinal A := by sorry
+    ∃ A : ℕ → SLocalCarvingIndex (F := F) S, IsSLocalCarvingCofinal A := by
+  have := exists_sLocalCarvingCofinal_countable F
+  let := Encodable.ofCountable V
+  refine ⟨fun k ↦ ⟨((Finset.range k).biUnion fun n ↦ (Encodable.decode₂ V n).toFinset) \ S,
+    Finset.disjoint_sdiff⟩, ?_, ?_⟩
+  · intro a b hab
+    exact Finset.sdiff_subset_sdiff
+      (Finset.biUnion_subset_biUnion_of_subset_left _ (Finset.range_subset_range.2 hab)) le_rfl
+  · ext v
+    simp only [Set.mem_iUnion, Finset.mem_coe, Finset.mem_sdiff, Finset.mem_biUnion,
+      Finset.mem_range, Option.mem_toFinset, Set.mem_compl_iff]
+    constructor
+    · rintro ⟨k, _, h⟩
+      exact h
+    · intro h
+      exact ⟨Encodable.encode v + 1,
+        ⟨Encodable.encode v, Nat.lt_succ_self _, Encodable.mem_decode₂.2 rfl⟩, h⟩
 
 /-- Paper: (11.1.2.12), p. 481. Adding finite-place conditions gives a smaller
 cutoff stage in the inclusion order.
@@ -244,13 +272,21 @@ check for the sequence-independent definition. -/
 theorem sLocalCarvingLimit_eq_iInf {S : Finset V} (s : ℝ) (ω : PontryaginDual C₁)
     (J : Set ℝ) (hJ : MeasurableSet J)
     (A : ℕ → SLocalCarvingIndex (F := F) S) (_hA : IsSLocalCarvingCofinal A) :
-    sLocalCarvingLimit s ω S J hJ = ⨅ k, sLocalCutoffCarving s ω (A k).val J hJ := by sorry
+    sLocalCarvingLimit s ω S J hJ = ⨅ k, sLocalCutoffCarving s ω (A k).val J hJ := by
+  unfold sLocalCarvingLimit
+  apply le_antisymm
+  · exact le_iInf fun k ↦ iInf_le _ (A k)
+  · refine le_iInf fun i ↦ ?_
+    obtain ⟨k, hik⟩ := ((isSLocalCarvingCofinal_iff A).1 _hA).2 i
+    exact (iInf_le _ k).trans (sLocalCutoffCarving_antitone s ω J hJ hik)
 
 /-- Paper: Theorem 11.1.2.1(1), p. 480. The cofinal limit is closed in the
 ambient weighted L² space. -/
 theorem isClosed_sLocalCarvingLimit (S : Finset V) (s : ℝ) (ω : PontryaginDual C₁)
     (J : Set ℝ) (hJ : MeasurableSet J) :
-    IsClosed (sLocalCarvingLimit s ω S J hJ : Set (W(s))) := by sorry
+    IsClosed (sLocalCarvingLimit s ω S J hJ : Set (W(s))) := by
+  rw [sLocalCarvingLimit, Submodule.coe_iInf]
+  exact isClosed_iInter fun i ↦ Submodule.isClosed_topologicalClosure _
 
 /-- Paper: Theorem 11.1.2.1(1), p. 480. The cofinal limit lies in the image
 of the ambient isotype under the cutoff. -/
@@ -401,7 +437,23 @@ The argument in print establishes density there. -/
 theorem sLocalCutoffCarving_eq_closure_map (s : ℝ) (ω : PontryaginDual C₁)
     (T : Finset V) (J : Set ℝ) (hJ : MeasurableSet J) :
     sLocalCutoffCarving s ω T J hJ =
-      ((sLocalUncutCarving s ω T).map (M(s, J, hJ)).toLinearMap).topologicalClosure := by sorry
+      ((sLocalUncutCarving s ω T).map (M(s, J, hJ)).toLinearMap).topologicalClosure := by
+  have closureImage {E G ι : Type _} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+      [ContinuousAdd E] [ContinuousSMul ℂ E] [AddCommGroup G] [Module ℂ G] [TopologicalSpace G]
+      [ContinuousAdd G] [ContinuousSMul ℂ G] (L : E →L[ℂ] G) (f : ι → E) :
+      (Submodule.span ℂ (range (fun i ↦ L (f i)))).topologicalClosure =
+        ((Submodule.span ℂ (range f)).topologicalClosure.map L.toLinearMap).topologicalClosure := by
+    let B := Submodule.span ℂ (range f)
+    have h : Submodule.span ℂ (range (fun i ↦ L (f i))) = B.map L.toLinearMap :=
+      (congrArg (Submodule.span ℂ) (Set.range_comp' (L : E → G) f)).trans
+        (Submodule.map_span L.toLinearMap (range f)).symm
+    refine (congrArg Submodule.topologicalClosure h).trans (le_antisymm ?_ ?_)
+    · exact Submodule.topologicalClosure_mono (Submodule.map_mono B.le_topologicalClosure)
+    · exact Submodule.topologicalClosure_minimal _ (B.topologicalClosure_map L) (Submodule.isClosed_topologicalClosure _)
+  dsimp only [sLocalCutoffCarving, sLocalUncutCarving, IdeleClassZeroLineSobolev, CompactIntervalSobolev, Bool.false_eq_true, ite_false]
+  with_reducible_and_instances
+    exact closureImage (E := Lp ℂ 2 (ν(s))) (G := Lp ℂ 2 (ν(s))) (ι := ℬ₀)
+      (M(s, J, hJ)) (fun g : ℬ₀ ↦ θ(s, ω, P(T, g)))
 
 -- TODO(paper-gap): For (11.1.2.11), closed range of the cutoff on the ambient space
 -- does not establish closed range on each completed uncut stage.

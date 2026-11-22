@@ -3203,6 +3203,248 @@ theorem finiteEigendistributions_rank (v : V) (c : QuasiCharacter (v.adicComplet
     (rank_one_of_unique_normalization _ _ ((finiteEigendistribution_normalized v χ).choose s)
       ((finiteEigendistribution_normalized v χ).choose_spec.2.1 s))
 
+/-- Paper: Theorem 3.4.3.3(1), p. 153. At an infinite place, an eigendistribution of
+weight `χ‖·‖^s` (in the norm-twist chart of the unitary character `χ`) that vanishes on the
+standard Gaussian of `χ` is zero. This is the uniqueness half of the one-dimensionality of the
+eigendistribution space, combined with the fact that its generator does not vanish on the
+Gaussian (Weil, Kudla Thm. 3.4). -/
+theorem infiniteEigendistribution_eq_zero_of_gaussian (w : InfinitePlace F)
+    (χ : PontryaginDual w.Completionˣ) (s : ℂ) (T : StrongDual ℂ ℬ(w.Completion))
+    (hT : T ∈ schwartzBruhatEigendistributions (quasiCharacterNormTwist (infiniteNorm(w))
+      (continuous_infiniteLocalModule w) ((circleToComplex).comp χ) s))
+    (hG : T (infiniteStandardGaussian w χ) = 0) : T = 0 := by
+  sorry
+
+/-- Paper: Theorem 3.4.3.3(1), (3.4.3.13), p. 153, with Lemma 3.3.2.1, p. 138. At an
+infinite place the quotient of the local zeta function by the local Euler factor extends to an
+entire family of distributions: there is `E : ℂ → StrongDual` with `s ↦ E s f` entire for every
+test function `f`, such that off a discrete set of exponents `s` (the same for all `f`) the
+meromorphic Z-function at `χ‖·‖^s` equals the Euler factor times `E s f`. -/
+theorem infiniteEigendistribution_entire_family (w : InfinitePlace F)
+    (χ : PontryaginDual w.Completionˣ) :
+    let twist := quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w)
+      ((circleToComplex).comp χ)
+    ∃ E : ℂ → StrongDual ℂ ℬ(w.Completion), (∀ f, AnalyticOnNhd ℂ (fun s ↦ E s f) univ) ∧
+      ∀ᶠ s : ℂ in codiscrete ℂ, ∀ f : ℬ(w.Completion),
+        infiniteLocalIdelicZFunction w f (twist s) = infiniteLocalEulerFactor w (twist s) * E s f := by
+  sorry
+
+/-- Paper: Definition 3.4.3.2 and the line after (3.4.3.9), p. 152. On the half-plane
+`0 < re s`, the local zeta function of the standard Gaussian of `χ` at `χ‖·‖^s` is the local
+Euler factor (the real or complex gamma factor).
+Deviation: The complex Gaussian uses the conjugated monomial of `infiniteStandardGaussianValue`. -/
+theorem infiniteLocalIdelicZFunction_standardGaussian (w : InfinitePlace F)
+    (χ : PontryaginDual w.Completionˣ) (s : ℂ) (hs : 0 < s.re) :
+    let twist := quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w)
+      ((circleToComplex).comp χ)
+    infiniteLocalIdelicZFunction w (infiniteStandardGaussian w χ) (twist s) =
+      infiniteLocalEulerFactor w (twist s) := by
+  sorry
+
+/-- Paper: Definition 3.4.3.1, p. 151, for the local zeta integral (3.3.2.1), p. 137. On the
+half-plane `0 < re s`, translating the test function by a unit `g` (`f ↦ f(g⁻¹ ·)`)
+multiplies the local zeta function at `c = χ‖·‖^s` by `c g`: by invariance of the
+multiplicative Haar measure. -/
+theorem infiniteLocalIdelicZFunction_unitTranslate (w : InfinitePlace F)
+    (χ : PontryaginDual w.Completionˣ) (g : w.Completionˣ) (f : ℬ(w.Completion)) (s : ℂ)
+    (hs : 0 < s.re) :
+    let twist := quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w)
+      ((circleToComplex).comp χ)
+    infiniteLocalIdelicZFunction w (schwartzBruhatUnitTranslate g f) (twist s) =
+      twist s g * infiniteLocalIdelicZFunction w f (twist s) := by
+  intro twist
+  let : MeasurableSpace w.Completion := borel _
+  let : BorelSpace w.Completion := ⟨rfl⟩
+  let : BorelSpace w.Completionˣ := borelSpace_units_of_continuousInv₀ _
+  let : (infiniteLocalMultiplicativeTamagawaMeasure F w).IsHaarMeasure :=
+    infiniteLocalMultiplicativeTamagawaMeasure_haar F w
+  have hs' : s ∈ Complex.re ⁻¹' Ioi (0 : ℝ) := hs
+  have e1 := infiniteLocalIdelicZFunction_eq_integral w (schwartzBruhatUnitTranslate g f) χ hs'
+  have e2 := infiniteLocalIdelicZFunction_eq_integral w f χ hs'
+  refine e1.trans (Eq.trans ?_ (congrArg (twist s g * ·) e2.symm))
+  let c := twist s
+  let b (u : w.Completionˣ) := f (Multiplicative.ofAdd u.val) * c u
+  change (∫ u : w.Completionˣ, f (Multiplicative.ofAdd ((↑g⁻¹ : w.Completion) * u.val)) * c u
+    ∂(infiniteLocalMultiplicativeTamagawaMeasure F w)) =
+      c g * ∫ u, b u ∂(infiniteLocalMultiplicativeTamagawaMeasure F w)
+  have he (u : w.Completionˣ) : c g * c (g⁻¹ * u) = c u :=
+    (c.map_mul g (g⁻¹ * u)).symm.trans (congrArg c (mul_inv_cancel_left g u))
+  have e (u : w.Completionˣ) : f (Multiplicative.ofAdd ((↑g⁻¹ : w.Completion) * u.val)) * c u =
+      c g * b (g⁻¹ * u) :=
+    (congrArg (f (Multiplicative.ofAdd (g⁻¹ * u).val) * ·) (he u).symm).trans (mul_left_comm _ _ _)
+  exact (integral_congr_ae (ae_of_all _ e)).trans
+    ((integral_const_mul (c g) _).trans (congrArg (c g * ·)
+      (integral_mul_left_eq_self (μ := infiniteLocalMultiplicativeTamagawaMeasure F w) b (g⁻¹))))
+
+/-- Paper: Equation (3.3.1.25), p. 134. On the half-plane `0 < re s` the infinite local
+Euler factor at `χ‖·‖^s` does not vanish: it is a gamma factor evaluated at a point of
+positive real part. -/
+theorem infiniteLocalEulerFactor_twist_ne_zero (w : InfinitePlace F)
+    (χ : PontryaginDual w.Completionˣ) (s : ℂ) (hs : 0 < s.re) :
+    infiniteLocalEulerFactor w (quasiCharacterNormTwist (infiniteNorm(w))
+      (continuous_infiniteLocalModule w) ((circleToComplex).comp χ) s) ≠ 0 := by
+  let c := quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w)
+    ((circleToComplex).comp χ) s
+  have hval (g : w.Completionˣ) : c g = (χ g : ℂ) * ((((infiniteNorm(w) g : ℝ≥0) : ℝ)) : ℂ) ^ s := rfl
+  have hnorm (g : w.Completionˣ) : ‖c g‖ = (((infiniteNorm(w) g : ℝ≥0) : ℝ)) ^ s.re := by
+    have hpos : (0 : ℝ) < (((infiniteNorm(w) g : ℝ≥0) : ℝ)) :=
+      NNReal.coe_pos.mpr (pos_iff_ne_zero.mpr (Units.ne_zero _))
+    rw [hval, norm_mul, Circle.norm_coe, one_mul, Complex.norm_cpow_eq_rpow_re_of_pos hpos]
+  have key (b t : ℝ) (hb : 1 < b) (h : b ^ s.re = b ^ t) : 0 < t := by
+    have h1 : b ^ (0 : ℝ) < b ^ t := by rw [Real.rpow_zero, ← h]; exact Real.one_lt_rpow hb hs
+    exact (Real.rpow_lt_rpow_left_iff hb).mp h1
+  by_cases hw : w.IsReal
+  · simp only [infiniteLocalEulerFactor, hw, ↓reduceDIte]
+    apply Complex.Gammaℝ_ne_zero_of_re_pos
+    have hp := (realLocalEulerParameters w hw c).exists.choose_spec
+    let x : ℝˣ := Units.mk0 2 two_ne_zero
+    have hn : ‖((InfinitePlace.Completion.ringEquivRealOfIsReal hw).symm (x : ℝ) : w.Completion)‖ =
+        ‖(x : ℝ)‖ :=
+      (InfinitePlace.Completion.isometryEquivRealOfIsReal hw).symm.isometry.norm_map_of_map_zero
+        (map_zero (InfinitePlace.Completion.ringEquivRealOfIsReal hw).symm) (x : ℝ)
+    have hm : (((infiniteNorm(w) (Units.map (InfinitePlace.Completion.ringEquivRealOfIsReal hw).symm.toMonoidHom x) : ℝ≥0) : ℝ)) =
+        ‖(x : ℝ)‖ := by
+      simp [InfinitePlace.mult, hw, hn]
+    have h0 := hp x
+    have hx0 : (0 : ℝ) < (x : ℝ) := by norm_num [x]
+    rw [if_pos hx0, one_pow, mul_one] at h0
+    have h1 := congrArg norm h0
+    rw [hnorm, hm, Complex.norm_cpow_eq_rpow_re_of_pos (norm_pos_iff.mpr x.ne_zero)] at h1
+    have hx1 : 1 < ‖(x : ℝ)‖ := by norm_num [x]
+    have hre := key _ _ hx1 h1
+    rw [Complex.add_re, Complex.natCast_re]
+    positivity
+  · have hc : w.IsComplex := InfinitePlace.not_isReal_iff_isComplex.mp hw
+    simp only [infiniteLocalEulerFactor, hw, ↓reduceDIte]
+    refine div_ne_zero ?_ two_ne_zero
+    have hp := (complexLocalEulerParameters w hc c).exists.choose_spec
+    let x : ℂˣ := Units.mk0 2 two_ne_zero
+    have hn : ‖((InfinitePlace.Completion.ringEquivComplexOfIsComplex hc).symm (x : ℂ) : w.Completion)‖ =
+        ‖(x : ℂ)‖ :=
+      (InfinitePlace.Completion.isometryEquivComplexOfIsComplex hc).symm.isometry.norm_map_of_map_zero
+        (map_zero (InfinitePlace.Completion.ringEquivComplexOfIsComplex hc).symm) (x : ℂ)
+    have hm : (((infiniteNorm(w) (Units.map (InfinitePlace.Completion.ringEquivComplexOfIsComplex hc).symm.toMonoidHom x) : ℝ≥0) : ℝ)) =
+        ‖(x : ℂ)‖ ^ 2 := by
+      simp [InfinitePlace.mult, hw, hn]
+    have h0 := hp x
+    have hx2 : (x : ℂ) / (‖(x : ℂ)‖ : ℂ) = 1 := by norm_num [x]
+    rw [hx2, one_zpow, mul_one] at h0
+    have h1 := congrArg norm h0
+    rw [hnorm, hm, Complex.norm_cpow_eq_rpow_re_of_pos (pow_pos (norm_pos_iff.mpr x.ne_zero) 2)] at h1
+    have hx1 : 1 < ‖(x : ℂ)‖ ^ 2 := by norm_num [x]
+    have hre := key _ _ hx1 h1
+    have hre' : 0 < ((complexLocalEulerParameters w hc c).exists.choose.1 +
+        ((complexLocalEulerParameters w hc c).exists.choose.2.natAbs : ℂ) / 2).re := by
+      rw [Complex.add_re, Complex.div_ofNat_re, Complex.natCast_re]
+      positivity
+    rw [Complex.Gammaℂ_def]
+    refine mul_ne_zero (mul_ne_zero two_ne_zero ?_) (Complex.Gamma_ne_zero_of_re_pos hre')
+    have hpi : (2 * (Real.pi : ℂ)) ≠ 0 := mul_ne_zero two_ne_zero (Complex.ofReal_ne_zero.mpr Real.pi_ne_zero)
+    exact fun h ↦ hpi ((Complex.cpow_eq_zero_iff _ _).mp h).1
+
+private theorem infiniteTwist_eval_analytic (w : InfinitePlace F) (χ : PontryaginDual w.Completionˣ)
+    (g : w.Completionˣ) :
+    AnalyticOnNhd ℂ (fun z : ℂ ↦ quasiCharacterNormTwist (infiniteNorm(w))
+      (continuous_infiniteLocalModule w) ((circleToComplex).comp χ) z g) univ := by
+  change AnalyticOnNhd ℂ (fun z : ℂ ↦ (χ g : ℂ) *
+    ((((infiniteNorm(w) g : ℝ≥0) : ℝ) : ℂ)) ^ z) univ
+  have hn : ((((infiniteNorm(w) g : ℝ≥0) : ℝ) : ℂ)) ≠ 0 :=
+    Complex.ofReal_ne_zero.mpr (NNReal.coe_ne_zero.mpr (Units.ne_zero _))
+  apply DifferentiableOn.analyticOnNhd _ isOpen_univ
+  fun_prop (disch := simp [hn])
+
+private theorem frequently_good_near_two {P : ℂ → Prop} (hP : ∀ᶠ s : ℂ in codiscrete ℂ, P s) :
+    ∃ᶠ z : ℂ in 𝓝[≠] 2, P z ∧ 0 < z.re := by
+  have hnear : ∀ᶠ z : ℂ in 𝓝[≠] 2, 0 < z.re :=
+    (Complex.continuous_re.continuousAt.eventually (lt_mem_nhds (by norm_num : 0 < (2 : ℂ).re))).filter_mono
+      nhdsWithin_le_nhds
+  have hP2 : ∀ᶠ z : ℂ in 𝓝[≠] 2, P z := hP.filter_mono (nhdsNE_le_codiscrete 2)
+  exact (hP2.and hnear).frequently
+
+private theorem entire_eq_of_frequently {f g : ℂ → ℂ} (hf : AnalyticOnNhd ℂ f univ)
+    (hg : AnalyticOnNhd ℂ g univ) (h : ∃ᶠ z : ℂ in 𝓝[≠] 2, f z = g z) (s : ℂ) : f s = g s :=
+  hf.eqOn_of_preconnected_of_frequently_eq hg isPreconnected_univ (mem_univ 2) h (mem_univ s)
+
+private theorem infiniteFamily_holomorphic (w : InfinitePlace F)
+    (E : ℂ → StrongDual ℂ ℬ(w.Completion)) (hE : ∀ f, AnalyticOnNhd ℂ (fun s ↦ E s f) univ) :
+    VectorHolomorphicOn E univ := by
+  have hi := InfinitePlace.Completion.isometry_extensionEmbedding w
+  let : ProperSpace w.Completion := LipschitzWith.properSpace hi.isClosedEmbedding.isProperMap hi.lipschitzWith
+  let : SecondCountableTopology (Multiplicative w.Completion) :=
+    (hi.isEmbedding.secondCountableTopology : SecondCountableTopology w.Completion)
+  let : LocallyCompactSpace (Multiplicative w.Completion) :=
+    (inferInstance : LocallyCompactSpace w.Completion)
+  exact sbDual_holomorphic_of_analytic_eval (G := Multiplicative w.Completion) E hE
+
+private theorem infiniteFamily_gaussian (w : InfinitePlace F) (χ : PontryaginDual w.Completionˣ)
+    (E : ℂ → StrongDual ℂ ℬ(w.Completion)) (hE : ∀ f, AnalyticOnNhd ℂ (fun s ↦ E s f) univ)
+    (hZ : ∀ᶠ s : ℂ in codiscrete ℂ, ∀ f : ℬ(w.Completion),
+      infiniteLocalIdelicZFunction w f (quasiCharacterNormTwist (infiniteNorm(w))
+        (continuous_infiniteLocalModule w) ((circleToComplex).comp χ) s) =
+      infiniteLocalEulerFactor w (quasiCharacterNormTwist (infiniteNorm(w))
+        (continuous_infiniteLocalModule w) ((circleToComplex).comp χ) s) * E s f) (s : ℂ) :
+    E s (infiniteStandardGaussian w χ) = 1 := by
+  refine entire_eq_of_frequently (hE _) analyticOnNhd_const ((frequently_good_near_two hZ).mono ?_) s
+  intro z hz
+  have h1 := hz.1 (infiniteStandardGaussian w χ)
+  have h2 := infiniteLocalIdelicZFunction_standardGaussian w χ z hz.2
+  have hL := infiniteLocalEulerFactor_twist_ne_zero w χ z hz.2
+  exact mul_left_cancel₀ hL (h1.symm.trans (h2.trans (mul_one _).symm))
+
+private theorem iff_of_normalized_generator {E : Type*} [AddCommGroup E] [Module ℂ E]
+    [TopologicalSpace E] (W : Submodule ℂ (StrongDual ℂ E)) (x : E) (D : StrongDual ℂ E)
+    (huniq : ∀ T ∈ W, T x = 0 → T = 0) (hmem : D ∈ W) (hD : D x = 1) (T : StrongDual ℂ E) :
+    T = D ↔ T ∈ W ∧ T x = 1 := by
+  constructor
+  · rintro rfl
+    exact ⟨hmem, hD⟩
+  · rintro ⟨hT, hTx⟩
+    have h0 : (T - D) x = 0 := by
+      rw [ContinuousLinearMap.sub_apply, hTx, hD, sub_self]
+    exact sub_eq_zero.mp (huniq _ (W.sub_mem hT hmem) h0)
+
+private theorem eq_mul_of_codiscrete_of_right {A B c L Z₁ Z₂ : ℂ → ℂ} (hA : AnalyticOnNhd ℂ A univ)
+    (hB : AnalyticOnNhd ℂ B univ) (hc : AnalyticOnNhd ℂ c univ)
+    (hZ : ∀ᶠ s : ℂ in codiscrete ℂ, Z₁ s = L s * A s ∧ Z₂ s = L s * B s)
+    (hL : ∀ s : ℂ, 0 < s.re → L s ≠ 0) (h₃ : ∀ s : ℂ, 0 < s.re → Z₁ s = c s * Z₂ s) (s : ℂ) :
+    A s = c s * B s := by
+  refine entire_eq_of_frequently hA (hc.mul hB) ((frequently_good_near_two hZ).mono fun z hz ↦ ?_) s
+  refine mul_left_cancel₀ (hL z hz.2) ?_
+  rw [← hz.1.1, h₃ z hz.2, hz.1.2]
+  ring
+
+private theorem infiniteFamily_eigen (w : InfinitePlace F) (χ : PontryaginDual w.Completionˣ)
+    (E : ℂ → StrongDual ℂ ℬ(w.Completion)) (hE : ∀ f, AnalyticOnNhd ℂ (fun s ↦ E s f) univ)
+    (hZ : ∀ᶠ s : ℂ in codiscrete ℂ, ∀ f : ℬ(w.Completion),
+      infiniteLocalIdelicZFunction w f ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s) = infiniteLocalEulerFactor w ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s) * E s f)
+    (g : w.Completionˣ) (f : ℬ(w.Completion)) (s : ℂ) :
+    E s (schwartzBruhatUnitTranslate g f) = (quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s g * E s f :=
+  eq_mul_of_codiscrete_of_right (A := fun s ↦ E s (schwartzBruhatUnitTranslate g f))
+    (B := fun s ↦ E s f) (c := fun s ↦ (quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s g) (L := fun s ↦ infiniteLocalEulerFactor w ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s))
+    (Z₁ := fun s ↦ infiniteLocalIdelicZFunction w (schwartzBruhatUnitTranslate g f) ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s))
+    (Z₂ := fun s ↦ infiniteLocalIdelicZFunction w f ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s))
+    (hE _) (hE f) (infiniteTwist_eval_analytic w χ g) (hZ.mono fun _ h ↦ ⟨h _, h f⟩)
+    (fun s hs ↦ infiniteLocalEulerFactor_twist_ne_zero w χ s hs)
+    (fun s hs ↦ infiniteLocalIdelicZFunction_unitTranslate w χ g f s hs) s
+
+private theorem infiniteFamily_mem (w : InfinitePlace F) (χ : PontryaginDual w.Completionˣ)
+    (E : ℂ → StrongDual ℂ ℬ(w.Completion)) (hE : ∀ f, AnalyticOnNhd ℂ (fun s ↦ E s f) univ)
+    (hZ : ∀ᶠ s : ℂ in codiscrete ℂ, ∀ f : ℬ(w.Completion),
+      infiniteLocalIdelicZFunction w f ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s) = infiniteLocalEulerFactor w ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s) * E s f)
+    (s : ℂ) :
+    E s ∈ schwartzBruhatEigendistributions ((quasiCharacterNormTwist (infiniteNorm(w)) (continuous_infiniteLocalModule w) ((circleToComplex).comp χ)) s) :=
+  fun g f ↦ infiniteFamily_eigen w χ E hE hZ g f s
+
+private theorem normalized_assembly {E : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    (W : ℂ → Submodule ℂ (StrongDual ℂ E)) (x : E) (A Hol Q : (ℂ → StrongDual ℂ E) → Prop)
+    (hex : ∃ D, A D ∧ Q D) (hHol : ∀ D, A D → Hol D)
+    (hmem : ∀ D, A D → Q D → ∀ s, D s ∈ W s) (hone : ∀ D, A D → Q D → ∀ s, D s x = 1)
+    (huniq : ∀ s, ∀ T ∈ W s, T x = 0 → T = 0) :
+    ∃ D, Hol D ∧ (∀ s T, T = D s ↔ T ∈ W s ∧ T x = 1) ∧ Q D := by
+  obtain ⟨D, hA, hQ⟩ := hex
+  exact ⟨D, hHol D hA, fun s T ↦ iff_of_normalized_generator (W s) x (D s) (huniq s)
+    (hmem D hA hQ s) (hone D hA hQ s) T, hQ⟩
+
 /-- Paper: Theorem 3.4.3.3(1), p. 153. At an infinite place the normalized
 eigendistribution evaluates to one on the Gaussian and varies holomorphically.
 Multiplication by the Euler factor recovers the local zeta function.
@@ -3218,7 +3460,17 @@ theorem infiniteEigendistribution_normalized (w : InfinitePlace F)
           T (infiniteStandardGaussian w χ) = 1) ∧
       ∀ᶠ s : ℂ in codiscrete ℂ, ∀ f : ℬ(w.Completion),
         infiniteLocalIdelicZFunction w f (twist s) =
-          infiniteLocalEulerFactor w (twist s) * D s f := by sorry
+          infiniteLocalEulerFactor w (twist s) * D s f := by
+  intro twist
+  exact normalized_assembly (fun s ↦ schwartzBruhatEigendistributions (twist s))
+    (infiniteStandardGaussian w χ) (fun E ↦ ∀ f, AnalyticOnNhd ℂ (fun s ↦ E s f) univ)
+    (fun D ↦ VectorHolomorphicOn D univ)
+    (fun D ↦ ∀ᶠ s : ℂ in codiscrete ℂ, ∀ f : ℬ(w.Completion),
+      infiniteLocalIdelicZFunction w f (twist s) = infiniteLocalEulerFactor w (twist s) * D s f)
+    (infiniteEigendistribution_entire_family w χ) (fun D hD ↦ infiniteFamily_holomorphic w D hD)
+    (fun D hD hZ s ↦ infiniteFamily_mem w χ D hD hZ s)
+    (fun D hD hZ s ↦ infiniteFamily_gaussian w χ D hD hZ s)
+    (fun s T hT h ↦ infiniteEigendistribution_eq_zero_of_gaussian w χ s T hT h)
 
 /-- Paper: Theorem 3.4.3.3(1), pp. 152–153. At an infinite place each
 quasi-character has a one-dimensional eigendistribution space. -/

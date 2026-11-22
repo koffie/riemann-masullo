@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec2
+import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 import all RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # Printed assertions in the §10.3 proofs about the spectral constructions of §10.2 -/
@@ -91,6 +92,24 @@ Take the rational field, a = 2, α = 1/4 and s = 2. The absolutely convergent Eu
 and the nonvanishing archimedean factors give no zeros for any unitary lift in the strip
 7/4 ≤ Re z ≤ 9/4. The existential claim already fails at M = 0. -/
 theorem Printed.spectralStripMultiplicity_unbounded_false :
-    ¬ Printed.spectralStripMultiplicity_unbounded := by sorry
+    ¬ Printed.spectralStripMultiplicity_unbounded := by
+  intro hall
+  obtain ⟨χ, hχ⟩ := exists_spectralBasepointChoice ℚ
+  obtain ⟨ω, b, t, hb, hpos, -⟩ := hall ℚ χ hχ 2 (1 / 4) 2 (by norm_num) (by norm_num) 0
+  let z := shift((2 : ℝ) + b, t)
+  have hz : 1 < z.re := by
+    have := hb.1
+    norm_num [z]
+    linarith
+  have hval : continuedCompletedHeckeL (χ ω) z ≠ 0 := by
+    rw [show continuedCompletedHeckeL (χ ω) z = completedHeckeL (χ ω) ⟨z, hz⟩ from
+      (continuedCompletedHeckeL_spec (χ ω)).2 ⟨z, hz⟩]
+    exact mul_ne_zero (heckeGammaFactor_ne_zero_of_re_pos (χ ω) (zero_lt_one.trans hz))
+      (finiteHeckeL_ne_zero_of_one_lt_re (χ ω) ⟨z, hz⟩)
+  have horder := ((continuedCompletedHeckeL_spec (χ ω)).1
+    (mem_univ z)).meromorphicOrderAt_eq_zero_iff.mpr hval
+  simp only [z] at horder
+  rw [horder] at hpos
+  exact lt_irrefl _ hpos
 
 end RiemannMasullo

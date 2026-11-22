@@ -263,6 +263,28 @@ The finite orbital quotient is taken by the principal-value image. -/
 abbrev FiniteNuclearityQuotient (p : HeightOneSpectrum (𝓞 ℚ)) :=
   Θ₀(χ) ⧸ finiteNuclearityDenominator χ p
 
+private theorem mkQ_span_range_eq_zero {E M : Type*} [AddCommGroup E] [AddCommGroup M]
+    [Module ℂ E] [Module ℂ M] (L : E →ₗ[ℂ] M) (x : M) :
+    (Submodule.span ℂ (Set.range L)).mkQ x = 0 ↔ ∃ y, x = L y := by
+  have hle : Submodule.span ℂ (Set.range L) ≤ LinearMap.range L :=
+    Submodule.span_le.mpr Set.Subset.rfl
+  rw [Submodule.mkQ_apply, Submodule.Quotient.mk_eq_zero]
+  constructor
+  · intro hx
+    obtain ⟨y, hy⟩ := hle hx
+    exact ⟨y, hy.symm⟩
+  · rintro ⟨y, hy⟩
+    exact Submodule.subset_span ⟨y, hy.symm⟩
+
+private theorem mkQ_principal_range_eq_zero {E : Type*} [AddCommGroup E] [Module ℂ E]
+    (S : Submodule ℂ E) (Q : Submodule ℂ S) (A : E →ₗ[ℂ] E)
+    (h : ∀ g : S, A g.val ∈ S) (f : S) :
+    (Submodule.span ℂ (Set.range (fun g : S ↦
+      (Submodule.Quotient.mk ⟨A g.val, h g⟩ : S ⧸ Q)))).mkQ
+        (Submodule.Quotient.mk f) = 0 ↔
+      ∃ g : S, (Submodule.Quotient.mk f : S ⧸ Q) = Submodule.Quotient.mk ⟨A g.val, h g⟩ :=
+  mkQ_span_range_eq_zero (Q.mkQ.comp ((A.domRestrict S).codRestrict S h)) (Q.mkQ f)
+
 /-- Paper: Equation (7.4.0.2), p. 366.
 The class of a test is zero in the finite quotient exactly when its theta class
 is represented by a principal value. -/
@@ -270,7 +292,11 @@ theorem finiteNuclearityQuotient_mk_eq_zero (p : HeightOneSpectrum (𝓞 ℚ)) (
     (finiteNuclearityDenominator χ p).mkQ mkΘ(χ, f) = 0 ↔
       ∃ g : P, mkΘ(χ, f) =
         mkΘ(χ, ⟨adelePrincipalValue F (Sₚ(p)) g.val, nuclearityPrincipalValue_mem_polar (F := F) p g⟩) :=
-  by sorry
+  by
+    unfold finiteNuclearityDenominator
+    have hz := mkQ_principal_range_eq_zero P (Π(χ)) (adelePrincipalValue F (Sₚ(p)))
+      (nuclearityPrincipalValue_mem_polar (F := F) p) f
+    with_reducible exact hz
 
 /-- Paper: Theorem 7.4.2.1(1), p. 367.
 The finite-place denominator is closed and is stable under each regularized action. -/

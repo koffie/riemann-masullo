@@ -68,6 +68,15 @@ These exist because many agents work in parallel and nobody rereads everything.
   tactics. Everyone who builds the project would be running it.
 - **Use Mathlib's definitions where they exist.** Every new definition is something a human must
   later check by hand against the paper.
+- **A type with structure is a `def` (or a structure) with its own instances, not an `abbrev`.**
+  A synonym for a space that carries a topology, a module structure or a quotient is declared
+  with `def`, and each instance once, with `inferInstanceAs`. An `abbrev` borrows its instances
+  by unfolding, so every instance term spells out the whole definition again; when one such
+  synonym is built from another the terms grow exponentially, and proofs of trivial facts then
+  never finish (#5362, #5398: the tower over `SchwartzBruhat` reaches 10¹⁴ nodes). Give the
+  definition the lemmas that characterize it (`mem_…_iff`, the coercion, the defining property),
+  and have later statements and proofs use those, not unfold it. These rules are adapted from
+  Tau Ceti's review rubric (TauCetiProject/TauCetiReview, Apache-2.0).
 - **Every declaration taken from the paper has a docstring** starting `Paper: <item>, p. <page>.`
   (for example `Paper: Proposition 2.1.3.4, p. 63.`), followed by what the Lean says in plain
   words. Mark any difference from the paper with `Deviation:`.

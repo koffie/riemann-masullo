@@ -85,11 +85,74 @@ def Printed.sIdeleIntervalSobolevDensity_vanishesAtInfinity : Prop :=
       intervalSobolevDensity α β s (Real.log ((sIdeleNorm F S g).val : ℝ)))
       (cocompact _) (nhds 0)
 
+private theorem sIdeleNorm_vanishesAtInfinity_false_cont (F : Type) [Field F] [NumberField F]
+    (S : Finset (HeightOneSpectrum (𝓞 F))) :
+    Continuous (sIdeleNorm F S) := by
+  suffices H : Continuous (fun g ↦ sIdeleNorm F S g) from H
+  simp only [sIdeleNorm, MonoidHom.mul_apply, MonoidHom.finsetProd_apply, MonoidHom.pow_apply,
+    MonoidHom.comp_apply]
+  refine Continuous.mul ?_ ?_
+  · refine continuous_finsetProd _ fun w _ ↦ ?_
+    refine Continuous.pow ?_ _
+    exact (continuous_nnNorm.units_map _).comp
+      ((((continuous_apply w).comp continuous_fst).units_map _))
+  · refine continuous_finsetProd _ fun v _ ↦ ?_
+    exact (continuous_nnNorm.units_map _).comp
+      ((((continuous_apply v).comp continuous_snd).units_map _))
+
+private theorem sIdeleNorm_vanishesAtInfinity_false_diag :
+    ((sIdeleNorm ℚ (∅ : Finset (HeightOneSpectrum (𝓞 ℚ)))
+      (Units.map ((algebraMap ℚ (InfiniteAdeleRing ℚ)).prod
+        (RingHom.pi fun v : (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))) ↦
+          algebraMap ℚ (v.val.adicCompletion ℚ))).toMonoidHom (Units.mk0 (2 : ℚ) two_ne_zero))).val : ℝ) = 2 := by
+  simp only [sIdeleNorm, MonoidHom.finsetProd_apply, MonoidHom.pow_apply,
+    MonoidHom.comp_apply, Finset.univ_eq_empty, Finset.prod_empty, mul_one]
+  rw [Units.coe_prod, NNReal.coe_prod]
+  have h2 := InfinitePlace.prod_eq_abs_norm (K := ℚ) 2
+  rw [show (|(Algebra.norm ℚ) (2:ℚ)| : ℚ) = 2 by simp [Algebra.norm_self]] at h2
+  rw [← (by norm_num : (((2:ℚ)) : ℝ) = 2), ← h2]
+  refine Finset.prod_congr rfl fun w _ ↦ ?_
+  rw [Units.val_pow_eq_pow_val, NNReal.coe_pow]
+  congr 1
+  change ‖(algebraMap ℚ (InfiniteAdeleRing ℚ) 2) w‖ = _
+  rw [InfiniteAdeleRing.algebraMap_apply]
+  exact AbsoluteValue.Completion.norm_coe (2 : WithAbs w.1)
+
+private theorem sIdeleNorm_vanishesAtInfinity_false_noncompact :
+    ¬ CompactSpace (SAdeleRing ℚ (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))))ˣ := by
+  intro hc
+  let u := Units.map ((algebraMap ℚ (InfiniteAdeleRing ℚ)).prod
+        (RingHom.pi fun v : (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))) ↦
+          algebraMap ℚ (v.val.adicCompletion ℚ))).toMonoidHom (Units.mk0 (2 : ℚ) two_ne_zero)
+  have hu := sIdeleNorm_vanishesAtInfinity_false_diag
+  have hcont : Continuous fun g : (SAdeleRing ℚ (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))))ˣ ↦
+      ((sIdeleNorm ℚ ∅ g).val : ℝ) :=
+    NNReal.continuous_coe.comp (Units.continuous_val.comp (sIdeleNorm_vanishesAtInfinity_false_cont ℚ ∅))
+  obtain ⟨C, hC⟩ := (isCompact_range hcont).isBounded.subset_closedBall 0
+  have hn : ∀ n : ℕ, ((sIdeleNorm ℚ ∅ (u ^ n)).val : ℝ) = 2 ^ n := fun n ↦ by
+    rw [map_pow, Units.val_pow_eq_pow_val, NNReal.coe_pow, hu]
+  obtain ⟨n, hn'⟩ := pow_unbounded_of_one_lt C (by norm_num : (1 : ℝ) < 2)
+  have : ((sIdeleNorm ℚ ∅ (u ^ n)).val : ℝ) ∈ Metric.closedBall 0 C := hC ⟨u ^ n, rfl⟩
+  rw [hn n] at this
+  simp only [Metric.mem_closedBall, dist_zero_right, Real.norm_eq_abs, abs_of_nonneg (by positivity : (0:ℝ) ≤ 2 ^ n)] at this
+  linarith
+
+
 /-- Paper: Proof of Lemma 10.1.1.4(1), p. 436. For ℚ with S the real place,
 I = {1} and s = 0, the density is t² on the positive ideles t, so it
 grows without bound as t tends to infinity. -/
 theorem Printed.sIdeleIntervalSobolevDensity_vanishesAtInfinity_false :
-    ¬ Printed.sIdeleIntervalSobolevDensity_vanishesAtInfinity := by sorry
+    ¬ Printed.sIdeleIntervalSobolevDensity_vanishesAtInfinity := by
+  intro h
+  have h1 := h ℚ ∅ 0 0 0 le_rfl le_rfl
+  have hconst : (fun g : (SAdeleRing ℚ (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))))ˣ ↦
+      intervalSobolevDensity 0 0 0 (Real.log ((sIdeleNorm ℚ ∅ g).val : ℝ))) = fun _ ↦ 1 := by
+    funext g
+    simp [intervalSobolevDensity]
+  rw [hconst] at h1
+  have : NoncompactSpace (SAdeleRing ℚ (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))))ˣ :=
+    not_compactSpace_iff.mp sIdeleNorm_vanishesAtInfinity_false_noncompact
+  exact one_ne_zero (tendsto_nhds_unique h1 tendsto_const_nhds).symm
 
 /-- Paper: Proposition 10.1.1.5, pp. 436–437. As printed, the global Sobolev
 completion in the proposition uses theta functions of all Schwartz–Bruhat tests.

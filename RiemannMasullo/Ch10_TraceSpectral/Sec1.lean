@@ -177,6 +177,55 @@ theorem exists_sLocalThetaSobolevUnweightedAction {a α β s : ℝ} (ha : 0 < a)
       ∀ (g : Jₛ) (u : Θₛ), ρ g (jₛ(ha, hI, hs, hp) u) = jₛ(ha, hI, hs, hp) (ρₛ g u) :=
   by sorry
 
+/-- The modulation weight shifts the interval of the Sobolev density. -/
+private theorem globalThetaSobolev_norm_density (a α β s l : ℝ) :
+    Real.exp (a * l) ^ 2 * intervalSobolevDensity α β s l =
+      intervalSobolevDensity (a + α) (a + β) s l := by
+  unfold intervalSobolevDensity
+  rw [← mul_assoc, mul_max_of_nonneg _ _ (by positivity), ← Real.exp_nat_mul,
+    ← Real.exp_add, ← Real.exp_add]
+  congr 3 <;> push_cast <;> ring
+
+/-- The norm of a weighted L² class represented by a weighted function, on an abstract
+measure space. -/
+private theorem globalThetaSobolev_norm_aux {G : Type*} [MeasurableSpace G] (μ : Measure G)
+    (r : G → ℝ) (hr : ∀ g, 0 < r g) (hrm : Measurable r) (a α β s : ℝ) (φ : G → ℂ)
+    (u : CompactIntervalSobolev μ (fun g ↦ Real.log (r g)) α β s)
+    (hu : (u : G → ℂ) =ᵐ[μ] fun g ↦ ((r g ^ a : ℝ) : ℂ) * φ g) :
+    let w := fun g : G ↦ ‖φ g‖ ^ 2 * intervalSobolevDensity (a + α) (a + β) s (Real.log (r g))
+    Integrable w μ ∧ ‖u‖ = Real.sqrt (∫ g, w g ∂μ) := by
+  intro w
+  set d : G → ℝ := fun g ↦ intervalSobolevDensity α β s (Real.log (r g)) with hd_def
+  have hd0 (g : G) : 0 ≤ d g := by
+    simp only [d, intervalSobolevDensity]
+    exact mul_nonneg ((Real.exp_pos _).le.trans (le_max_left _ _)) (by positivity)
+  have hdm : Measurable d := by
+    simp only [d, intervalSobolevDensity]
+    fun_prop
+  have hdm' : Measurable fun g ↦ ENNReal.ofReal (d g) := ENNReal.measurable_ofReal.comp hdm
+  have hlt : ∀ᵐ g ∂μ, ENNReal.ofReal (d g) < ⊤ := .of_forall fun _ ↦ ENNReal.ofReal_lt_top
+  have hpt : (fun g ↦ ENNReal.toReal (ENNReal.ofReal (d g)) • ‖(u : G → ℂ) g‖ ^ 2) =ᵐ[μ] w := by
+    filter_upwards [hu] with g hg
+    rw [hg, ENNReal.toReal_ofReal (hd0 g), smul_eq_mul, norm_mul, mul_pow, Complex.norm_real,
+      Real.norm_of_nonneg (Real.rpow_nonneg (hr g).le _), Real.rpow_def_of_pos (hr g),
+      mul_comm (Real.log (r g)) a]
+    simp only [w, d]
+    rw [← globalThetaSobolev_norm_density a α β s]
+    ring
+  have hint : Integrable (fun g ↦ ‖(u : G → ℂ) g‖ ^ 2)
+      (μ.withDensity fun g ↦ ENNReal.ofReal (d g)) :=
+    (Lp.memLp u).integrable_norm_pow two_ne_zero
+  have hw : Integrable w μ :=
+    ((integrable_withDensity_iff_integrable_smul' hdm' hlt).mp hint).congr hpt
+  refine ⟨hw, ?_⟩
+  have hsq : ‖u‖ ^ 2 = ∫ g, ‖(u : G → ℂ) g‖ ^ 2 ∂(μ.withDensity fun g ↦ ENNReal.ofReal (d g)) := by
+    rw [@norm_sq_eq_re_inner ℂ, MeasureTheory.L2.inner_def]
+    simp only [inner_self_eq_norm_sq_to_K, ← RCLike.ofReal_pow]
+    rw [integral_ofReal, RCLike.ofReal_re]
+    rfl
+  rw [← Real.sqrt_sq (norm_nonneg u), hsq,
+    integral_withDensity_eq_integral_toReal_smul hdm' hlt, integral_congr_ae hpt]
+
 /-- Paper: Lemma 10.1.1.3, p. 435. The continuous weighted embedding pulls
 the ambient norm back to the norm in (10.1.1.6).
 Deviation: Use the Haar measure on the full idele class group, denoted μ̄ in Appendix A.3. -/
@@ -184,7 +233,13 @@ theorem globalThetaSobolev_norm (a : ℝ) {α β s : ℝ} (hI : α ≤ β) (hs :
     let w := fun g : C𝔽 ↦ ‖θ𝔽(f) g‖ ^ 2 *
       intervalSobolevDensity (a + α) (a + β) s (logNorm(m𝔽) g)
     Integrable w μ𝔽 ∧ ‖E𝔽(a, hI, hs) (Submodule.Quotient.mk f)‖ =
-      Real.sqrt (∫ g, w g ∂μ𝔽) := by sorry
+      Real.sqrt (∫ g, w g ∂μ𝔽) := by
+  have hE := (existsUnique_globalThetaSobolevEmbedding (F := F) a α β s hI hs).exists.choose_spec.2 f
+  have : BorelSpace C𝔽 := ⟨rfl⟩
+  exact globalThetaSobolev_norm_aux μ𝔽 (fun g ↦ ((m𝔽 g).val : ℝ))
+    (fun g ↦ NNReal.coe_pos.mpr (Units.zero_lt _))
+    (NNReal.continuous_coe.comp (Units.continuous_val.comp (m𝔽).continuous)).measurable
+    a α β s _ _ hE
 
 /-- Paper: Lemma 10.1.1.3(1), p. 435. The global completion is a closed,
 complete and separable subspace of the ambient Hilbert space. -/
@@ -249,13 +304,111 @@ local instance instIdeleClassHaarMeasureSec1 : Measure.IsHaarMeasure μ𝔽 :=
 local instance instSIdeleQuotientHaarMeasureSec1 : Measure.IsHaarMeasure μₛ :=
   (sLocalQuotientTamagawaMeasure_isWeil (F := F) (S := S)).1
 
+open scoped ENNReal in
+/-- Scaling a measure by a finite positive constant gives the same weighted L² space
+with the norm scaled by the square root of the constant. -/
+private theorem globalThetaAmbient_equiv_canonical_aux {G : Type*} [MeasurableSpace G]
+    (μ ν : Measure G) (c : ℝ≥0∞) (hc0 : c ≠ 0) (hct : c ≠ ⊤) (hμ : μ = c • ν)
+    (d : G → ℝ≥0∞) (hdm : Measurable d) (hd : ∀ x, d x ≠ 0) :
+    ∃ e : Lp ℂ 2 (μ.withDensity d) ≃L[ℂ] Lp ℂ 2 (ν.withDensity d),
+      ∀ u, (e u : G → ℂ) =ᵐ[μ] u ∧ ‖u‖ = Real.sqrt c.toReal * ‖e u‖ := by
+  subst hμ
+  have hρ : (c • ν).withDensity d = c • ν.withDensity d := withDensity_smul_measure c d
+  have hci : c⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr hc0
+  have hle : ν.withDensity d ≤ c⁻¹ • (c • ν).withDensity d := by
+    rw [hρ, smul_smul, ENNReal.inv_mul_cancel hc0 hct, one_smul]
+  have hle' : (c • ν).withDensity d ≤ c • ν.withDensity d := hρ.le
+  have mem₁ (u : Lp ℂ 2 ((c • ν).withDensity d)) : MemLp u 2 (ν.withDensity d) :=
+    (Lp.memLp u).of_measure_le_smul hci hle
+  have mem₂ (u : Lp ℂ 2 (ν.withDensity d)) : MemLp u 2 ((c • ν).withDensity d) :=
+    (Lp.memLp u).of_measure_le_smul hct hle'
+  have hsmul {p : G → Prop} (ρ : Measure G) : (∀ᵐ x ∂(c • ρ), p x) ↔ ∀ᵐ x ∂ρ, p x := by
+    simp only [ae_iff, Measure.smul_apply, smul_eq_mul, mul_eq_zero, hc0, false_or]
+  have hae₁ {f g : G → ℂ} (h : f =ᵐ[(c • ν).withDensity d] g) : f =ᵐ[ν.withDensity d] g := by
+    rw [hρ] at h
+    exact (hsmul _).mp h
+  have hae₂ {f g : G → ℂ} (h : f =ᵐ[ν.withDensity d] g) : f =ᵐ[(c • ν).withDensity d] g := by
+    rw [hρ]
+    exact (hsmul _).mpr h
+  let T : Lp ℂ 2 ((c • ν).withDensity d) →ₗ[ℂ] Lp ℂ 2 (ν.withDensity d) :=
+    { toFun := fun u ↦ (mem₁ u).toLp u
+      map_add' := fun u v ↦ by
+        apply Lp.ext
+        filter_upwards [(mem₁ (u + v)).coeFn_toLp, (mem₁ u).coeFn_toLp, (mem₁ v).coeFn_toLp,
+          Lp.coeFn_add ((mem₁ u).toLp u) ((mem₁ v).toLp v), hae₁ (Lp.coeFn_add u v)]
+          with x h1 h2 h3 h4 h5
+        rw [h1, h4, Pi.add_apply, h2, h3, h5, Pi.add_apply]
+      map_smul' := fun r u ↦ by
+        apply Lp.ext
+        filter_upwards [(mem₁ (r • u)).coeFn_toLp, (mem₁ u).coeFn_toLp,
+          Lp.coeFn_smul r ((mem₁ u).toLp u), hae₁ (Lp.coeFn_smul r u)]
+          with x h1 h2 h3 h4
+        rw [h1, RingHom.id_apply, h3, Pi.smul_apply, h2, h4, Pi.smul_apply] }
+  let S : Lp ℂ 2 (ν.withDensity d) → Lp ℂ 2 ((c • ν).withDensity d) := fun u ↦ (mem₂ u).toLp u
+  have hTS (u) : T (S u) = u := by
+    apply Lp.ext
+    filter_upwards [(mem₁ (S u)).coeFn_toLp, hae₁ (mem₂ u).coeFn_toLp] with x h1 h2
+    exact h1.trans h2
+  have hST (u) : S (T u) = u := by
+    apply Lp.ext
+    filter_upwards [(mem₂ (T u)).coeFn_toLp, hae₂ (mem₁ u).coeFn_toLp] with x h1 h2
+    exact h1.trans h2
+  have hnorm (u : Lp ℂ 2 ((c • ν).withDensity d)) : ‖u‖ = Real.sqrt c.toReal * ‖T u‖ := by
+    have hsm (f : G → ℂ) : eLpNorm f 2 ((c • ν).withDensity d) =
+        c ^ (1 / (2 : ℝ≥0∞)).toReal • eLpNorm f 2 (ν.withDensity d) := by
+      rw [hρ, eLpNorm_smul_measure_of_ne_zero hc0]
+    have h1 : eLpNorm (T u : G → ℂ) 2 (ν.withDensity d) = eLpNorm (u : G → ℂ) 2 (ν.withDensity d) :=
+      eLpNorm_congr_ae (mem₁ u).coeFn_toLp
+    rw [Lp.norm_def, Lp.norm_def, h1, hsm, smul_eq_mul,
+      ENNReal.toReal_mul, ← ENNReal.toReal_rpow, Real.sqrt_eq_rpow]
+    norm_num
+  let e₀ : Lp ℂ 2 ((c • ν).withDensity d) ≃ₗ[ℂ] Lp ℂ 2 (ν.withDensity d) :=
+    { T with invFun := S, left_inv := hST, right_inv := hTS }
+  have hcpos : 0 < Real.sqrt c.toReal :=
+    Real.sqrt_pos.mpr (ENNReal.toReal_pos hc0 hct)
+  refine ⟨e₀.toContinuousLinearEquivOfBounds (Real.sqrt c.toReal)⁻¹ (Real.sqrt c.toReal)
+    (fun u ↦ ?_) (fun u ↦ ?_), fun u ↦ ⟨?_, hnorm u⟩⟩
+  · change ‖T u‖ ≤ _
+    rw [hnorm u, ← mul_assoc, inv_mul_cancel₀ hcpos.ne', one_mul]
+  · change ‖S u‖ ≤ _
+    rw [hnorm (S u), hTS]
+  · change ((mem₁ u).toLp u : G → ℂ) =ᵐ[c • ν] u
+    have h := (mem₁ u).coeFn_toLp
+    rw [Filter.EventuallyEq, ae_withDensity_iff hdm] at h
+    exact (hsmul _).mpr (h.mono fun x hx ↦ hx (hd x))
+
 /-- Paper: Definition 10.1.1.1(1) and Lemma 10.1.1.3, pp. 434–435.
 The identity on functions compares the Tamagawa norm with the canonical norm of §9.2.
 Deviation: The two full Haar measures differ by the mass of the norm-one classes. -/
 theorem globalThetaAmbient_equiv_canonical (hm : IsModulation m𝔽) (α β s : ℝ) :
     ∃ e : W𝔽(α, β, s) ≃L[ℂ] ModulatedIntervalSobolev m𝔽 hm α β s,
       ∀ u, (e u : C𝔽 → ℂ) =ᵐ[μ𝔽] u ∧
-        ‖u‖ = Real.sqrt (Measure.real μ𝔽₁ univ) * ‖e u‖ := by sorry
+        ‖u‖ = Real.sqrt (Measure.real μ𝔽₁ univ) * ‖e u‖ := by
+  have hμ := ideleClassTamagawaMeasure_eq_smul_canonical (F := F)
+  have hvol := normOneIdeleClassTamagawaMeasure_volume (F := F)
+  have hc0 : μ𝔽₁ univ ≠ 0 := by
+    rw [hvol, ne_eq, ENNReal.ofReal_eq_zero, not_le]
+    have := NumberField.Units.regulator_pos F
+    have := NumberField.classNumber_pos F
+    have := NumberField.Units.torsionOrder_pos F
+    have : (0 : ℝ) < Real.sqrt (Int.natAbs (NumberField.discr F) : ℝ) :=
+      Real.sqrt_pos.mpr (by exact_mod_cast Int.natAbs_pos.mpr (NumberField.discr_ne_zero F))
+    positivity
+  have hct : μ𝔽₁ univ ≠ ⊤ := by rw [hvol]; exact ENNReal.ofReal_ne_top
+  have hdm : Measurable fun g : C𝔽 ↦
+      ENNReal.ofReal (intervalSobolevDensity α β s (Real.log (((m𝔽 g).val : ℝ)))) := by
+    have hLm : Measurable fun g : C𝔽 ↦ Real.log (((m𝔽 g).val : ℝ)) :=
+      ((NNReal.continuous_coe.comp (Units.continuous_val.comp (m𝔽).continuous)).log
+        fun g ↦ (NNReal.coe_pos.mpr (Units.zero_lt _)).ne').measurable
+    unfold intervalSobolevDensity
+    fun_prop
+  have hd (g : C𝔽) :
+      ENNReal.ofReal (intervalSobolevDensity α β s (Real.log (((m𝔽 g).val : ℝ)))) ≠ 0 := by
+    refine (ENNReal.ofReal_pos.mpr ?_).ne'
+    unfold intervalSobolevDensity
+    exact mul_pos ((Real.exp_pos _).trans_le (le_max_left _ _)) (by positivity)
+  exact globalThetaAmbient_equiv_canonical_aux μ𝔽 (canonicalModulatedHaar m𝔽 hm)
+    (μ𝔽₁ univ) hc0 hct hμ _ hdm hd
 
 /-- Paper: Definition 10.1.1.1(2) and Lemma 10.1.1.4, pp. 434–436.
 The identity on S-local functions compares the norm in (10.1.1.5) with §9.2.
@@ -298,11 +451,34 @@ theorem sIdeleIntervalSobolevMeasure_zero :
     sIdeleIntervalSobolevMeasure F S 0 0 0 = sMultiplicativeTamagawaMeasure F S := by
   simp [sIdeleIntervalSobolevMeasure, intervalSobolevDensity]
 
+/-- The density of the weighted S-idele measure is continuous. -/
+private theorem sIdeleIntervalSobolevMeasure_regular_density (α β s : ℝ) :
+    Continuous fun g : Iₛ ↦
+      intervalSobolevDensity α β s (Real.log ((sIdeleNorm F S g).val : ℝ)) := by
+  have hn : Continuous fun g : Iₛ ↦ ((sIdeleNorm F S g).val : ℝ) := by
+    have h : Continuous fun g : Iₛ ↦ sIdeleQuotientNorm F S (QuotientGroup.mk g) :=
+      (isProperMap_sIdeleQuotientNorm F S).continuous.comp continuous_quot_mk
+    exact NNReal.continuous_coe.comp (Units.continuous_val.comp h)
+  have hl : Continuous fun g : Iₛ ↦ Real.log ((sIdeleNorm F S g).val : ℝ) :=
+    hn.log fun g ↦ (NNReal.coe_pos.mpr (Units.zero_lt (sIdeleNorm F S g))).ne'
+  unfold intervalSobolevDensity
+  refine ((Real.continuous_exp.comp (continuous_const.mul hl)).max
+    (Real.continuous_exp.comp (continuous_const.mul hl))).mul ?_
+  exact (continuous_const.add (hl.pow 2)).rpow_const fun g ↦
+    Or.inl (add_pos_of_pos_of_nonneg one_pos (sq_nonneg _)).ne'
+
 /-- Paper: Lemma 10.1.1.4(1), pp. 435–436. The weighted S-idele measure is
 regular and finite on compact sets. -/
 theorem sIdeleIntervalSobolevMeasure_regular (α β s : ℝ)
     (_hI : α ≤ β) (_hs : 0 ≤ s) :
-    (sIdeleIntervalSobolevMeasure F S α β s).Regular := by sorry
+    (sIdeleIntervalSobolevMeasure F S α β s).Regular := by
+  have : BorelSpace Iₛ := sIdeleGroup_borelSpace (F := F) (S := S)
+  have : (sMultiplicativeTamagawaMeasure F S).IsHaarMeasure :=
+    sMultiplicativeTamagawaMeasure_isHaarMeasure (F := F) (S := S)
+  have : IsLocallyFiniteMeasure (sIdeleIntervalSobolevMeasure F S α β s) :=
+    IsLocallyFiniteMeasure.withDensity_ofReal
+      (sIdeleIntervalSobolevMeasure_regular_density α β s)
+  infer_instance
 
 /-- Paper: Lemma 10.1.1.4(1), pp. 435–436. The weighted S-idele measure is
 invariant under left translation by the projected diagonal S-units. -/
@@ -310,7 +486,24 @@ theorem sIdeleIntervalSobolevMeasure_invariant (α β s : ℝ)
     (_hI : α ≤ β) (_hs : 0 ≤ s) :
     let ν := sIdeleIntervalSobolevMeasure F S α β s
     ∀ u : Iₛ, (QuotientGroup.mk u : Jₛ) = 1 →
-      MeasurePreserving (fun g : Iₛ ↦ u * g) ν ν := by sorry
+      MeasurePreserving (fun g : Iₛ ↦ u * g) ν ν := by
+  intro ν u hu
+  have : BorelSpace Iₛ := sIdeleGroup_borelSpace (F := F) (S := S)
+  have : (sMultiplicativeTamagawaMeasure F S).IsHaarMeasure :=
+    sMultiplicativeTamagawaMeasure_isHaarMeasure (F := F) (S := S)
+  have hnu : sIdeleNorm F S u = 1 := by rw [← sIdeleQuotientNorm_mk, hu, map_one]
+  have hmeas : Measurable fun g : Iₛ ↦ u * g := measurable_const_mul u
+  refine ⟨hmeas, ?_⟩
+  ext A hA
+  rw [Measure.map_apply hmeas hA]
+  simp only [ν, sIdeleIntervalSobolevMeasure, withDensity_apply _ hA,
+    withDensity_apply _ (hmeas hA)]
+  rw [← lintegral_indicator (hmeas hA), ← lintegral_indicator hA]
+  conv_rhs => rw [← lintegral_mul_left_eq_self _ u]
+  congr 1
+  funext g
+  simp only [indicator, map_mul, hnu, one_mul]
+  rfl
 
 /-- Paper: Lemma 10.1.1.4(2), pp. 435–436. On the local test classes the
 subspace norm is (10.1.1.7) and is continuous for the theta quotient topology.
@@ -321,7 +514,13 @@ theorem sLocalThetaSobolev_norm {a α β s : ℝ} (ha : 0 < a) (hI : α ≤ β)
     let w := fun g : Jₛ ↦ ‖θₛ(f) g‖ ^ 2 *
       intervalSobolevDensity (a + α) (a + β) s (logNorm(mₛ) g)
     Integrable w μₛ ∧ ‖Eₛ(ha, hI, hs, hp) (Submodule.Quotient.mk f)‖ =
-      Real.sqrt (∫ g, w g ∂μₛ) := by sorry
+      Real.sqrt (∫ g, w g ∂μₛ) := by
+  have hE := (existsUnique_sLocalThetaSobolevEmbedding (F := F) (S := S) a α β s ha hI hs
+    hp).exists.choose_spec.2 f
+  exact globalThetaSobolev_norm_aux μₛ (fun g ↦ ((mₛ g).val : ℝ))
+    (fun g ↦ NNReal.coe_pos.mpr (Units.zero_lt _))
+    (NNReal.continuous_coe.comp (Units.continuous_val.comp (mₛ).continuous)).measurable
+    a α β s _ _ hE
 
 /-- Paper: Lemma 10.1.1.4(3), p. 436. The local completion is a closed,
 complete and separable subspace of the ambient Hilbert space. -/
@@ -474,20 +673,168 @@ section Fourier
 -- TODO(paper-gap): The ambient inversion automorphism in Theorem 10.1.2.1
 -- fails for nonsymmetric I. The types in (10.1.2.5) also swap the weight labels.
 
+/-- Reflecting the logarithmic coordinate reflects the interval of the density. -/
+private theorem ideleClassSobolevInversion_density (α β s x : ℝ) :
+    intervalSobolevDensity α β s (-x) = intervalSobolevDensity (-β) (-α) s x := by
+  unfold intervalSobolevDensity
+  rw [max_comm, neg_sq]
+  congr 3 <;> ring
+
+/-- Inversion carries the reflected weighted measure to the weighted measure. -/
+private theorem ideleClassSobolevInversion_measurePreserving {G : Type*} [CommGroup G]
+    [MeasurableSpace G] [MeasurableInv G] (μ : Measure G) [μ.IsInvInvariant] (L : G → ℝ)
+    (hL : ∀ g, L g⁻¹ = - L g) (α β s : ℝ) :
+    MeasurePreserving Inv.inv
+      (μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity (-β) (-α) s (L x)))
+      (μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity α β s (L x))) := by
+  refine ⟨measurable_inv, ?_⟩
+  ext A hA
+  rw [Measure.map_apply measurable_inv hA, withDensity_apply _ hA,
+    withDensity_apply _ (measurable_inv hA), ← lintegral_indicator hA,
+    ← lintegral_indicator (measurable_inv hA), ← lintegral_inv_eq_self]
+  congr 1
+  funext g
+  simp only [Set.indicator, hL, neg_neg, ideleClassSobolevInversion_density]
+  classical
+  exact if_congr (by simp) rfl rfl
+
+/-- Inversion as an isometry between weighted L² spaces for reflected intervals, on an
+abstract group with an inversion-invariant measure. -/
+private theorem ideleClassSobolevInversion_aux {G : Type*} [CommGroup G]
+    [MeasurableSpace G] [MeasurableInv G] (μ : Measure G) [μ.IsInvInvariant] (L : G → ℝ)
+    (hLm : Measurable L) (hL : ∀ g, L g⁻¹ = - L g) (α β s : ℝ) :
+    ∃! J : CompactIntervalSobolev μ L α β s ≃ₗᵢ[ℂ] CompactIntervalSobolev μ L (-β) (-α) s,
+      ∀ u, (J u : G → ℂ) =ᵐ[μ] fun g ↦ u g⁻¹ := by
+  have h := ideleClassSobolevInversion_measurePreserving μ L hL α β s
+  have h' : MeasurePreserving Inv.inv
+      (μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity α β s (L x)))
+      (μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity (-β) (-α) s (L x))) := by
+    simpa only [neg_neg] using ideleClassSobolevInversion_measurePreserving μ L hL (-β) (-α) s
+  have hpos (a b : ℝ) (x : G) : ENNReal.ofReal (intervalSobolevDensity a b s (L x)) ≠ 0 := by
+    refine (ENNReal.ofReal_pos.mpr ?_).ne'
+    unfold intervalSobolevDensity
+    exact mul_pos ((Real.exp_pos _).trans_le (le_max_left _ _)) (by positivity)
+  have hmeas (a b : ℝ) :
+      Measurable fun x ↦ ENNReal.ofReal (intervalSobolevDensity a b s (L x)) := by
+    unfold intervalSobolevDensity
+    fun_prop
+  -- almost-everywhere statements for the weighted measure give ones for μ
+  have hae (a b : ℝ) {f g : G → ℂ}
+      (hfg : f =ᵐ[μ.withDensity fun x ↦ ENNReal.ofReal (intervalSobolevDensity a b s (L x))] g) :
+      f =ᵐ[μ] g := by
+    rw [Filter.EventuallyEq, ae_withDensity_iff (hmeas a b)] at hfg
+    filter_upwards [hfg] with x hx using hx (hpos a b x)
+  let T := Lp.compMeasurePreservingₗᵢ (E := ℂ) (p := 2) ℂ Inv.inv h
+  let T' := Lp.compMeasurePreservingₗᵢ (E := ℂ) (p := 2) ℂ Inv.inv h'
+  have hTT' (u) : T (T' u) = u := by
+    apply Lp.ext
+    refine (Lp.coeFn_compMeasurePreserving _ h).trans ?_
+    refine ((h.quasiMeasurePreserving.ae_eq_comp (Lp.coeFn_compMeasurePreserving u h'))).trans ?_
+    filter_upwards with x
+    simp
+  have hT'T (u) : T' (T u) = u := by
+    apply Lp.ext
+    refine (Lp.coeFn_compMeasurePreserving _ h').trans ?_
+    refine ((h'.quasiMeasurePreserving.ae_eq_comp (Lp.coeFn_compMeasurePreserving u h))).trans ?_
+    filter_upwards with x
+    simp
+  let J : CompactIntervalSobolev μ L α β s ≃ₗᵢ[ℂ] CompactIntervalSobolev μ L (-β) (-α) s :=
+    { toLinearEquiv := LinearEquiv.ofLinearMap T.toLinearMap T'.toLinearMap
+        (LinearMap.ext hTT') (LinearMap.ext hT'T)
+      norm_map' := T.norm_map }
+  refine ⟨J, fun u ↦ hae (-β) (-α) (Lp.coeFn_compMeasurePreserving u h), ?_⟩
+  intro J₂ hJ₂
+  refine LinearIsometryEquiv.ext fun u ↦ Lp.ext ?_
+  have h₁ := hJ₂ u
+  have h₂ := hae (-β) (-α) (Lp.coeFn_compMeasurePreserving u h)
+  exact (withDensity_absolutelyContinuous _ _).ae_le (h₁.trans h₂.symm)
+
 /-- Paper: Theorem 10.1.2.1, p. 437. Inversion gives an isometric linear
 equivalence of the ambient Sobolev spaces for opposite intervals.
 Deviation: The target interval is [-β,-α]. Inversion is an automorphism at I = -I. -/
 theorem existsUnique_ideleClassSobolevInversion (α β s : ℝ) (_hI : α ≤ β) (_hs : 0 ≤ s) :
     ∃! J : W𝔽(α, β, s) ≃ₗᵢ[ℂ] W𝔽(-β, -α, s),
-      ∀ u, (J u : C𝔽 → ℂ) =ᵐ[μ𝔽] fun g ↦ u g⁻¹ := by sorry
+      ∀ u, (J u : C𝔽 → ℂ) =ᵐ[μ𝔽] fun g ↦ u g⁻¹ := by
+  have : (μ𝔽).Regular := (ideleClassTamagawaMeasure_isWeil F).2.1
+  have hLm : Measurable fun g : C𝔽 ↦ Real.log (((m𝔽 g).val : ℝ)) :=
+    ((NNReal.continuous_coe.comp (Units.continuous_val.comp (m𝔽).continuous)).log
+      fun g ↦ (NNReal.coe_pos.mpr (Units.zero_lt _)).ne').measurable
+  exact ideleClassSobolevInversion_aux μ𝔽 _ hLm
+    (fun g ↦ by simp only [map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv, Real.log_inv]) α β s
 
 local notation "J𝔽(" hI ", " hs ")" =>
   (existsUnique_ideleClassSobolevInversion (F := F) _ _ _ hI hs).exists.choose
 
+/-- If a constant is bounded by `K / r` for arbitrarily large `r`, it vanishes. -/
+private theorem adelePolarSubspace_fourier_eq_zero (c : ℂ) (K T : ℝ)
+    (h : ∀ R : ℝ, T < R → ‖c‖ ≤ K * R⁻¹) : c = 0 := by
+  by_contra hc
+  have hpos : 0 < ‖c‖ := norm_pos_iff.mpr hc
+  set R : ℝ := max (T + 1) ((|K| + 1) / ‖c‖ + 1) with hR
+  have hR1 : T < R := (lt_add_one T).trans_le (le_max_left _ _)
+  have hR2 : (|K| + 1) / ‖c‖ < R := (lt_add_one _).trans_le (le_max_right _ _)
+  have hR0 : 0 < R := (div_pos (by positivity) hpos).trans hR2
+  have h1 := h R hR1
+  have h2 : K * R⁻¹ < ‖c‖ := by
+    rw [← div_eq_mul_inv, div_lt_iff₀ hR0]
+    rw [div_lt_iff₀ hpos] at hR2
+    nlinarith [le_abs_self K]
+  linarith
+
+/-- Riemann–Roch for a theta transform, together with decay at large norm, forces the
+double Fourier transform of a test with two vanishing polar values to vanish at zero.
+Stated for abstract data, so that it elaborates without unfolding the adelic types. -/
+private theorem adelePolarSubspace_fourier_abstract {B X : Type*} [InvolutiveInv X]
+    (Θ : B → X → ℂ) (Fo : B → B) (e : B → ℂ) (n : X → ℝ)
+    (hn : ∀ g, n g⁻¹ = (n g)⁻¹) (hpos : ∀ g, 0 < n g)
+    (hRR : ∀ f g, Θ f g = (n g)⁻¹ • Θ (Fo f) g⁻¹ + (n g)⁻¹ • e (Fo f) - e f)
+    (hdec : ∀ f, ∃ K T : ℝ, 0 < K ∧ 0 < T ∧ ∀ g, T < n g → ‖Θ f g‖ ≤ K * ((n g) ^ 1)⁻¹)
+    (hsurj : ∀ R : ℝ, 0 < R → ∃ g, n g = R)
+    (f : B) (hf0 : e f = 0) (hF0 : e (Fo f) = 0) : e (Fo (Fo f)) = 0 := by
+  have hid (g : X) : Θ f g = Θ (Fo (Fo f)) g + e (Fo (Fo f)) := by
+    have h1 := hRR f g
+    have h2 := hRR (Fo f) g⁻¹
+    have hr : n g ≠ 0 := (hpos g).ne'
+    simp only [hf0, hF0, smul_zero, add_zero, sub_zero, inv_inv, hn] at h1 h2
+    rw [h1, h2, smul_add, smul_smul, smul_smul, inv_mul_cancel₀ hr, one_smul, one_smul]
+  obtain ⟨K₁, T₁, -, -, hd₁⟩ := hdec f
+  obtain ⟨K₂, T₂, -, -, hd₂⟩ := hdec (Fo (Fo f))
+  refine adelePolarSubspace_fourier_eq_zero _ (K₁ + K₂) (max T₁ (max T₂ 0)) fun R hR ↦ ?_
+  have hR0 : 0 < R := (le_max_right _ _).trans_lt ((le_max_right _ _).trans_lt hR)
+  obtain ⟨g, hgR⟩ := hsurj R hR0
+  have hT₁ : T₁ < n g := hgR ▸ (le_max_left _ _).trans_lt hR
+  have hT₂ : T₂ < n g := hgR ▸ (le_max_left _ _).trans_lt ((le_max_right _ _).trans_lt hR)
+  have e₁ := hd₁ g hT₁
+  have e₂ := hd₂ g hT₂
+  rw [hgR, pow_one] at e₁ e₂
+  rw [eq_sub_of_add_eq' (hid g).symm]
+  calc _ ≤ ‖Θ f g‖ + ‖Θ (Fo (Fo f)) g‖ := norm_sub_le _ _
+    _ ≤ K₁ * R⁻¹ + K₂ * R⁻¹ := add_le_add e₁ e₂
+    _ = _ := by ring
+
 /-- Paper: (10.1.2.2)–(10.1.2.4), pp. 437–438. Fourier transform preserves
 the polar-free test space, so the global theta Fourier transform restricts to it. -/
 theorem adelePolarSubspace_fourier (f : ℬ₀) :
-    adeleSchwartzFourier f.val ∈ adelePolarSubspace F := by sorry
+    adeleSchwartzFourier f.val ∈ adelePolarSubspace F := by
+  have hz := (mem_adelePolarSubspace (F := F) f.val).mp f.property
+  rw [mem_adelePolarSubspace]
+  refine ⟨hz.2, ?_⟩
+  have hsurj : Surjective (ideleClassNorm F) :=
+    (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.2.2.2.1
+  have hn (g : C𝔽) :
+      ((ideleClassNorm F g⁻¹ : NNReal) : ℝ) = ((ideleClassNorm F g : NNReal) : ℝ)⁻¹ := by
+    simp only [map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv]
+  have hpos (g : C𝔽) : 0 < ((ideleClassNorm F g : NNReal) : ℝ) :=
+    NNReal.coe_pos.mpr (Units.zero_lt (ideleClassNorm F g))
+  have hR (R : ℝ) (hR : 0 < R) :
+      ∃ g : C𝔽, ((ideleClassNorm F g : NNReal) : ℝ) = R := by
+    obtain ⟨g, hg⟩ := hsurj (Units.mk0 R.toNNReal (by simpa using hR))
+    exact ⟨g, by rw [hg, Units.val_mk0, Real.coe_toNNReal _ hR.le]⟩
+  have hRR := adelicTheta_riemannRoch (F := F)
+  have hdec := fun f ↦ adelicTheta_decay_large (F := F) f 1
+  exact adelePolarSubspace_fourier_abstract (fun f g ↦ adelicTheta (F := F) f g)
+    adeleSchwartzFourier (fun f ↦ f (Multiplicative.ofAdd 0))
+    (fun g ↦ ((ideleClassNorm F g : NNReal) : ℝ)) hn hpos hRR hdec hR f.val hz.1 hz.2
 
 local notation "fourier₀(" f ")" =>
   (⟨adeleSchwartzFourier (f : ℬ₀).val, adelePolarSubspace_fourier f⟩ : ℬ₀)
@@ -538,13 +885,70 @@ theorem exists_globalThetaSobolevInversion (a : ℝ) {α β s : ℝ} (hI : α �
       ∀ u : Θ₀, J (j𝔽(a, hI, hs) u) =
         j𝔽(1 - a, neg_le_neg hI, hs) (Fourier𝔽 u) := by sorry
 
+/-- Inversion intertwines left translation by `g` with left translation by `g⁻¹`, for
+closed subspaces of weighted L² spaces over an abstract commutative group. -/
+private theorem globalThetaSobolevInversion_mem_isotype_key {G : Type*} [CommGroup G]
+    [MeasurableSpace G] (μ : Measure G) {ν₁ : Measure G} (ν₂ : Measure G) (hν₂ : ν₂ ≪ μ)
+    (hinv : Measure.QuasiMeasurePreserving (fun x : G ↦ x⁻¹) μ μ)
+    (hmul : ∀ g : G, Measure.QuasiMeasurePreserving (fun x ↦ g * x) μ μ)
+    (H₁ : Submodule ℂ (Lp ℂ 2 ν₁)) (H₂ : Submodule ℂ (Lp ℂ 2 ν₂))
+    (Jamb : Lp ℂ 2 ν₁ → Lp ℂ 2 ν₂) (hJamb : ∀ v, (Jamb v : G → ℂ) =ᵐ[μ] fun x ↦ v x⁻¹)
+    (J : H₁ ≃ₗᵢ[ℂ] H₂) (hJ : ∀ u, (J u : Lp ℂ 2 ν₂) = Jamb u)
+    (T₁ : G → Lp ℂ 2 ν₁ → Lp ℂ 2 ν₁) (hT₁ : ∀ g v, (T₁ g v : G → ℂ) =ᵐ[μ] fun x ↦ v (g⁻¹ * x))
+    (T₂ : G → Lp ℂ 2 ν₂ → Lp ℂ 2 ν₂) (hT₂ : ∀ g v, (T₂ g v : G → ℂ) =ᵐ[μ] fun x ↦ v (g⁻¹ * x))
+    (ρ₁ : G →* (H₁ →L[ℂ] H₁)) (hρ₁ : ∀ g u, (ρ₁ g u : Lp ℂ 2 ν₁) = T₁ g u)
+    (ρ₂ : G →* (H₂ →L[ℂ] H₂)) (hρ₂ : ∀ g u, (ρ₂ g u : Lp ℂ 2 ν₂) = T₂ g u)
+    (g : G) (v : H₁) : J (ρ₁ g v) = ρ₂ g⁻¹ (J v) := by
+  apply Subtype.ext
+  rw [hJ, hρ₂, hJ, hρ₁]
+  apply Lp.ext
+  apply hν₂.ae_le
+  have e₁ := hJamb (T₁ g v)
+  have e₂ := hT₂ g⁻¹ (Jamb v)
+  have e₃ := Measure.QuasiMeasurePreserving.ae hinv (hT₁ g v)
+  have e₄ := Measure.QuasiMeasurePreserving.ae (hmul g) (hJamb v)
+  filter_upwards [e₁, e₂, e₃, e₄] with x h₁ h₂ h₃ h₄
+  rw [h₁, h₂, inv_inv, h₃, h₄, mul_inv, mul_comm]
+
+/-- An intertwiner of `g` with `g⁻¹` carries the isotype of a character to the isotype of
+the inverse character, stated for abstract spaces. -/
+private theorem globalThetaSobolevInversion_mem_isotype_iff {G K E₁ E₂ : Type*} [CommGroup G]
+    [CommGroup K] [TopologicalSpace K] [NormedAddCommGroup E₁] [NormedSpace ℂ E₁] [NormedAddCommGroup E₂]
+    [NormedSpace ℂ E₂] (J : E₁ ≃ₗᵢ[ℂ] E₂) (ρ₁ : G →* (E₁ →L[ℂ] E₁))
+    (ρ₂ : G →* (E₂ →L[ℂ] E₂)) (key : ∀ g v, J (ρ₁ g v) = ρ₂ g⁻¹ (J v)) (ι : K →* G)
+    (ω : PontryaginDual K) (u : E₁) :
+    J u ∈ actionIsotype (ρ₂.comp ι) ω⁻¹ ↔ u ∈ actionIsotype (ρ₁.comp ι) ω := by
+  have hω (k : K) : ((ω⁻¹ : PontryaginDual K) k) = (ω k)⁻¹ := rfl
+  rw [mem_actionIsotype, mem_actionIsotype]
+  simp only [MonoidHom.comp_apply]
+  constructor
+  · intro h k
+    apply J.injective
+    rw [key, J.map_smul, ← map_inv, h, hω, map_inv, inv_inv]
+  · intro h k
+    rw [show ι k = (ι k⁻¹)⁻¹ by rw [map_inv, inv_inv], ← key, h, J.map_smul, hω, map_inv]
+
 /-- Paper: Theorem 10.1.2.1, p. 437. The induced inversion sends each norm-one
 isotype onto the inverse-character isotype of the reflected completion. -/
 theorem globalThetaSobolevInversion_mem_isotype (a : ℝ) {α β s : ℝ} (hI : α ≤ β)
     (hs : 0 ≤ s) (ω : PontryaginDual C₁) (u : H𝔽(a, hI, hs)) :
     let J := (exists_globalThetaSobolevInversion (F := F) a hI hs).choose
     J u ∈ actionIsotype ((R𝔽(1 - a, neg_le_neg hI, hs)).comp (ideleClassNorm F).ker.subtype) ω⁻¹ ↔
-      u ∈ actionIsotype ((R𝔽(a, hI, hs)).comp (ideleClassNorm F).ker.subtype) ω := by sorry
+      u ∈ actionIsotype ((R𝔽(a, hI, hs)).comp (ideleClassNorm F).ker.subtype) ω := by
+  intro J
+  have : (μ𝔽).Regular := (ideleClassTamagawaMeasure_isWeil F).2.1
+  have hinvMP : MeasurePreserving (fun g : C𝔽 ↦ g⁻¹) μ𝔽 μ𝔽 := Measure.measurePreserving_inv μ𝔽
+  have hJ := (exists_globalThetaSobolevInversion (F := F) a hI hs).choose_spec.1
+  have hR := (exists_globalThetaSobolevAction (F := F) a hI hs).choose_spec.1
+  have hR' := (exists_globalThetaSobolevAction (F := F) (1 - a) (neg_le_neg hI) hs).choose_spec.1
+  have hinv := (existsUnique_ideleClassSobolevInversion (F := F) α β s hI hs).exists.choose_spec
+  have hT₁ := hardySobolevTranslation_apply μ𝔽 m𝔽 α β s hI hs
+  have hT₂ := hardySobolevTranslation_apply μ𝔽 m𝔽 (-β) (-α) s (neg_le_neg hI) hs
+  have key := globalThetaSobolevInversion_mem_isotype_key μ𝔽 _
+    (withDensity_absolutelyContinuous μ𝔽 _) hinvMP.quasiMeasurePreserving
+    (fun g ↦ (measurePreserving_mul_left μ𝔽 g).quasiMeasurePreserving) _ _ _ hinv J hJ _ hT₁ _ hT₂
+    _ hR _ hR'
+  exact globalThetaSobolevInversion_mem_isotype_iff J _ _ key (ideleClassNorm F).ker.subtype ω u
 
 -- TODO(paper-gap): The unbounded multiplier argument on p. 438 is on the ambient W_I^s,
 -- whereas necessity in the theorem needs unboundedness on the weighted theta subspace.

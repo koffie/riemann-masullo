@@ -74,7 +74,7 @@ have learned about doing this quickly.
 
 ## Status
 
-**Active: proving waves 1 and 2, stating wave 3.** As of 22 November 2026, about 6,800
+**Active: every statement is in Lean; proving and refuting.** As of 22 November 2026, about 6,800
 theorems and 1,290 definitions are stated in Lean and about 6,100 of the theorems are proved.
 Some thirty people have had pull requests merged, about 1,580 pull requests in all.
 
@@ -82,10 +82,10 @@ Some thirty people have had pull requests merged, about 1,580 pull requests in a
   proved. The remaining proofs are being closed out file by file.
 - **Wave 2** (Chapters 5–7 and Appendix B) is fully stated, each statement reviewed against the
   paper before it was merged. Its proofs are open.
-- **Wave 3** (Chapters 10–12, the trace formula, then the two pages of Chapter 13) is being
-  stated section by section in the same way. Chapter 10, §11.1, the opening of §11.2, the
-  general part of §12.1 and §12.2 are on `main` with their proofs open; the rest follows in
-  dependency order. Chapter 8 is not needed for these statements.
+- **Wave 3** (Chapters 10–12, the trace formula, and the two pages of Chapter 13) is fully
+  stated as well, reviewed in the same way; the last section landed on 22 November. §12.3 is
+  a heading in the paper with a note to include the section, so there is nothing to state
+  there. Chapter 8 is not needed for these statements.
 
 Every open `sorry` is an issue that anyone can take. The
 [progress map](https://claude.ai/artifact/CtQyX8qfYAF822bgHJHHE3) has the current numbers, and
@@ -273,6 +273,11 @@ on work that does not appear there.
     11.3.2.1 at the prime 2.
 - **dga471** proved four of this project's statements on [Prove2Me](https://prove2.me), and
   the proofs were brought in from there.
+- **Maarten Derickx** ([@koffie](https://github.com/koffie)) found why some trivial proofs never
+  finished: type synonyms declared as abbreviations, whose instance terms grow exponentially
+  when they are nested. He measured every one in the library and proposed the redesign (#5398)
+  and the rules for new definitions (#5362), which are adapted from
+  [Tau Ceti](https://github.com/TauCetiProject/TauCetiReview)'s review rubric.
 - Proofs were adapted from [`CBirkbeck/AINTLIB`](https://github.com/CBirkbeck/AINTLIB) and
   [`Rogerhu12/hecke-seven-eighths`](https://github.com/Rogerhu12/hecke-seven-eighths). The
   scouts' surveys of what already exists in Lean

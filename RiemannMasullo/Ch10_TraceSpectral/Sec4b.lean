@@ -3,6 +3,8 @@ module
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 public import RiemannMasullo.AppC_LCTVS.Sec3b
 import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+
+import all RiemannMasullo.Ch09_HardySobolev.Sec3
 import all RiemannMasullo.AppC_LCTVS.Sec2a_part2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
@@ -156,7 +158,9 @@ basis vector is the spectral projection of any representative.
 Deviation: The identity is stated for any quotient vector. -/
 theorem spectralLineKernel_orthogonalLift (_ha : 0 < a)
     (x : H(a, (le_refl (0 : ℝ)), hs₀(hs))) (v : W(0, s)) (_hv : Q₀ v = x) :
-    S₀ x = Pspec(a, (le_refl (0 : ℝ)), hs₀(hs)) v := by sorry
+    S₀ x = Pspec(a, (le_refl (0 : ℝ)), hs₀(hs)) v := by
+  subst x
+  exact (spectralQuotient_orthogonalRepresentative (F := F) a (le_refl (0 : ℝ)) hs₀(hs) _ha v).1
 
 local notation "shift(" b ", " t ")" => ((b : ℝ) : ℂ) + ((t : ℝ) : ℂ) * Complex.I
 local notation "order(" χ ", " z ")" => meromorphicOrderAt (continuedCompletedHeckeL χ) z
@@ -414,7 +418,11 @@ theorem geometricLineTruncatedKernel_hilbertSchmidt (_ha : 0 < a)
 
 /-- Paper: Definition 10.4.3.2, p. 470. The two line representatives are measurable. -/
 theorem globalLineKernels_measurable :
-    Measurable (kLine : C𝔽 × C𝔽 → ℂ) ∧ Measurable geomLine := by sorry
+    Measurable (kLine : C𝔽 × C𝔽 → ℂ) ∧ Measurable geomLine := by
+  have hk : Measurable (kLine : C𝔽 × C𝔽 → ℂ) := (Lp.stronglyMeasurable kLine).measurable
+  have hφ : Continuous φ.val :=
+    continuous_of_bruhatSmooth ((mem_bruhatSmoothSubmodule_iff _).mp φ.property.1)
+  exact ⟨hk, (hφ.comp (continuous_fst.mul continuous_snd.inv)).measurable.sub hk⟩
 
 end LineRepresentatives
 

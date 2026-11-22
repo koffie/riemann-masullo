@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch09_HardySobolev.Sec3
 public import RiemannMasullo.Ch12_TraceGeometric.Sec1a
 public import Mathlib.Topology.Algebra.Module.Spaces.PointwiseConvergenceCLM
+import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
 
 /-! # §9.3: statements that are false as printed -/
 
@@ -34,13 +35,103 @@ def Printed.hardySobolevTranslation_seminorm_le : Prop :=
         p (hardySobolevTranslation μ m a b s hab hs g) ≤
           C * max (((m g).val : ℝ) ^ a) (((m g).val : ℝ) ^ b) * |logMod(m) g| ^ (s / 2)
 
+/-- The multiplicative Haar measure `dt/t` gives a set of logarithmic coordinates
+its Lebesgue measure. -/
+private theorem positiveRealHaar_logPreimage_hardySobolevTranslation (K : Set ℝ)
+    (hK : MeasurableSet K) :
+    positiveRealHaar {t : ℝ≥0ˣ | Real.log (t.val : ℝ) ∈ K} = volume K := by
+  let e (x : ℝ) := Units.mk0 (Real.exp x).toNNReal (Real.toNNReal_pos.mpr (Real.exp_pos x)).ne'
+  have he : Measurable e :=
+    measurable_comap_iff.mpr (continuous_real_toNNReal.comp Real.continuous_exp).measurable
+  have hset : MeasurableSet {t : ℝ≥0ˣ | Real.log (t.val : ℝ) ∈ K} :=
+    hK.preimage (Real.measurable_log.comp
+      (NNReal.continuous_coe.measurable.comp MeasurableSpace.le_map_comap))
+  change (volume.map e) _ = _
+  rw [Measure.map_apply he hset]
+  congr 1
+  ext x
+  change Real.log ((Real.exp x).toNNReal : ℝ) ∈ K ↔ x ∈ K
+  rw [Real.coe_toNNReal _ (Real.exp_pos x).le, Real.log_exp]
+
+/-- The identity is a surjective modulation of the positive reals. -/
+private theorem isModulation_id_hardySobolevTranslation :
+    IsModulation (ContinuousMonoidHom.id ℝ≥0ˣ) :=
+  ⟨isProperMap_id, ⟨Units.mk0 2 (by norm_num), by
+    intro h
+    have := congrArg (fun t : ℝ≥0ˣ ↦ (t.val : ℝ)) h
+    norm_num at this⟩⟩
+
+/-- The degree-two compact-interval space over the base `{0}` on the positive reals
+is nonzero: the indicator of `|log t| ≤ 1` has positive finite weighted mass. -/
+private theorem nontrivial_compactIntervalSobolev_hardySobolevTranslation :
+    Nontrivial (CompactIntervalSobolev positiveRealHaar
+      (fun x : ℝ≥0ˣ ↦ Real.log (x.val : ℝ)) 0 0 2) := by
+  let S : Set ℝ≥0ˣ := {t | Real.log (t.val : ℝ) ∈ Icc (-1 : ℝ) 1}
+  have hS : MeasurableSet S := measurableSet_Icc.preimage (Real.measurable_log.comp
+    (NNReal.continuous_coe.measurable.comp MeasurableSpace.le_map_comap))
+  have hμS : positiveRealHaar S = 2 := by
+    rw [positiveRealHaar_logPreimage_hardySobolevTranslation _ measurableSet_Icc,
+      Real.volume_Icc]
+    norm_num
+  have hd (x : ℝ) : intervalSobolevDensity 0 0 2 x = 1 + x ^ 2 := by
+    simp [intervalSobolevDensity]
+  set ν := positiveRealHaar.withDensity fun x : ℝ≥0ˣ ↦ ENNReal.ofReal
+    (if (false : Bool) then (intervalSobolevDensity 0 0 2 (Real.log (x.val : ℝ)))⁻¹
+     else intervalSobolevDensity 0 0 2 (Real.log (x.val : ℝ))) with hν
+  have hνS : ν S = ∫⁻ x in S, ENNReal.ofReal (1 + Real.log (x.val : ℝ) ^ 2) ∂positiveRealHaar := by
+    rw [hν, withDensity_apply _ hS]
+    simp only [Bool.false_eq_true, ite_false, hd]
+  have hlow : 2 ≤ ν S := by
+    rw [hνS, ← hμS, ← setLIntegral_one]
+    refine setLIntegral_mono (ENNReal.measurable_ofReal.comp (measurable_const.add
+      ((Real.measurable_log.comp (NNReal.continuous_coe.measurable.comp
+        MeasurableSpace.le_map_comap)).pow_const 2))) fun x _ ↦ ?_
+    rw [← ENNReal.ofReal_one]
+    exact ENNReal.ofReal_le_ofReal (by nlinarith [sq_nonneg (Real.log (x.val : ℝ))])
+  have hup : ν S ≤ 4 := by
+    calc ν S ≤ ∫⁻ _ in S, ENNReal.ofReal 2 ∂positiveRealHaar := by
+          rw [hνS]
+          refine setLIntegral_mono measurable_const fun x hx ↦ ENNReal.ofReal_le_ofReal ?_
+          obtain ⟨h1, h2⟩ := hx
+          nlinarith
+      _ = 4 := by
+          rw [setLIntegral_const, hμS, ENNReal.ofReal_ofNat]
+          norm_num
+  have hfin : ν S ≠ ∞ := (hup.trans_lt (by norm_num)).ne
+  have hpos : ν S ≠ 0 := (lt_of_lt_of_le (by norm_num) hlow).ne'
+  refine ⟨indicatorConstLp 2 hS hfin (1 : ℂ), 0, fun h ↦ ?_⟩
+  have hn := congrArg norm h
+  rw [norm_zero, norm_indicatorConstLp' (by norm_num) hpos, norm_one, one_mul] at hn
+  have : 0 < ν.real S := ENNReal.toReal_pos hpos hfin
+  exact (Real.rpow_pos_of_pos this _).ne' hn
+
+/-- On a nonzero normed space the identity has positive norm. -/
+private theorem not_norm_id_nonpos_hardySobolevTranslation {E : Type*} [NormedAddCommGroup E]
+    [NormedSpace ℂ E] [Nontrivial E] : ¬ ‖ContinuousLinearMap.id ℂ E‖ ≤ 0 := by
+  intro h
+  obtain ⟨v, hv⟩ := exists_ne (0 : E)
+  have h1 := (ContinuousLinearMap.id ℂ E).le_opNorm v
+  rw [ContinuousLinearMap.id_apply] at h1
+  exact hv (norm_le_zero_iff.mp (h1.trans (mul_nonpos_of_nonpos_of_nonneg h (norm_nonneg v))))
+
 /-- Paper: Lemma 9.3.1.5, (9.3.1.6), p. 421. On the positive reals with
 identity module and Haar measure dt/t, take a = b = 0, s = 2 and the operator
 norm seminorm. The space is nonzero, since a nonzero smooth compact log-profile
 lies in it. At g = 1 the translate is the identity, so the bound reads 1 ≤ 0. -/
 theorem Printed.hardySobolevTranslation_seminorm_le_false :
     ¬ Printed.hardySobolevTranslation_seminorm_le := by
-  sorry
+  intro h
+  have : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ ℝ≥0
+  have : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  have : positiveRealHaar.IsHaarMeasure := positiveRealHaar_isHaarMeasure
+  have hW := nontrivial_compactIntervalSobolev_hardySobolevTranslation
+  obtain ⟨C, -, hC⟩ := h ℝ≥0ˣ positiveRealHaar (ContinuousMonoidHom.id ℝ≥0ˣ)
+    isModulation_id_hardySobolevTranslation surjective_id 0 0 2 le_rfl (by norm_num)
+    (normSeminorm ℂ _) continuous_norm
+  have h1 := hC 1
+  rw [map_one, coe_normSeminorm, ContinuousLinearMap.one_def] at h1
+  refine @not_norm_id_nonpos_hardySobolevTranslation _ _ _ hW (h1.trans_eq ?_)
+  simp
 
 /-- Paper: Definition 9.3.1.1, p. 419. As printed: The left-translation action
 used in the definition acts on the Sobolev space for every nonempty closed
@@ -57,6 +148,54 @@ def Printed.hardySobolevTranslation_preserves_finiteNorm : Prop :=
       intervalSobolevENorm μ logMod(m) I s f.val < ∞ →
       intervalSobolevENorm μ logMod(m) I s (fun x ↦ f.val (g⁻¹ * x)) < ∞
 
+/-- A smooth function of the logarithmic module is Bruhat smooth. On each
+structural quotient, compose the descended positive quasi-character with log. -/
+private theorem isBruhatSmooth_logProfile_preservesFiniteNorm {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) {f : ℝ → ℝ} (hf : ContDiff ℝ (⊤ : ℕ∞) f) :
+    IsBruhatSmooth (fun x ↦ (f (Real.log ((m x).val : ℝ)) : ℂ)) := by
+  let χ : QuasiCharacter G :=
+    { toFun := fun x ↦ ((m x).val : ℝ)
+      map_one' := by simp
+      map_mul' := fun x y ↦ by simp
+      continuous_toFun := Complex.continuous_ofReal.comp
+        (NNReal.continuous_coe.comp (Units.continuous_val.comp m.continuous)) }
+  intro p
+  obtain ⟨k, hk, hinv, hdesc⟩ :=
+    (mem_bruhatSmoothSubmodule_iff _).1 (quasiCharacter_mem_bruhatSmooth χ) p
+  refine ⟨k, hk, fun h x ↦ congrArg (fun z : ℂ ↦ (f (Real.log z.re) : ℂ)) (hinv h x), ?_⟩
+  intro a ha
+  obtain ⟨q, hq, hdiff⟩ := hdesc a ha
+  have hpos (y : a.quotient) : 0 < (q y).re := by
+    obtain ⟨x, rfl⟩ := QuotientGroup.mk_surjective y
+    rw [hq]
+    exact NNReal.coe_pos.mpr (Units.zero_lt _)
+  refine ⟨fun y ↦ (f (Real.log (q y).re) : ℂ),
+    fun x ↦ congrArg (fun z : ℂ ↦ (f (Real.log z.re) : ℂ)) (hq x), ?_⟩
+  intro e z b
+  exact Complex.ofRealCLM.contDiff.comp ((hf.of_le (by simp)).comp
+    ((Complex.reCLM.contDiff.comp (hdiff e z b)).log fun x ↦ (hpos _).ne'))
+
+/-- A set of logarithmic coordinates of a compact set is compact in the positive reals. -/
+private theorem isCompact_logPreimage_preservesFiniteNorm {K : Set ℝ} (hK : IsCompact K) :
+    IsCompact {t : ℝ≥0ˣ | Real.log (t.val : ℝ) ∈ K} := by
+  let e : ℝ → ℝ≥0ˣ := fun x ↦ Units.mk0 (Real.exp x).toNNReal (Real.toNNReal_pos.mpr (Real.exp_pos x)).ne'
+  have he : Continuous e := Units.continuous_iff.mpr
+    ⟨continuous_real_toNNReal.comp Real.continuous_exp, by
+      change Continuous fun x ↦ ((Real.exp x).toNNReal)⁻¹
+      exact (continuous_real_toNNReal.comp Real.continuous_exp).inv₀ fun x ↦ (Real.toNNReal_pos.mpr (Real.exp_pos x)).ne'⟩
+  convert hK.image he using 1
+  ext t
+  constructor
+  · intro ht
+    refine ⟨_, ht, Units.ext (NNReal.eq ?_)⟩
+    change ((Real.exp (Real.log (t.val : ℝ))).toNNReal : ℝ) = _
+    rw [Real.exp_log (NNReal.coe_pos.mpr (Units.zero_lt t)),
+      Real.coe_toNNReal _ (NNReal.coe_nonneg _)]
+  · rintro ⟨x, hx, rfl⟩
+    change Real.log ((Real.exp x).toNNReal : ℝ) ∈ K
+    rwa [Real.coe_toNNReal _ (Real.exp_pos x).le, Real.log_exp]
+
 /-- Paper: Definition 9.3.1.1, p. 419. On the positive reals with identity
 module and Haar measure dt/t, take I = [0, ∞), s = 0 and a nonzero smooth
 bump in log coordinates supported in (−2, −1). There the endpoint twists
@@ -65,7 +204,138 @@ by exp 3 is supported in (1, 2) in log coordinates, where the norms for
 [0, b] grow without bound as b tends to infinity. -/
 theorem Printed.hardySobolevTranslation_preserves_finiteNorm_false :
     ¬ Printed.hardySobolevTranslation_preserves_finiteNorm := by
-  sorry
+  intro h
+  have : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ ℝ≥0
+  have : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  have : positiveRealHaar.IsHaarMeasure := positiveRealHaar_isHaarMeasure
+  let m := ContinuousMonoidHom.id ℝ≥0ˣ
+  have hm : IsModulation m := isModulation_id_hardySobolevTranslation
+  let L : ℝ≥0ˣ → ℝ := fun x ↦ Real.log (x.val : ℝ)
+  have hL : Measurable L :=
+    Real.measurable_log.comp (NNReal.continuous_coe.measurable.comp MeasurableSpace.le_map_comap)
+  have hLS (K : Set ℝ) (hK : MeasurableSet K) : MeasurableSet {t : ℝ≥0ˣ | L t ∈ K} :=
+    hK.preimage hL
+  -- The bump in logarithmic coordinates, supported in (−2, −1) and equal to one near −3/2.
+  let B : ContDiffBump (-3 / 2 : ℝ) := ⟨1 / 4, 1 / 2, by norm_num, by norm_num⟩
+  let F : ℝ≥0ˣ → ℂ := fun x ↦ (B (L x) : ℂ)
+  have hFm : Measurable F := Complex.measurable_ofReal.comp (B.continuous.measurable.comp hL)
+  have hBsupp (y : ℝ) (hy : B y ≠ 0) : y ∈ Icc (-2 : ℝ) (-1) := by
+    have : y ∈ Function.support B := hy
+    rw [B.support_eq, Metric.mem_ball, Real.dist_eq, abs_lt,
+      show B.rOut = 1 / 2 from rfl] at this
+    constructor <;> linarith [this.1, this.2]
+  have hFc : HasCompactSupport F := by
+    refine HasCompactSupport.intro (isCompact_logPreimage_preservesFiniteNorm
+      (isCompact_Icc (a := (-2 : ℝ)) (b := -1)))
+      fun x hx ↦ ?_
+    by_contra hne
+    exact hx (hBsupp _ fun h0 ↦ hne (show ((B (L x) : ℝ) : ℂ) = 0 by
+      rw [h0, Complex.ofReal_zero]))
+  have hFmem : F ∈ modulatedExponentialDecaySubmodule m univ :=
+    bruhatCompactSupport_le_modulatedExponentialDecay m univ hm surjective_id
+      ⟨(mem_bruhatSmoothSubmodule_iff _).mpr
+        (isBruhatSmooth_logProfile_preservesFiniteNorm m B.contDiff), hFc⟩
+  let f : ModulatedExponentialDecay m univ := ⟨F, hFmem⟩
+  let g : ℝ≥0ˣ := Units.mk0 (Real.exp 3).toNNReal (Real.toNNReal_pos.mpr (Real.exp_pos 3)).ne'
+  have hLg (x : ℝ≥0ˣ) : L (g⁻¹ * x) = L x - 3 := by
+    have hx : (0 : ℝ) < (x.val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt x)
+    change Real.log ((((g⁻¹ * x : ℝ≥0ˣ) : ℝ≥0)) : ℝ) = _
+    rw [Units.val_mul, Units.val_inv_eq_inv_val, NNReal.coe_mul, NNReal.coe_inv,
+      Real.log_mul (inv_pos.mpr (NNReal.coe_pos.mpr (Units.zero_lt g))).ne' hx.ne',
+      Real.log_inv]
+    change -Real.log ((Real.exp 3).toNNReal : ℝ) + _ = _
+    rw [Real.coe_toNNReal _ (Real.exp_pos 3).le, Real.log_exp]
+    ring
+  have hd (a b x : ℝ) : intervalSobolevDensity a b 0 x =
+      max (Real.exp (2 * a * x)) (Real.exp (2 * b * x)) := by
+    simp [intervalSobolevDensity]
+  -- The norm of the bump is finite: every density is at most one on its support.
+  let S : Set ℝ≥0ˣ := {t | L t ∈ Icc (-2 : ℝ) (-1)}
+  have hμS : positiveRealHaar S = 1 := by
+    rw [positiveRealHaar_logPreimage_hardySobolevTranslation _ measurableSet_Icc,
+      Real.volume_Icc]
+    norm_num
+  have hfin : intervalSobolevENorm positiveRealHaar L (Ici 0) 0 f.val < ∞ := by
+    refine lt_of_le_of_lt (iSup₂_le fun a b ↦ ?_) ENNReal.one_lt_top
+    have ha : (0 : ℝ) ≤ a := a.2
+    have hb : (0 : ℝ) ≤ b := b.2
+    set ν := positiveRealHaar.withDensity fun x ↦
+      ENNReal.ofReal (intervalSobolevDensity a b 0 (L x))
+    calc eLpNorm f.val 2 ν ≤ eLpNorm (S.indicator fun _ ↦ (1 : ℂ)) 2 ν := by
+          refine eLpNorm_mono hFm.aestronglyMeasurable fun x ↦ ?_
+          by_cases hx : x ∈ S
+          · rw [indicator_of_mem hx, norm_one]
+            change ‖((B (L x) : ℝ) : ℂ)‖ ≤ 1
+            rw [Complex.norm_real, Real.norm_of_nonneg B.nonneg]
+            exact B.le_one
+          · rw [indicator_of_notMem hx, norm_zero]
+            have : B (L x) = 0 := by
+              by_contra hne
+              exact hx (hBsupp _ hne)
+            change ‖((B (L x) : ℝ) : ℂ)‖ ≤ 0
+            rw [this]
+            simp
+      _ = ν S ^ (1 / (2 : ℝ≥0∞).toReal) := by
+          rw [eLpNorm_indicator_const (hLS _ measurableSet_Icc).nullMeasurableSet
+            (by norm_num) (by norm_num), eNorm_one, one_mul]
+      _ ≤ 1 := by
+          refine ENNReal.rpow_le_one ?_ (by norm_num)
+          rw [withDensity_apply _ (hLS _ measurableSet_Icc), ← hμS, ← setLIntegral_one]
+          refine setLIntegral_mono measurable_const fun x hx ↦ ?_
+          rw [hd, ← ENNReal.ofReal_one]
+          refine ENNReal.ofReal_le_ofReal (max_le ?_ ?_) <;>
+            exact Real.exp_le_one_iff.mpr (by nlinarith [hx.2])
+  have hinf := h ℝ≥0ˣ positiveRealHaar m hm surjective_id (Ici 0) isClosed_Ici ordConnected_Ici
+    nonempty_Ici 0 le_rfl f g hfin
+  -- The translate is one on `5/4 ≤ log t ≤ 7/4`, where the weight of exponent `k` is
+  -- at least `exp (2k)`.
+  let S' : Set ℝ≥0ˣ := {t | L t ∈ Icc (5 / 4 : ℝ) (7 / 4)}
+  have hμS' : positiveRealHaar S' = ENNReal.ofReal (1 / 2) := by
+    rw [positiveRealHaar_logPreimage_hardySobolevTranslation _ measurableSet_Icc,
+      Real.volume_Icc]
+    norm_num
+  refine hinf.ne (ENNReal.eq_top_of_forall_nnreal_le fun r ↦ ?_)
+  obtain ⟨k, hk⟩ := exists_nat_ge (r : ℝ)
+  have hk0 : (0 : ℝ) ≤ k := k.cast_nonneg
+  refine le_trans ?_ (le_iSup₂_of_le (⟨k, hk0⟩ : Ici (0 : ℝ)) (⟨k, hk0⟩ : Ici (0 : ℝ)) le_rfl)
+  set ν := positiveRealHaar.withDensity fun x ↦
+    ENNReal.ofReal (intervalSobolevDensity (k : ℝ) (k : ℝ) 0 (L x))
+  have hνS' : ENNReal.ofReal ((k : ℝ) ^ 2) ≤ ν S' := by
+    rw [withDensity_apply _ (hLS _ measurableSet_Icc)]
+    calc ENNReal.ofReal ((k : ℝ) ^ 2)
+        ≤ ∫⁻ _ in S', ENNReal.ofReal (Real.exp (2 * k)) ∂positiveRealHaar := by
+          rw [setLIntegral_const, hμS', ← ENNReal.ofReal_mul (Real.exp_pos _).le]
+          refine ENNReal.ofReal_le_ofReal ?_
+          have := Real.pow_div_factorial_le_exp (2 * (k : ℝ)) (by positivity) 2
+          norm_num [Nat.factorial] at this
+          nlinarith
+      _ ≤ _ := by
+          refine setLIntegral_mono (ENNReal.measurable_ofReal.comp
+            ((show Measurable fun x : ℝ ↦ intervalSobolevDensity (k : ℝ) k 0 x by
+              unfold intervalSobolevDensity; fun_prop).comp hL)) fun x hx ↦ ?_
+          rw [hd, max_self]
+          exact ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr (by nlinarith [hx.1]))
+  calc (r : ℝ≥0∞) ≤ ENNReal.ofReal ((k : ℝ) ^ 2) ^ (1 / (2 : ℝ≥0∞).toReal) := by
+        rw [ENNReal.ofReal_pow hk0, ← ENNReal.rpow_natCast, ← ENNReal.rpow_mul]
+        norm_num
+        exact_mod_cast hk
+    _ ≤ ν S' ^ (1 / (2 : ℝ≥0∞).toReal) := ENNReal.rpow_le_rpow hνS' (by norm_num)
+    _ = eLpNorm (S'.indicator fun _ ↦ (1 : ℂ)) 2 ν := by
+        rw [eLpNorm_indicator_const (hLS _ measurableSet_Icc).nullMeasurableSet
+          (by norm_num) (by norm_num), eNorm_one, one_mul]
+    _ ≤ eLpNorm (fun x ↦ f.val (g⁻¹ * x)) 2 ν := by
+        refine eLpNorm_mono ((measurable_const.indicator (hLS _ measurableSet_Icc)).aestronglyMeasurable)
+          fun x ↦ ?_
+        by_cases hx : x ∈ S'
+        · rw [indicator_of_mem hx, norm_one]
+          change 1 ≤ ‖((B (L (g⁻¹ * x)) : ℝ) : ℂ)‖
+          rw [hLg, B.one_of_mem_closedBall]
+          · simp
+          rw [Metric.mem_closedBall, Real.dist_eq, abs_le]
+          change _ ∧ _ ≤ 1 / 4
+          constructor <;> linarith [hx.1, hx.2]
+        · rw [indicator_of_notMem hx, norm_zero]
+          exact norm_nonneg _
 
 /-- Paper: Lemma 9.3.2.1(2)–(4), p. 422. Given the extension (9.3.2.1), there is a
 family indexed by the nonnegative integers and all norm-one characters. Each member is in its
@@ -178,6 +448,42 @@ def Printed.truncatedHardySobolevConvolution_diagonal_tendsto : Prop :=
       Tendsto (fun Λ ↦ (∫ x, diagonal Λ x ∂μ) -
         (2 * Real.log Λ * μ₁.real univ : ℝ) * φ 1) atTop (𝓝 0)
 
+/-- A kernel that vanishes almost everywhere for the product measure has zero
+product smoothening: every average vanishes. -/
+private theorem dSequenceKernelSmoothening_eq_zero_diagonalTendsto {G : Type*} [CommGroup G]
+    [MeasurableSpace G] (μ : Measure G) (U : ℕ → Set G) (k : G × G → ℂ)
+    (hk : k =ᵐ[μ.prod μ] 0) (p : G × G) : dSequenceKernelSmoothening μ U k p = 0 := by
+  have havg (n : ℕ) : dSequenceAverage (μ.prod μ) (U n ×ˢ U n) k p = 0 := by
+    unfold dSequenceAverage
+    rw [setAverage_eq, integral_congr_ae (ae_restrict_of_ae hk)]
+    simp
+  unfold dSequenceKernelSmoothening dSequenceSmootheningOrZero
+  split_ifs with hx
+  · simp only [dSequenceSmoothening, havg]
+    exact tendsto_const_nhds.limUnder_eq
+  · rfl
+
+/-- If a function is locally constant with value `v` near the points of a filter, its
+iterated derivatives tend to those of the constant `v`. -/
+private theorem tendsto_iteratedDeriv_diagonalTendsto {q : ℝ → ℝ} {l : Filter ℝ} (v : ℝ)
+    (h : ∀ᶠ y in l, q =ᶠ[𝓝 y] fun _ ↦ v) (n : ℕ) :
+    Tendsto (iteratedDeriv n q) l (𝓝 (if n = 0 then v else 0)) :=
+  tendsto_const_nhds.congr' (h.mono fun y hy ↦ by
+    rw [hy.iteratedDeriv_eq n, iteratedDeriv_const])
+
+/-- The indicator of a closed interval is locally constant away from its endpoints. -/
+private theorem indicator_Icc_eventuallyEq_diagonalTendsto (a b y : ℝ) (ha : y ≠ a)
+    (hb : y ≠ b) :
+    (Icc a b).indicator (fun _ ↦ (1 : ℝ)) =ᶠ[𝓝 y]
+      fun _ ↦ (Icc a b).indicator (fun _ ↦ (1 : ℝ)) y := by
+  by_cases hy : y ∈ Icc a b
+  · have hy' : y ∈ Ioo a b := ⟨lt_of_le_of_ne hy.1 (Ne.symm ha), lt_of_le_of_ne hy.2 hb⟩
+    filter_upwards [isOpen_Ioo.mem_nhds hy'] with x hx
+    rw [indicator_of_mem (Ioo_subset_Icc_self hx), indicator_of_mem hy]
+  · filter_upwards [isClosed_Icc.isOpen_compl.mem_nhds hy] with x hx
+    rw [indicator_of_notMem hx, indicator_of_notMem hy]
+
+open scoped Pointwise in
 /-- Paper: Theorem 9.3.3.5(3), (9.3.3.9), p. 429. Take G = ℝ_{>0}, the identity
 module, Haar measure dt/t, mass one on the trivial kernel, base {0} and degree
 zero. Let φ be the indicator of {1}, let Uₙ = [exp(−2⁻ⁿ), exp(2⁻ⁿ)],
@@ -187,6 +493,265 @@ so every average defining its smoothening vanishes. The asserted leading
 term is 2 log Λ because φ(1) = 1. -/
 theorem Printed.truncatedHardySobolevConvolution_diagonal_tendsto_false :
     ¬ Printed.truncatedHardySobolevConvolution_diagonal_tendsto := by
-  sorry
+  intro h
+  have : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ ℝ≥0
+  have : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  have : positiveRealHaar.IsHaarMeasure := positiveRealHaar_isHaarMeasure
+  have : SFinite positiveRealHaar := by unfold positiveRealHaar; infer_instance
+  let m := ContinuousMonoidHom.id ℝ≥0ˣ
+  have hm : IsModulation m := isModulation_id_hardySobolevTranslation
+  let L : ℝ≥0ˣ → ℝ := fun x ↦ Real.log (x.val : ℝ)
+  have hL : Measurable L :=
+    Real.measurable_log.comp (NNReal.continuous_coe.measurable.comp MeasurableSpace.le_map_comap)
+  have hLS (K : Set ℝ) (hK : MeasurableSet K) : MeasurableSet {t : ℝ≥0ˣ | L t ∈ K} :=
+    hK.preimage hL
+  have hpos (x : ℝ≥0ˣ) : (0 : ℝ) < (x.val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt x)
+  have hLmul (x y : ℝ≥0ˣ) : L (x * y⁻¹) = L x - L y := by
+    change Real.log ((((x * y⁻¹ : ℝ≥0ˣ) : ℝ≥0)) : ℝ) = _
+    rw [Units.val_mul, Units.val_inv_eq_inv_val, NNReal.coe_mul, NNReal.coe_inv,
+      Real.log_mul (hpos x).ne' (inv_pos.mpr (hpos y)).ne', Real.log_inv]
+    rfl
+  let e : ℝ → ℝ≥0ˣ := fun x ↦ Units.mk0 (Real.exp x).toNNReal (Real.toNNReal_pos.mpr (Real.exp_pos x)).ne'
+  have he : Continuous e := Units.continuous_iff.mpr
+    ⟨continuous_real_toNNReal.comp Real.continuous_exp, by
+      change Continuous fun x ↦ ((Real.exp x).toNNReal)⁻¹
+      exact (continuous_real_toNNReal.comp Real.continuous_exp).inv₀ fun x ↦ (Real.toNNReal_pos.mpr (Real.exp_pos x)).ne'⟩
+  have heL (t : ℝ≥0ˣ) : e (L t) = t := by
+    refine Units.ext (NNReal.eq ?_)
+    change ((Real.exp (Real.log (t.val : ℝ))).toNNReal : ℝ) = _
+    rw [Real.exp_log (hpos t), Real.coe_toNNReal _ (NNReal.coe_nonneg _)]
+  have he0 : e 0 = 1 := by
+    refine Units.ext (NNReal.eq ?_)
+    change ((Real.exp 0).toNNReal : ℝ) = 1
+    simp
+  -- The trivial kernel carries the Dirac mass.
+  let K := m.toMonoidHom.ker
+  have hK : Subsingleton K := ⟨fun a b ↦ Subtype.ext
+    ((MonoidHom.mem_ker.mp a.2).trans (MonoidHom.mem_ker.mp b.2).symm)⟩
+  let μ₁ : Measure K := Measure.dirac 1
+  have hμ₁ : μ₁.IsHaarMeasure :=
+    { lt_top_of_isCompact := fun _ _ ↦ measure_lt_top _ _
+      map_mul_left_eq_self := fun g ↦ by
+        change Measure.map _ (Measure.dirac 1) = Measure.dirac 1
+        rw [Measure.map_dirac' Subsingleton.measurable, Subsingleton.elim (g * 1) 1]
+      open_pos := fun U _ hne ↦ by
+        obtain ⟨u, hu⟩ := hne
+        rw [Subsingleton.elim u 1] at hu
+        change Measure.dirac 1 U ≠ 0
+        rw [Measure.dirac_apply_of_mem hu]
+        exact one_ne_zero }
+  have hμ : positiveRealHaar = (μ₁.prod positiveRealHaar).map
+      (fun z : K × ℝ≥0ˣ ↦ z.1.val * ContinuousMonoidHom.id ℝ≥0ˣ z.2) := by
+    have hf : (fun z : K × ℝ≥0ˣ ↦ z.1.val * ContinuousMonoidHom.id ℝ≥0ˣ z.2) = Prod.snd := by
+      funext z
+      rw [show z.1.val = 1 from MonoidHom.mem_ker.mp z.1.2, one_mul]
+      rfl
+    rw [hf, Measure.map_snd_prod, measure_univ, one_smul]
+  -- The symbol is the indicator of the identity.
+  let φ : ℝ≥0ˣ → ℂ := ({1} : Set ℝ≥0ˣ).indicator fun _ ↦ 1
+  have hφm : AEMeasurable φ positiveRealHaar :=
+    (measurable_const.indicator (measurableSet_singleton 1)).aemeasurable
+  have hφc : HasCompactSupport φ :=
+    HasCompactSupport.intro isCompact_singleton fun x hx ↦ indicator_of_notMem hx _
+  have hφb : ∃ C : ℝ, ∀ g, ‖φ g‖ ≤ C :=
+    ⟨1, fun g ↦ (norm_indicator_le_norm_self _ _).trans (by simp)⟩
+  -- The D′-sequence of logarithmic balls of radius 2⁻ⁿ.
+  let r : ℕ → ℝ := fun n ↦ (1 / 2 : ℝ) ^ n
+  have hr (n : ℕ) : 0 < r n := by positivity
+  let U : ℕ → Set ℝ≥0ˣ := fun n ↦ {t | L t ∈ Icc (-r n) (r n)}
+  have hUm (n : ℕ) : MeasurableSet (U n) := hLS _ measurableSet_Icc
+  have hμU (n : ℕ) : positiveRealHaar (U n) = ENNReal.ofReal (2 * r n) := by
+    rw [positiveRealHaar_logPreimage_hardySobolevTranslation _ measurableSet_Icc,
+      Real.volume_Icc]
+    ring_nf
+  have hU1 (n : ℕ) : (1 : ℝ≥0ˣ) ∈ U n := by
+    simp only [U, L, mem_ofPred_eq, Units.val_one, NNReal.coe_one, Real.log_one]
+    exact ⟨by linarith [hr n], (hr n).le⟩
+  have hUU (n : ℕ) : U n * (U n)⁻¹ ⊆ {t | L t ∈ Icc (-(2 * r n)) (2 * r n)} := by
+    rintro t ⟨x, hx, y, hy, rfl⟩
+    have hy' : L y⁻¹ ∈ Icc (-r n) (r n) := hy
+    have hLy : L y⁻¹ = -L y := by
+      change Real.log ((((y⁻¹ : ℝ≥0ˣ) : ℝ≥0)) : ℝ) = _
+      rw [Units.val_inv_eq_inv_val, NNReal.coe_inv, Real.log_inv]
+    rw [hLy] at hy'
+    show L (x * y) ∈ Icc (-(2 * r n)) (2 * r n)
+    rw [show x * y = x * y⁻¹⁻¹ by rw [inv_inv], hLmul]
+    obtain ⟨hx1, hx2⟩ := hx
+    obtain ⟨hy1, hy2⟩ := hy'
+    constructor <;> linarith
+  have hD : IsDPrimeSequence positiveRealHaar U := by
+    unfold IsDPrimeSequence IsDSequence
+    refine ⟨⟨fun n ↦ ⟨hU1 n, (hUm n).nullMeasurableSet, ?_, ?_⟩, ?_, 3, by norm_num, fun n ↦ ⟨?_, ?_⟩⟩, ?_⟩
+    · rw [hμU]
+      exact ENNReal.ofReal_pos.mpr (by linarith [hr n])
+    · rw [hμU]
+      exact ENNReal.ofReal_lt_top
+    · intro a b hab t ht
+      have : r b ≤ r a := pow_le_pow_of_le_one (by norm_num) (by norm_num) hab
+      exact ⟨by linarith [ht.1], by linarith [ht.2]⟩
+    · refine lt_of_lt_of_le ?_ (measure_mono (fun t ht ↦ ⟨t, ht, 1, by simpa using hU1 n,
+        mul_one t⟩ : U n ⊆ U n * (U n)⁻¹))
+      rw [hμU]
+      exact ENNReal.ofReal_pos.mpr (by linarith [hr n])
+    · refine lt_of_le_of_lt (measure_mono (hUU n)) ?_
+      rw [positiveRealHaar_logPreimage_hardySobolevTranslation _ measurableSet_Icc,
+        Real.volume_Icc, hμU, ← ENNReal.ofReal_mul (by norm_num)]
+      exact (ENNReal.ofReal_lt_ofReal_iff (by nlinarith [hr n])).mpr (by nlinarith [hr n])
+    · intro W hW
+      have hW' : e ⁻¹' W ∈ 𝓝 (0 : ℝ) := he.continuousAt.preimage_mem_nhds (he0 ▸ hW)
+      obtain ⟨δ, hδ, hball⟩ := Metric.mem_nhds_iff.mp hW'
+      obtain ⟨n, hn⟩ := exists_pow_lt_of_lt_one hδ (show (1 / 2 : ℝ) < 1 by norm_num)
+      refine ⟨n, fun t ht ↦ ?_⟩
+      rw [← heL t]
+      apply hball
+      rw [Metric.mem_ball, Real.dist_eq, sub_zero, abs_lt]
+      exact ⟨by linarith [ht.1], lt_of_le_of_lt ht.2 hn⟩
+  -- The sharp cutoffs of [Λ⁻¹, Λ] with width Λ⁻².
+  let ε : ℝ → ℝ := fun Λ ↦ Λ⁻¹ ^ 2
+  let q : ℝ → ℝ → ℝ := fun Λ ↦ (Icc Λ⁻¹ Λ).indicator fun _ ↦ 1
+  let ρ : ℝ → ℝ≥0ˣ → ℝ := fun Λ x ↦ q Λ (x.val : ℝ)
+  have hε : Tendsto (fun Λ ↦ ε Λ * Λ) atTop (𝓝 0) := by
+    refine tendsto_inv_atTop_zero.congr' ?_
+    filter_upwards [eventually_gt_atTop 0] with Λ hΛ
+    change Λ⁻¹ = Λ⁻¹ ^ 2 * Λ
+    field_simp
+  have hρ1 (x : ℝ≥0ˣ) : Tendsto (fun Λ ↦ ρ Λ x) atTop (𝓝 1) := by
+    refine tendsto_const_nhds.congr' ?_
+    filter_upwards [eventually_ge_atTop (x.val : ℝ), eventually_ge_atTop (x.val : ℝ)⁻¹]
+      with Λ h1 h2
+    have hΛ : 0 < Λ := lt_of_lt_of_le (inv_pos.mpr (hpos x)) h2
+    exact (indicator_of_mem (show ((x : ℝ≥0) : ℝ) ∈ Icc Λ⁻¹ Λ from
+      ⟨(inv_le_comm₀ hΛ (hpos x)).mpr h2, h1⟩) (fun _ ↦ (1 : ℝ))).symm
+  have hcut : ∀ᶠ Λ in atTop, IsModulatedCutoff m Λ (ε Λ) (ρ Λ) ∧
+      0 < Λ⁻¹ + ε Λ ∧ Λ⁻¹ + ε Λ < Λ - ε Λ := by
+    filter_upwards [eventually_ge_atTop 2] with Λ hΛ2
+    have hΛ : 0 < Λ := by linarith
+    have hu : 0 < Λ⁻¹ := inv_pos.mpr hΛ
+    have hu2 : Λ⁻¹ ≤ 1 / 2 := by
+      rw [inv_le_comm₀ hΛ (by norm_num)]
+      linarith
+    have huΛ : Λ⁻¹ < Λ := by linarith
+    have hmem1 : (1 : ℝ) ∈ Icc Λ⁻¹ Λ := ⟨by linarith, by linarith⟩
+    have hle (x : ℝ≥0ˣ) : ρ Λ x ≤ 1 := by
+      change (Icc Λ⁻¹ Λ).indicator (fun _ ↦ (1 : ℝ)) _ ≤ 1
+      by_cases hx : (x.val : ℝ) ∈ Icc Λ⁻¹ Λ
+      · rw [indicator_of_mem hx]
+      · rw [indicator_of_notMem hx]; norm_num
+    have hnn (x : ℝ≥0ˣ) : 0 ≤ ρ Λ x :=
+      indicator_nonneg (fun _ _ ↦ zero_le_one) _
+    have hρ1' : ρ Λ 1 = 1 := by
+      change (Icc Λ⁻¹ Λ).indicator (fun _ ↦ (1 : ℝ)) (((1 : ℝ≥0ˣ) : ℝ≥0) : ℝ) = 1
+      rw [Units.val_one, NNReal.coe_one, indicator_of_mem hmem1]
+    have hcontmod : Continuous fun x : ℝ≥0ˣ ↦ ((m x).val : ℝ) :=
+      NNReal.continuous_coe.comp (Units.continuous_val.comp m.continuous)
+    refine ⟨⟨hΛ, by positivity, by nlinarith, by nlinarith, hnn,
+      fun x ↦ (abs_of_nonneg (hnn x)).trans_le (hle x), ?_, ?_, ?_, ?_, ?_⟩,
+      by positivity, by nlinarith⟩
+    · exact IsGreatest.csSup_eq ⟨⟨1, hρ1'⟩, forall_mem_range.mpr hle⟩
+    · refine ⟨q Λ, {Λ⁻¹, Λ}, fun x ↦ rfl, ?_, ?_, ?_⟩
+      · intro c hc
+        simp only [Finset.coe_insert, Finset.coe_singleton, mem_insert_iff,
+          mem_singleton_iff] at hc
+        rcases hc with rfl | rfl
+        · exact hu
+        · exact hΛ
+      · intro y hy
+        simp only [Finset.coe_insert, Finset.coe_singleton, Set.mem_sdiff, mem_insert_iff,
+          mem_singleton_iff, not_or] at hy
+        exact (contDiffAt_const.congr_of_eventuallyEq
+          (indicator_Icc_eventuallyEq_diagonalTendsto _ _ y hy.2.1 hy.2.2)).contDiffWithinAt
+      · intro c hc n
+        simp only [Finset.mem_insert, Finset.mem_singleton] at hc
+        -- Below Λ⁻¹ and above Λ the cutoff is zero; between them it is one.
+        have hlow : ∀ᶠ y in 𝓝[<] Λ⁻¹, q Λ =ᶠ[𝓝 y] fun _ ↦ 0 := by
+          filter_upwards [self_mem_nhdsWithin] with y hy
+          filter_upwards [isOpen_Iio.mem_nhds hy] with x hx
+          exact indicator_of_notMem (fun h : x ∈ Icc Λ⁻¹ Λ ↦ not_le.mpr (show x < Λ⁻¹ from hx) h.1) _
+        have hhigh : ∀ᶠ y in 𝓝[>] Λ, q Λ =ᶠ[𝓝 y] fun _ ↦ 0 := by
+          filter_upwards [self_mem_nhdsWithin] with y hy
+          filter_upwards [isOpen_Ioi.mem_nhds hy] with x hx
+          exact indicator_of_notMem (fun h : x ∈ Icc Λ⁻¹ Λ ↦ not_le.mpr (show Λ < x from hx) h.2) _
+        have hmid (c : ℝ) (hc : c ∈ Icc Λ⁻¹ Λ) (l : Filter ℝ) (hl : l ≤ 𝓝 c)
+            (hl' : ∀ᶠ y in l, y ≠ c) (hside : ∀ᶠ y in l, Λ⁻¹ ≤ y ∧ y ≤ Λ) :
+            ∀ᶠ y in l, q Λ =ᶠ[𝓝 y] fun _ ↦ 1 := by
+          have h1 : ∀ᶠ y in l, y ∈ Ioo Λ⁻¹ Λ := by
+            have hne : ∀ᶠ y in l, y ≠ Λ⁻¹ ∧ y ≠ Λ := by
+              rcases eq_or_ne c Λ⁻¹ with rfl | hc1
+              · filter_upwards [hl', hl (isOpen_Iio.mem_nhds huΛ)] with y h1 h2
+                exact ⟨h1, (show y < Λ from h2).ne⟩
+              · rcases eq_or_ne c Λ with hc2 | hc2
+                · rw [hc2] at hl hl'
+                  filter_upwards [hl', hl (isOpen_Ioi.mem_nhds huΛ)] with y h1 h2
+                  exact ⟨(show Λ⁻¹ < y from h2).ne', h1⟩
+                · filter_upwards [hl (isOpen_Ioo.mem_nhds
+                    ⟨lt_of_le_of_ne hc.1 (Ne.symm hc1), lt_of_le_of_ne hc.2 hc2⟩)] with y hy
+                  exact ⟨(show y ∈ Ioo Λ⁻¹ Λ from hy).1.ne', hy.2.ne⟩
+            filter_upwards [hne, hside] with y h1 h2
+            exact ⟨lt_of_le_of_ne h2.1 (Ne.symm h1.1), lt_of_le_of_ne h2.2 h1.2⟩
+          filter_upwards [h1] with y hy
+          filter_upwards [isOpen_Ioo.mem_nhds hy] with x hx
+          exact indicator_of_mem (Ioo_subset_Icc_self hx) _
+        rcases hc with hc | hc <;> rw [hc]
+        · refine ⟨_, _, tendsto_iteratedDeriv_diagonalTendsto 0 hlow n,
+            tendsto_iteratedDeriv_diagonalTendsto 1 (hmid Λ⁻¹ ⟨le_rfl, huΛ.le⟩ (𝓝[>] Λ⁻¹)
+              nhdsWithin_le_nhds
+              (eventually_nhdsWithin_of_forall fun y (hy : Λ⁻¹ < y) ↦ hy.ne') ?_) n⟩
+          · filter_upwards [self_mem_nhdsWithin, nhdsWithin_le_nhds
+              (isOpen_Iio.mem_nhds huΛ)] with y h1 h2
+            exact ⟨(show Λ⁻¹ < y from h1).le, (show y < Λ from h2).le⟩
+        · refine ⟨_, _, tendsto_iteratedDeriv_diagonalTendsto 1 (hmid Λ ⟨huΛ.le, le_rfl⟩ (𝓝[<] Λ)
+              nhdsWithin_le_nhds
+              (eventually_nhdsWithin_of_forall fun y (hy : y < Λ) ↦ hy.ne) ?_) n,
+            tendsto_iteratedDeriv_diagonalTendsto 0 hhigh n⟩
+          · filter_upwards [self_mem_nhdsWithin, nhdsWithin_le_nhds
+              (isOpen_Ioi.mem_nhds huΛ)] with y h1 h2
+            exact ⟨(show Λ⁻¹ < y from h2).le, (show y < Λ from h1).le⟩
+    · intro x
+      have hx := hpos x
+      have key : (x.val : ℝ) ∈ Icc Λ⁻¹ Λ ↔ (x.val : ℝ)⁻¹ ∈ Icc Λ⁻¹ Λ :=
+        ⟨fun h ↦ ⟨(inv_le_inv₀ hΛ hx).mpr h.2, (inv_le_comm₀ hΛ hx).mp h.1⟩,
+          fun h ↦ ⟨(inv_le_comm₀ hΛ hx).mpr h.2, (inv_le_inv₀ hΛ hx).mp h.1⟩⟩
+      change (Icc Λ⁻¹ Λ).indicator (fun _ ↦ (1 : ℝ)) (x.val : ℝ) =
+        (Icc Λ⁻¹ Λ).indicator (fun _ ↦ (1 : ℝ)) (((x⁻¹ : ℝ≥0ˣ) : ℝ≥0) : ℝ)
+      rw [Units.val_inv_eq_inv_val, NNReal.coe_inv]
+      by_cases h : (x.val : ℝ) ∈ Icc Λ⁻¹ Λ
+      · rw [indicator_of_mem h, indicator_of_mem (key.mp h)]
+      · rw [indicator_of_notMem h, indicator_of_notMem (mt key.mpr h)]
+    · refine closure_minimal (fun x hx ↦ ?_) (isClosed_Icc.preimage hcontmod)
+      by_contra hn
+      exact hx (show (Icc Λ⁻¹ Λ).indicator (fun _ ↦ (1 : ℝ)) ((x : ℝ≥0) : ℝ) = 0 from
+        indicator_of_notMem (show ((x : ℝ≥0) : ℝ) ∉ Icc Λ⁻¹ Λ from hn) _)
+    · intro x hx
+      have h1 : Λ⁻¹ + Λ⁻¹ ^ 2 ≤ ((x : ℝ≥0) : ℝ) := hx.1
+      have h2 : ((x : ℝ≥0) : ℝ) ≤ Λ - Λ⁻¹ ^ 2 := hx.2
+      exact indicator_of_mem (show ((x : ℝ≥0) : ℝ) ∈ Icc Λ⁻¹ Λ from
+        ⟨by nlinarith [sq_nonneg Λ⁻¹], by nlinarith [sq_nonneg Λ⁻¹]⟩) _
+  have hconcl := h ℝ≥0ˣ positiveRealHaar m hm surjective_id (ContinuousMonoidHom.id ℝ≥0ˣ)
+    (fun _ ↦ rfl) μ₁ hμ φ hφm hφc hφb U hD hUm ε ρ hε hρ1 hcut
+  -- The kernel lives on the diagonal, which is null for the product measure.
+  have hdiag : (positiveRealHaar.prod positiveRealHaar) {p : ℝ≥0ˣ × ℝ≥0ˣ | p.1 * p.2⁻¹ = 1} = 0 := by
+    have hDm : MeasurableSet {p : ℝ≥0ˣ × ℝ≥0ˣ | p.1 * p.2⁻¹ = 1} :=
+      (measurableSet_singleton 1).preimage (measurable_fst.mul measurable_snd.inv)
+    refine (Measure.measure_prod_null hDm).mpr (Eventually.of_forall fun x ↦ ?_)
+    refine measure_mono_null (fun y (hy : x * y⁻¹ = 1) ↦ ?_)
+      ((positiveRealHaar_logPreimage_hardySobolevTranslation {L x}
+        (measurableSet_singleton _)).trans Real.volume_singleton)
+    exact (congrArg L (mul_inv_eq_one.mp hy)).symm
+  have hzero (Λ : ℝ) (x : ℝ≥0ˣ) : dSequenceKernelSmoothening positiveRealHaar U
+      (fun p ↦ (ρ Λ p.1 : ℂ) * φ (p.1 * p.2⁻¹)) (x, x) = 0 := by
+    refine dSequenceKernelSmoothening_eq_zero_diagonalTendsto _ _ _ ?_ _
+    filter_upwards [compl_mem_ae_iff.mpr hdiag] with p hp
+    have hp' : p.1 * p.2⁻¹ ∉ ({1} : Set ℝ≥0ˣ) := hp
+    change _ * φ _ = 0
+    rw [show φ (p.1 * p.2⁻¹) = 0 from indicator_of_notMem hp' _, mul_zero]
+  have h2 := hconcl.2
+  simp only [hzero, integral_zero, zero_sub] at h2
+  have hre := (Complex.continuous_re.tendsto 0).comp h2
+  have hμ₁ : μ₁.real univ = 1 := by simp [μ₁]
+  have hφ1 : φ 1 = 1 := indicator_of_mem rfl _
+  simp only [hμ₁, hφ1, Function.comp_def, mul_one, Complex.neg_re, Complex.ofReal_re,
+    Complex.zero_re] at hre
+  refine not_tendsto_nhds_of_tendsto_atBot ?_ 0 hre
+  exact tendsto_neg_atTop_atBot.comp (Real.tendsto_log_atTop.const_mul_atTop two_pos)
 
 end RiemannMasullo

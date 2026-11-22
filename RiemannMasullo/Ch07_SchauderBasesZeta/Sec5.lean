@@ -159,6 +159,58 @@ def strongCoprimalityDifferenceRange (ω : PontryaginDual C₁) (S : Finset V)
   Submodule.span ℂ {h | ∃ f : StrongCoprimalityDecaySpace ω,
     h.val.val = strongCoprimalityDifference S π f.val.val}
 
+private theorem strongCoprimalityDifference_add (S : Finset V)
+    (π : (v : V) → (v.adicCompletion F)ˣ) (f g : C𝔽 → ℂ) :
+    strongCoprimalityDifference S π (f + g) =
+      strongCoprimalityDifference S π f + strongCoprimalityDifference S π g := by
+  unfold strongCoprimalityDifference
+  induction S.toList with
+  | nil => rfl
+  | cons v l ih =>
+    simp only [List.foldr_cons, ih]
+    funext x
+    simp only [Pi.add_apply]
+    ring
+
+private theorem strongCoprimalityDifference_smul (S : Finset V)
+    (π : (v : V) → (v.adicCompletion F)ˣ) (c : ℂ) (f : C𝔽 → ℂ) :
+    strongCoprimalityDifference S π (c • f) = c • strongCoprimalityDifference S π f := by
+  unfold strongCoprimalityDifference
+  induction S.toList with
+  | nil => rfl
+  | cons v l ih =>
+    simp only [List.foldr_cons, ih]
+    funext x
+    simp only [Pi.smul_apply, smul_eq_mul]
+    ring
+
+private theorem strongCoprimalityDifference_zero (S : Finset V)
+    (π : (v : V) → (v.adicCompletion F)ˣ) :
+    strongCoprimalityDifference S π (0 : C𝔽 → ℂ) = 0 := by
+  simpa using strongCoprimalityDifference_smul S π 0 0
+
+private theorem span_image_eq_of_linear {M X : Type*} [AddCommGroup M] [Module ℂ M]
+    [AddCommGroup X] [Module ℂ X] (φ : M → X) (D : X → X)
+    (hφa : ∀ a b, φ (a + b) = φ a + φ b) (hφs : ∀ (c : ℂ) a, φ (c • a) = c • φ a)
+    (hφ0 : φ 0 = 0)
+    (hDa : ∀ a b, D (a + b) = D a + D b) (hDs : ∀ (c : ℂ) a, D (c • a) = c • D a)
+    (hD0 : D 0 = 0) (h : M) :
+    h ∈ Submodule.span ℂ {h | ∃ f : M, φ h = D (φ f)} ↔ ∃ f : M, φ h = D (φ f) := by
+  let N : Submodule ℂ M :=
+    { carrier := {h | ∃ f : M, φ h = D (φ f)}
+      add_mem' := by
+        rintro a b ⟨f, hf⟩ ⟨g, hg⟩
+        exact ⟨f + g, by rw [hφa, hf, hg, hφa, hDa]⟩
+      zero_mem' := ⟨0, by rw [hφ0, hD0]⟩
+      smul_mem' := by
+        rintro c a ⟨f, hf⟩
+        exact ⟨c • f, by rw [hφs, hf, hφs, hDs]⟩ }
+  constructor
+  · intro hm
+    exact (Submodule.span_le.mpr (fun x hx ↦ hx) : _ ≤ N) hm
+  · intro hm
+    exact Submodule.subset_span hm
+
 /-- Paper: Equation (7.5.0.1), p. 374.
 Each element of the comparison denominator is a single iterated difference
 of an exponentially decaying function in the given isotype. -/
@@ -166,7 +218,11 @@ theorem mem_strongCoprimalityDifferenceRange (ω : PontryaginDual C₁) (S : Fin
     (π : (v : V) → (v.adicCompletion F)ˣ) (h : StrongCoprimalityDecaySpace ω) :
     h ∈ strongCoprimalityDifferenceRange ω S π ↔
       ∃ f : StrongCoprimalityDecaySpace ω,
-        h.val.val = strongCoprimalityDifference S π f.val.val := by sorry
+        h.val.val = strongCoprimalityDifference S π f.val.val := by
+  exact span_image_eq_of_linear (fun x : StrongCoprimalityDecaySpace ω ↦ x.val.val)
+    (strongCoprimalityDifference S π) (fun _ _ ↦ rfl) (fun _ _ ↦ rfl) rfl
+    (strongCoprimalityDifference_add S π) (strongCoprimalityDifference_smul S π)
+    (strongCoprimalityDifference_zero S π) h
 
 open Classical in
 /-- Paper: Theorem 7.5.0.1, p. 374.
@@ -287,7 +343,11 @@ theorem strongCoprimalityJetMatrix_det (S : Finset V)
     (hS : ideleClassNormTwist χ⁻¹ 0 ∈ unramifiedOutside F S) (s : ℂ)
     (hL : AnalyticAt ℂ (heckeEulerProductOutside S χ⁻¹ hS) (1 - s)) (N : ℕ) :
     (strongCoprimalityJetMatrix χ S hS s hL N).det =
-      heckeEulerProductOutside S χ⁻¹ hS (1 - s) ^ N := by sorry
+      heckeEulerProductOutside S χ⁻¹ hS (1 - s) ^ N := by
+  rw [Matrix.det_of_isUpperTriangular]
+  · simp [strongCoprimalityJetMatrix, Finset.prod_const]
+  · intro i j hij
+    simp [strongCoprimalityJetMatrix, not_le.mpr (show j < i from hij)]
 
 /-- Paper: Equation (7.5.0.13), p. 378.
 The regular block is invertible at a spectral point on the imaginary axis.

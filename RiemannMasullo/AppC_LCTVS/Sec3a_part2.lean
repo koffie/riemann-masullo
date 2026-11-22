@@ -9,6 +9,7 @@ public import Mathlib.MeasureTheory.Measure.Prod
 public import Mathlib.MeasureTheory.Measure.Regular
 import Mathlib.Analysis.InnerProductSpace.Projection.Submodule
 import Mathlib.Analysis.Normed.Group.Tannery
+import Mathlib.Analysis.Normed.Module.DoubleDual
 import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Abs
 import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Order
 import Mathlib.LinearAlgebra.Dimension.LinearMap
@@ -2879,6 +2880,48 @@ theorem exists_projectiveTensorCompletion_traceClassIsometry :
   change (∑' n, approximationNumber (A z) n ^ (1 : ℝ)) ^ (1 / (1 : ℝ)) = Completion.extension g z
   simpa only [Real.rpow_one, div_one, hext] using (hsum z).tsum_eq
 
+omit [CompleteSpace F] in
+/-- Every functional on the dual of a Hilbert space is evaluation at a vector of the same
+norm. -/
+private theorem exists_injectiveTensorCompletion_compactOperatorIsometry_eval
+    (Φ : StrongDual ℂ (StrongDual ℂ E)) :
+    ∃ x : E, ‖x‖ = ‖Φ‖ ∧ ∀ φ : StrongDual ℂ E, Φ φ = φ x := by
+  let R := (InnerProductSpace.toDual ℂ E).symm
+  let ψ := (InnerProductSpace.toDual ℂ (StrongDual ℂ E)).symm Φ
+  refine ⟨R ψ, ?_, fun φ ↦ ?_⟩
+  · rw [LinearIsometryEquiv.norm_map, LinearIsometryEquiv.norm_map]
+  · have hΦ : Φ = InnerProductSpace.toDual ℂ (StrongDual ℂ E) ψ :=
+      ((InnerProductSpace.toDual ℂ (StrongDual ℂ E)).apply_symm_apply Φ).symm
+    rw [hΦ, InnerProductSpace.toDual_apply_apply, strongDual_inner_eq,
+      InnerProductSpace.toDual_symm_apply]
+
+omit [CompleteSpace F] in
+/-- On the dual of a Hilbert space, the injective norm of an algebraic tensor is the
+operator norm of the associated finite-rank map. -/
+private theorem exists_injectiveTensorCompletion_compactOperatorIsometry_norm
+    (z : StrongDual ℂ E ⊗[ℂ] F) :
+    injectiveTensorNorm (StrongDual ℂ E) F z = ‖tensorToFiniteRank z‖ := by
+  have hcomp' (w : StrongDual ℂ E ⊗[ℂ] F) (x : E) :
+      tensorDualOperator w (NormedSpace.inclusionInDoubleDual ℂ E x) = tensorToFiniteRank w x := by
+    induction w using TensorProduct.inductionOn with
+    | tmul φ y => rw [tensorDualOperator_tmul, NormedSpace.dual_def, tensorToFiniteRank_tmul]
+    | add w v hw hv => rw [map_add, LinearMap.add_apply, hw, hv, map_add, add_apply]
+  obtain ⟨T, hT, hnorm⟩ := injectiveTensorNorm_eq_opNorm (E := StrongDual ℂ E) (F := F) z
+  have hcomp (x : E) : T (NormedSpace.inclusionInDoubleDual ℂ E x) = tensorToFiniteRank z x :=
+    (LinearMap.congr_fun hT _).trans (hcomp' z x)
+  rw [hnorm]
+  apply le_antisymm
+  · refine T.opNorm_le_bound (norm_nonneg _) fun Φ ↦ ?_
+    obtain ⟨x, hx, hΦ⟩ := exists_injectiveTensorCompletion_compactOperatorIsometry_eval Φ
+    have hΦx : Φ = NormedSpace.inclusionInDoubleDual ℂ E x := ContinuousLinearMap.ext hΦ
+    calc ‖T Φ‖ = ‖tensorToFiniteRank z x‖ := by rw [hΦx, hcomp]
+      _ ≤ ‖tensorToFiniteRank z‖ * ‖x‖ := (tensorToFiniteRank z).le_opNorm x
+      _ = ‖tensorToFiniteRank z‖ * ‖Φ‖ := by rw [hx]
+  · refine (tensorToFiniteRank z).opNorm_le_bound (norm_nonneg _) fun x ↦ ?_
+    rw [← hcomp]
+    exact (T.le_opNorm _).trans (mul_le_mul_of_nonneg_left
+      (NormedSpace.double_dual_bound ℂ E x) (norm_nonneg _))
+
 /-- Paper: Proposition C.3.6.4(3), p. 705. The canonical map extends to the
 injective tensor completion as a linear isometry onto the compact operators
 with the operator norm.
@@ -2891,7 +2934,73 @@ theorem exists_injectiveTensorCompletion_compactOperatorIsometry :
       ∃ e : Completion (InjectiveTensor (StrongDual ℂ E) F) →L[ℂ] (E →L[ℂ] F),
         (∀ z : InjectiveTensor (StrongDual ℂ E) F, e z = tensorToFiniteRank z) ∧
         Set.range e = {T : E →L[ℂ] F | IsCompactOperator T} ∧
-        ∀ z, ‖e z‖ = Completion.extension injectiveNorm z := by sorry
+        ∀ z, ‖e z‖ = Completion.extension injectiveNorm z := by
+  intro injectiveNorm
+  let X := InjectiveTensor (StrongDual ℂ E) F
+  have hW := injectiveTensorNorm_withSeminorms (E := StrongDual ℂ E) (F := F)
+  let s : Seminorm ℂ X := injectiveTensorNorm (StrongDual ℂ E) F
+  have hs : Continuous s := hW.continuous_seminorm ()
+  have huc : UniformContinuous injectiveNorm :=
+    Seminorm.uniformContinuous_of_continuousAt_zero (p := s) hs.continuousAt
+  have hnorm (z : X) : injectiveNorm z = ‖tensorToFiniteRank z‖ :=
+    exists_injectiveTensorCompletion_compactOperatorIsometry_norm z
+  let l : X →ₗ[ℂ] (E →L[ℂ] F) := tensorToFiniteRank
+  have hl : Continuous l :=
+    (norm_withSeminorms ℂ (E →L[ℂ] F)).continuous_of_continuous_comp l fun _ ↦
+      Seminorm.continuous_of_le hs fun z ↦ (hnorm z).ge
+  let L : X →L[ℂ] (E →L[ℂ] F) := ⟨l, hl⟩
+  -- The injective topology is induced by the operator norm.
+  have hind : Topology.IsInducing L := by
+    have h0 : 𝓝 (0 : X) = Filter.comap s (𝓝 0) := by
+      simpa only [iInf_const] using (SeminormFamily.withSeminorms_iff_nhds_eq_iInf _).mp hW
+    rw [IsTopologicalAddGroup.isInducing_iff_nhds_zero, h0,
+      ← comap_norm_nhds_zero (E := E →L[ℂ] F), Filter.comap_comap]
+    congr 1
+    funext z
+    exact hnorm z
+  have hui : IsUniformInducing L := AddMonoidHom.isUniformInducing_of_isInducing hind
+  let e := L.fromCompletion
+  have he (z : X) : e z = tensorToFiniteRank z := L.fromCompletion_apply_coe z
+  refine ⟨huc, e, he, ?_, fun z ↦ ?_⟩
+  · ext T
+    constructor
+    · rintro ⟨z, rfl⟩
+      refine Completion.induction_on z
+        (isClosed_setOfPred_isCompactOperator.preimage e.continuous) fun w ↦ ?_
+      change IsCompactOperator (e w)
+      rw [he]
+      exact (tensorToFiniteRank_mem_schattenClass one_le_two w).1
+    · intro hT
+      obtain ⟨d⟩ := (isCompactOperator_iff_nonempty_singularExpansion T).mp hT
+      let v (t : Finset {n // d.coeff n ≠ 0}) : StrongDual ℂ E ⊗[ℂ] F :=
+        ∑ i ∈ t, (((d.coeff i : ℝ) : ℂ) • innerSL ℂ (d.source i)) ⊗ₜ[ℂ] d.target i
+      let w (t : Finset {n // d.coeff n ≠ 0}) : X := v t
+      have hLw (t : Finset {n // d.coeff n ≠ 0}) : L (w t) = ∑ i ∈ t, ((d.coeff i : ℝ) : ℂ) •
+          (innerSL ℂ (d.source i)).smulRight (d.target i) := by
+        change tensorToFiniteRank (v t) = _
+        rw [map_sum]
+        refine Finset.sum_congr rfl fun i _ ↦ ?_
+        ext x
+        rw [tensorToFiniteRank_tmul]
+        simp only [smul_apply, ContinuousLinearMap.smulRight_apply, innerSL_apply_apply,
+          smul_eq_mul, smul_smul]
+      have h0 : Tendsto (fun t : Finset {n // d.coeff n ≠ 0} ↦ ∑ i ∈ t, ((d.coeff i : ℝ) : ℂ) •
+          (innerSL ℂ (d.source i)).smulRight (d.target i)) atTop (𝓝 T) := d.hasSum_opNorm
+      have hlim : Tendsto (fun t ↦ L (w t)) atTop (𝓝 T) :=
+        h0.congr fun t ↦ (hLw t).symm
+      have hc : Cauchy (map w atTop) := by
+        rw [← hui.cauchy_map_iff, Filter.map_map]
+        exact hlim.cauchy_map
+      obtain ⟨z, hz⟩ := CompleteSpace.complete (hc.map (Completion.uniformContinuous_coe X))
+      have hz' : Tendsto (fun t ↦ (w t : Completion X)) atTop (𝓝 z) := by
+        rw [Filter.map_map] at hz
+        exact hz
+      refine ⟨z, tendsto_nhds_unique ?_ hlim⟩
+      exact ((e.continuous.tendsto z).comp hz').congr fun t ↦ he (w t)
+  · refine Completion.induction_on z
+      (isClosed_eq e.continuous.norm Completion.continuous_extension) fun w ↦ ?_
+    rw [he, Completion.extension_coe huc]
+    exact (hnorm w).symm
 
 end TensorProducts
 

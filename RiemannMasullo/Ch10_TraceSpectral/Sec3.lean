@@ -172,7 +172,14 @@ local notation "Aω(" ω ", " φ ")" =>
 Convolution preserves the theta intersection in each norm-one isotype. -/
 theorem hardySobolevTestAction_preserves_spectralIsotypeTheta (ω : PontryaginDual C₁)
     (φ : BruhatCompactSupport C𝔽) :
-    Nω(ω) ≤ ((Nω(ω)).mkQL.comp Aω(ω, φ)).ker := by sorry
+    Nω(ω) ≤ ((Nω(ω)).mkQL.comp Aω(ω, φ)).ker := by
+  intro v hv
+  have hz := hardySobolevTestAction_preserves_globalTheta (F := F) a hI hs φ
+    (show v.val ∈ Θ(a, hI, hs) from hv)
+  have hout : testAction(l, r, s, hI, hs) φ v.val ∈ Θ(a, hI, hs) :=
+    (Submodule.Quotient.mk_eq_zero (Θ(a, hI, hs))).mp hz
+  apply (Submodule.Quotient.mk_eq_zero (Nω(ω))).mpr
+  exact hout
 
 /-- Paper: Theorems 10.3.1.1(3), p. 449, and 10.3.2.1(3), p. 454.
 The isotype operator descends ambient convolution restricted to that isotype. -/
@@ -290,7 +297,22 @@ theorem spectralConvolutionFiniteSum_approximationNumber_le {ι Z E : Type*}
     (A : E →L[ℂ] E) (x : ι → E) (Λ : ι → StrongDual ℂ E)
     (K : Finset Z) (N : Z → ℕ) (jet : (z : Z) → Fin (N z) → ι) (n : ℕ) :
     approximationNumber (spectralConvolutionFiniteSum A x Λ K N jet) n ≤
-      ∑ z ∈ K, ∑ m : Fin (N z), ‖(Λ (jet z m)).comp A‖ * ‖x (jet z m)‖ := by sorry
+      ∑ z ∈ K, ∑ m : Fin (N z), ‖(Λ (jet z m)).comp A‖ * ‖x (jet z m)‖ := by
+  classical
+  let T := spectralConvolutionFiniteSum A x Λ K N jet
+  have h : approximationNumber T n ≤ ‖T‖ := by
+    unfold approximationNumber
+    apply csInf_le
+    · refine ⟨0, ?_⟩
+      rintro _ ⟨S, _, rfl⟩
+      exact norm_nonneg _
+    · exact ⟨0, by simp, by simp⟩
+  apply h.trans
+  unfold T spectralConvolutionFiniteSum
+  apply (norm_sum_le _ _).trans
+  refine Finset.sum_le_sum fun z _ ↦ ?_
+  simpa only [ContinuousLinearMap.norm_smulRight_apply] using
+    (norm_sum_le Finset.univ (fun m : Fin (N z) ↦ ((Λ (jet z m)).comp A).smulRight (x (jet z m))))
 
 /-- Paper: (10.3.1.17), p. 450. Compactly supported Bruhat tests have
 an integrable Fourier–Mellin pairing at every norm twist. The pairing is
@@ -388,7 +410,29 @@ theorem spectralLineConvolution_trace_distribution {s : ℝ} (hs : 1 < s) :
     ∃ D : StrongDual ℂ (BruhatCompactSupport C𝔽),
       ∀ (φ : BruhatCompactSupport C𝔽) (T : nuclearEndomorphisms H),
         T.val = spectralConvolution (F := F) a h₀ hs₀(hs) φ →
-        D φ = hilbertTrace (H := H) T := by sorry
+        D φ = hilbertTrace (H := H) T := by
+  have traceDistribution {X : Type _} {H : Type _} [AddCommGroup X] [Module ℂ X]
+      [TopologicalSpace X] [IsTopologicalAddGroup X] [NormedAddCommGroup H]
+      [InnerProductSpace ℂ H] [CompleteSpace H] (A : X → H →L[ℂ] H)
+      (h : ∃ T : X →ₗ[ℂ] nuclearEndomorphisms H, (∀ x, (T x).val = A x) ∧
+        Tendsto (fun x : X ↦ traceNorm (H := H) (T x)) (𝓝 0) (𝓝 0)) :
+      ∃ D : StrongDual ℂ X, ∀ (x : X) (U : nuclearEndomorphisms H),
+        U.val = A x → D x = hilbertTrace U := by
+    obtain ⟨T, hT, ht⟩ := h
+    obtain ⟨L, hL⟩ := hilbertTrace_linear (H := H)
+    let D : X →ₗ[ℂ] ℂ := L.comp T
+    have hb (x : X) : ‖D x‖ ≤ traceNorm (T x) :=
+      (congrArg (fun c : ℂ ↦ ‖c‖) (hL (T x))).le.trans (norm_hilbertTrace_le (T x))
+    have hd : Continuous D := continuous_of_continuousAt_zero D <| by
+      change Tendsto D (𝓝 0) (𝓝 (D 0))
+      rw [D.map_zero]
+      exact squeeze_zero_norm hb ht
+    refine ⟨⟨D, hd⟩, fun x U hU ↦ ?_⟩
+    have heq : T x = U := Subtype.ext ((hT x).trans hU.symm)
+    exact (hL (T x)).trans (congrArg (hilbertTrace (H := H)) heq)
+  exact traceDistribution (X := BruhatCompactSupport C𝔽) (H := Q(a, h₀, hs₀(hs)))
+    (spectralConvolution (F := F) a h₀ hs₀(hs))
+    (spectralLineConvolution_traceNorm_continuous (F := F) a hs)
 
 -- TODO(paper-gap): The L¹ comparison after (10.3.1.26) supplies no
 -- sampling estimate at zero ordinates, and the rapid-decay claim uses arbitrary numbering.
@@ -547,7 +591,29 @@ theorem spectralStripConvolution_trace_distribution {α s : ℝ} (hα : 0 ≤ α
     ∃ D : StrongDual ℂ (BruhatCompactSupport C𝔽),
       ∀ (φ : BruhatCompactSupport C𝔽) (T : nuclearEndomorphisms H),
         T.val = spectralConvolution (F := F) a hStrip(hα) hs₀(hs) φ →
-        D φ = hilbertTrace (H := H) T := by sorry
+        D φ = hilbertTrace (H := H) T := by
+  have traceDistribution {X : Type _} {H : Type _} [AddCommGroup X] [Module ℂ X]
+      [TopologicalSpace X] [IsTopologicalAddGroup X] [NormedAddCommGroup H]
+      [InnerProductSpace ℂ H] [CompleteSpace H] (A : X → H →L[ℂ] H)
+      (h : ∃ T : X →ₗ[ℂ] nuclearEndomorphisms H, (∀ x, (T x).val = A x) ∧
+        Tendsto (fun x : X ↦ traceNorm (H := H) (T x)) (𝓝 0) (𝓝 0)) :
+      ∃ D : StrongDual ℂ X, ∀ (x : X) (U : nuclearEndomorphisms H),
+        U.val = A x → D x = hilbertTrace U := by
+    obtain ⟨T, hT, ht⟩ := h
+    obtain ⟨L, hL⟩ := hilbertTrace_linear (H := H)
+    let D : X →ₗ[ℂ] ℂ := L.comp T
+    have hb (x : X) : ‖D x‖ ≤ traceNorm (T x) :=
+      (congrArg (fun c : ℂ ↦ ‖c‖) (hL (T x))).le.trans (norm_hilbertTrace_le (T x))
+    have hd : Continuous D := continuous_of_continuousAt_zero D <| by
+      change Tendsto D (𝓝 0) (𝓝 (D 0))
+      rw [D.map_zero]
+      exact squeeze_zero_norm hb ht
+    refine ⟨⟨D, hd⟩, fun x U hU ↦ ?_⟩
+    have heq : T x = U := Subtype.ext ((hT x).trans hU.symm)
+    exact (hL (T x)).trans (congrArg (hilbertTrace (H := H)) heq)
+  exact traceDistribution (X := BruhatCompactSupport C𝔽) (H := Q(a, hStrip(hα), hs₀(hs)))
+    (spectralConvolution (F := F) a hStrip(hα) hs₀(hs))
+    (spectralStripConvolution_traceNorm_continuous (F := F) a hα hs)
 
 /-- Paper: Theorem 10.3.2.1(2) and (10.3.2.3)–(10.3.2.4), p. 454. The trace
 is the absolutely convergent sum of the Mellin values at the strip zeros with

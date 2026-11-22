@@ -95,6 +95,15 @@ abstract spaces and then applied, or when `exact`/`refine` get explicit argument
 Do not hand in a proof that takes minutes to elaborate, and do not raise `maxHeartbeats` to get
 one through.
 
+If a proof that is mathematically trivial never finishes, whatever you try, suspect the types
+and not your proof: several type synonyms of the library (`SchwartzBruhat`,
+`ModulatedExponentialDecay` and the spaces built on them; the list is in #5398) are `abbrev`s
+whose instance terms are astronomically large, and Lean hangs when it compares two of them
+argument by argument. Do not spend your budget retrying. What has worked: state the step as a
+private lemma about an abstract space and apply it, or write the binders of a helper out in
+full so that nothing is taken from the section's variables. If that fails too, say so in your
+report and name #5398, so that the next person does not start from nothing.
+
 ## Before you finish
 
 Run `lake build` and `scripts/lint.sh`; both must pass. Then write `.agent/PR.md`: a one-line

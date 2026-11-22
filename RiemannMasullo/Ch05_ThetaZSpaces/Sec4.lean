@@ -138,12 +138,37 @@ def sLocalZetaMatching (χ : PontryaginDual Jₛ) : Submodule ℂ (B⁺ × B⁻)
     (existsUnique_sLocalZetaMatchingDifference (F := F) (S := S) χ).exists.choose
   LinearMap.ker difference.toLinearMap
 
+/-- A continuous linear map into a Schwartz–Bergman space given pointwise on the strip by a
+difference vanishes exactly where the two terms agree on the strip. -/
+private theorem mem_sLocalZetaMatching_aux {X : Type*} [AddCommGroup X] [Module ℂ X]
+    [TopologicalSpace X] {I : Set ℝ} (D : X →L[ℂ] SchwartzBergman I) (a b : X → ℂ → ℂ)
+    (hD : ∀ p, EqOn (D p).val (fun s ↦ a p s - b p s) (Complex.re ⁻¹' I)) (p : X) :
+    p ∈ LinearMap.ker D.toLinearMap ↔ EqOn (a p) (b p) (Complex.re ⁻¹' I) := by
+  have h0 : ((0 : SchwartzBergman I) : schwartzBergmanSubmodule I).val = 0 := rfl
+  rw [LinearMap.mem_ker, ContinuousLinearMap.coe_coe]
+  constructor
+  · intro h s hs
+    have hs' := hD p hs
+    rw [h, h0] at hs'
+    exact sub_eq_zero.mp hs'.symm
+  · intro h
+    have hval : ((D p : SchwartzBergman I) : schwartzBergmanSubmodule I).val = 0 := by
+      funext s
+      by_cases hs : s ∈ Complex.re ⁻¹' I
+      · exact (hD p hs).trans (sub_eq_zero.mpr (h hs))
+      · exact (D p).property.1 hs
+    exact Subtype.ext (hval.trans h0.symm)
+
 /-- Paper: (5.4.1.3), p. 266.
 A pair belongs to W exactly when its components satisfy the functional equation
 at each point in the overlap strip. -/
 theorem mem_sLocalZetaMatching (χ : PontryaginDual Jₛ) (p : B⁺ × B⁻) :
     p ∈ sLocalZetaMatching (F := F) (S := S) χ ↔
-      EqOn p.1.val (fun s ↦ ρₛ(χ, s) * p.2.val s) overlap := by sorry
+      EqOn p.1.val (fun s ↦ ρₛ(χ, s) * p.2.val s) overlap := by
+  have h := (existsUnique_sLocalZetaMatchingDifference (F := F) (S := S) χ).exists.choose_spec
+  have key := mem_sLocalZetaMatching_aux (I := overlapInterval) _
+    (fun p : B⁺ × B⁻ ↦ p.1.val) (fun p s ↦ ρₛ(χ, s) * p.2.val s) h p
+  exact key
 
 /-- Paper: Theorem 5.4.1.1(1), p. 266.
 The zeta pair is a topological embedding with closed range. -/
@@ -317,13 +342,37 @@ theorem existsUnique_sLocalThetaWeightedL2 :
 local notation "weightedTheta" =>
   (show Θₛ →L[ℂ] L²ₛ from (existsUnique_sLocalThetaWeightedL2 (F := F) (S := S)).exists.choose)
 
+/-- The L² norm for a measure with a real density is the square root of the weighted
+integral of the squared absolute value of any representative. -/
+private theorem sLocalThetaWeightedL2_norm_aux {X : Type*} [MeasurableSpace X] (μ : Measure X) (w : X → ℝ)
+    (hw : Measurable w) (hw0 : ∀ x, 0 ≤ w x)
+    (F : Lp ℂ 2 (μ.withDensity fun x ↦ ENNReal.ofReal (w x))) (θ : X → ℂ)
+    (hF : (F : X → ℂ) =ᵐ[μ.withDensity fun x ↦ ENNReal.ofReal (w x)] θ) :
+    ‖F‖ = Real.sqrt (∫ x, ‖θ x‖ ^ 2 * w x ∂μ) := by
+  rw [Lp.norm_def, (Lp.memLp F).eLpNorm_eq_integral_rpow_norm two_ne_zero ENNReal.ofNat_ne_top,
+    ENNReal.toReal_ofReal (Real.rpow_nonneg (integral_nonneg fun _ ↦ by positivity) _),
+    Real.sqrt_eq_rpow, ENNReal.toReal_ofNat, one_div]
+  congr 1
+  rw [integral_congr_ae (hF.mono fun x (hx : F x = θ x) ↦
+      show ‖F x‖ ^ (2 : ℝ) = ‖θ x‖ ^ (2 : ℝ) by rw [hx]),
+    integral_withDensity_eq_integral_toReal_smul hw.ennreal_ofReal
+      (ae_of_all _ fun _ ↦ ENNReal.ofReal_lt_top)]
+  refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+  simp only [ENNReal.toReal_ofReal (hw0 x), Real.rpow_two, smul_eq_mul, mul_comm]
+
 /-- Paper: (5.4.2.1), p. 274.
 The norm of the embedded class equals the square root of the weighted integral
 of the squared absolute value of its theta function. -/
 theorem sLocalThetaWeightedL2_norm (f : ℬₛ) :
     ‖weightedTheta (Submodule.Quotient.mk f)‖ =
       Real.sqrt (∫ g : Jₛ, ‖sLocalAdelicThetaOnClasses F S f g‖ ^ 2 *
-        normℝ(mₛ g) ∂μₛ) := by sorry
+        normℝ(mₛ g) ∂μₛ) := by
+  have h := (existsUnique_sLocalThetaWeightedL2 (F := F) (S := S)).exists.choose_spec.2 f
+  have hc : Continuous fun g : Jₛ ↦ normℝ(mₛ g) :=
+    NNReal.continuous_coe.comp (Units.continuous_val.comp hmₛ)
+  have : BorelSpace Jₛ := ⟨rfl⟩
+  exact sLocalThetaWeightedL2_norm_aux μₛ (fun g ↦ normℝ(mₛ g)) hc.measurable
+    (fun _ ↦ NNReal.coe_nonneg _) _ _ h
 
 variable (F S) in
 /-- Paper: (5.4.2.2), p. 274.
@@ -396,12 +445,37 @@ theorem mem_sLocalDecayIsotype (I : Set ℝ) (ω : PontryaginDual J₁) (φ : �
   exact criterion (fun g : Jₛ ↦ decayEval(I, g)) (fun (u : J₁) g ↦ u.val⁻¹ * g)
     (fun u ↦ (ω u : ℂ)) φ
 
+/-- A submodule cut out by the coordinate translation law is the isotype of any action
+realizing inverse translation on coordinates. -/
+private theorem sLocalDecayIsotype_eq_actionIsotype_aux {H E : Type*} [Group H]
+    [TopologicalSpace H] [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] (K : Subgroup H)
+    (val : E → H → ℂ) (hval : Injective val)
+    (hsmul : ∀ (c : ℂ) (f : E), val (c • f) = c • val f) (P : Submodule ℂ E)
+    (ω : PontryaginDual K)
+    (hP : ∀ φ, φ ∈ P ↔ ∀ (u : K) (g : H), val φ (u.val⁻¹ * g) = (ω u : ℂ) * val φ g)
+    (A : H →* (E →L[ℂ] E)) (hA : ∀ (g : H) (f : E) (x : H), val (A g f) x = val f (g⁻¹ * x)) :
+    P = actionIsotype (A.comp K.subtype) ω := by
+  ext φ
+  rw [hP, mem_actionIsotype]
+  refine forall_congr' fun u ↦ ⟨fun h ↦ hval (funext fun x ↦ ?_), fun h g ↦ ?_⟩
+  · rw [MonoidHom.comp_apply, Subgroup.coe_subtype, hA, h, hsmul, Pi.smul_apply,
+      smul_eq_mul]
+  · have hg := congrFun (congrArg val h) g
+    rwa [MonoidHom.comp_apply, Subgroup.coe_subtype, hA, hsmul, Pi.smul_apply,
+      smul_eq_mul] at hg
+
 /-- Paper: (5.4.2.3), p. 275, and Proposition D.3.3.12, p. 811.
 The coordinate equations give the Appendix D isotype for its translation action. -/
 theorem sLocalDecayIsotype_eq_actionIsotype (I : Set ℝ) (ω : PontryaginDual J₁)
     (A : Jₛ →* (Ẽ(I) →L[ℂ] Ẽ(I)))
     (hA : ∀ (g : Jₛ) (f : Ẽ(I)) (x : Jₛ), (A g f).val x = f.val (g⁻¹ * x)) :
-    sLocalDecayIsotype (F := F) (S := S) I ω = actionIsotype (A.comp (mₛ).ker.subtype) ω := by sorry
+    sLocalDecayIsotype (F := F) (S := S) I ω = actionIsotype (A.comp (mₛ).ker.subtype) ω := by
+  have hP := mem_sLocalDecayIsotype (F := F) (S := S) I ω
+  have hsmul : ∀ (c : ℂ) (f : Ẽ(I)),
+      (fun φ : Ẽ(I) ↦ φ.val) (c • f) = c • (fun φ : Ẽ(I) ↦ φ.val) f := fun _ _ ↦ rfl
+  have hval : Injective (fun φ : Ẽ(I) ↦ φ.val) := fun _ _ h ↦ Subtype.ext h
+  have key := sLocalDecayIsotype_eq_actionIsotype_aux (mₛ).ker (fun φ : Ẽ(I) ↦ φ.val) hval hsmul
+  with_reducible_and_instances exact key _ ω hP A hA
 
 /-- Paper: Proposition 5.4.2.1(1), p. 275.
 Fourier transform extends uniquely between the weighted isotype and the conjugate
