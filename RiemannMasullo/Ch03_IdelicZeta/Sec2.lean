@@ -3703,11 +3703,257 @@ theorem globalIdelicZFunction_residue_zero (f : ℬ[F]) :
   change s * (E s + A / (s - 1)) + B = s * (E s + A / (s - 1) + B / s)
   field_simp [show s ≠ 0 from hs]
 
+/-- Split off the power of the class norm using its section. The unitary character
+left over is either trivial or already nontrivial on a norm-one element. -/
+private theorem tate_exists_normalized_twist (c : 𝒳[F]) :
+    ∃ (χ : U[F]) (s : ℂ), c = ideleClassNormTwist χ s ∧
+      (χ = 1 ∨ ∃ u : C[F], ideleClassNorm F u = 1 ∧ χ u ≠ 1) := by
+  let m := ideleClassNorm F
+  let q : 𝕀[F] →ₜ* C[F] := ⟨QuotientGroup.mk' _, continuous_quotient_mk'⟩
+  let σ : ℝ≥0ˣ →ₜ* C[F] := q.comp
+    ⟨canonicalIdeleNormSection F, canonicalIdeleNormSection_continuous F⟩
+  have hσ : RightInverse σ m := canonicalIdeleNormSection_rightInverse F
+  have hm := (isProperMap_ideleClassNorm F).continuous
+  let : LocallyCompactSpace C[F] := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.1
+  let : CompactSpace m.ker := (ideleClassGroup_finiteness F).2.1
+  obtain ⟨e, he⟩ := quasiCharacterParametrization_of_split (G := C[F]) m hm σ hσ
+  have hr (x : C[F]) : x / σ (m x) ∈ m.ker := by
+    simp [MonoidHom.mem_ker, hσ (m x)]
+  let r : C[F] →ₜ* m.ker :=
+    { toFun := fun x ↦ ⟨_, hr x⟩
+      map_one' := Subtype.ext (by simp)
+      map_mul' := fun x y ↦ Subtype.ext (by
+        simp
+        exact (div_mul_div_comm x (σ (m x)) y (σ (m y))).symm)
+      continuous_toFun := (continuous_id.div' (σ.continuous.comp hm)).subtype_mk hr }
+  let χ := (e c).2.comp r
+  refine ⟨χ, (e c).1, ?_, ?_⟩
+  · ext1 x
+    change c x = ((e c).2 (r x) : ℂ) * (classNormℝ x : ℂ) ^ (e c).1
+    rw [(he c).2, ← (he c).1 (m x), ← map_mul]
+    exact congrArg c (div_mul_cancel x _).symm
+  · by_cases h : χ = 1
+    · exact Or.inl h
+    · obtain ⟨x, hx⟩ := not_forall.mp (mt PontryaginDual.ext_iff.mpr h)
+      refine Or.inr ⟨r x, (r x).property, ?_⟩
+      have hrr : r (r x) = r x := Subtype.ext (by
+        change (r x).val / σ (m (r x)) = (r x).val
+        rw [show m (r x) = 1 from (r x).property, map_one, div_one])
+      change (e c).2 (r (r x)) ≠ 1
+      rwa [hrr]
+
+/-- The cutoff Mellin integral has the same coefficient for a normalized unitary
+character and its inverse. Translation by a norm-one class kills both integrals
+in the nontrivial case. -/
+private theorem tate_paired_polar_terms (χ : U[F])
+    (hχ : χ = 1 ∨ ∃ u : C[F], ideleClassNorm F u = 1 ∧ χ u ≠ 1) :
+    ∃ k : ℂ, ∀ η : U[F], η = χ ∨ η = χ⁻¹ → ∀ s : ℂ, 0 < s.re →
+      (∫ x in {g : C[F] | classNormℝ g < 1}, ideleClassNormTwist η s x
+        ∂ideleClassTamagawaMeasure F) = k / s := by
+  let S := {g : C[F] | classNormℝ g < 1}
+  rcases hχ with rfl | ⟨u, hu, hne⟩
+  · obtain ⟨k, hk⟩ := tate_integral_classNorm_cpow_smallNorm (F := F)
+    refine ⟨(k : ℝ), fun η hη s hs ↦ ?_⟩
+    have h : η = 1 := by simpa using hη
+    subst η
+    change (∫ x in S, (1 : ℂ) * (classNormℝ x : ℂ) ^ s ∂ideleClassTamagawaMeasure F) = _
+    simp only [one_mul]
+    exact (hk s hs).2
+  · refine ⟨0, fun η hη s _ ↦ ?_⟩
+    have hηu : η u ≠ 1 := by
+      rcases hη with rfl | rfl
+      · exact hne
+      · change (χ u)⁻¹ ≠ 1
+        simpa using hne
+    let μ := ideleClassTamagawaMeasure F
+    let : BorelSpace C[F] := ⟨rfl⟩
+    let : μ.IsHaarMeasure := (ideleClassTamagawaMeasure_isWeil (F := F)).1
+    let W := ideleClassNormTwist η s
+    have hPre : (fun x : C[F] ↦ u * x) ⁻¹' S = S := by
+      ext x
+      change classNormℝ (u * x) < 1 ↔ classNormℝ x < 1
+      dsimp only
+      rw [map_mul, hu, one_mul]
+    have h := (measurePreserving_mul_left μ u).setIntegral_preimage_emb
+      (Homeomorph.mulLeft u).toMeasurableEquiv.measurableEmbedding W S
+    rw [hPre] at h
+    change (∫ x in S, W (u * x) ∂μ) = _ at h
+    simp_rw [map_mul] at h
+    rw [integral_const_mul, ← sub_eq_zero, ← sub_one_mul] at h
+    have hWu : W u = (η u : ℂ) := by
+      change (η u : ℂ) * (classNormℝ u : ℂ) ^ s = _
+      simp [hu]
+    rw [hWu] at h
+    rw [zero_div]
+    exact (mul_eq_zero.mp h).resolve_left (sub_ne_zero.mpr fun he ↦ hηu (Subtype.ext he))
+
+/-- The boundary of the Tate splitting domain has zero measure: logarithmic
+norm pushes Haar measure forward to a multiple of Lebesgue measure. -/
+private theorem tate_large_norm_ae :
+    {g : C[F] | 1 < classNormℝ g} =ᵐ[ideleClassTamagawaMeasure F]
+      {g : C[F] | 1 ≤ classNormℝ g} := by
+  let : BorelSpace C[F] := ⟨rfl⟩
+  let l := fun g : C[F] ↦ Real.log (classNormℝ g)
+  have hl : Continuous l :=
+    tate_continuous_classNormReal.log fun g ↦ (tate_classNormReal_pos g).ne'
+  obtain ⟨k, hk⟩ := tate_exists_map_logClassNorm_eq_smul_volume (F := F)
+  have hnull : ideleClassTamagawaMeasure F (l ⁻¹' {0}) = 0 := by
+    rw [← Measure.map_apply hl.measurable (measurableSet_singleton 0)]
+    change (Measure.map (fun g : C[F] ↦ Real.log (classNormℝ g)) _) _ = 0
+    rw [hk]
+    simp
+  filter_upwards [compl_mem_ae_iff.mpr hnull] with g hg
+  have hn : classNormℝ g ≠ 1 := fun h ↦ hg (by
+    change Real.log (classNormℝ g) = 0
+    rw [h, Real.log_one])
+  exact lt_iff_le_and_ne.trans (and_iff_left hn.symm)
+
+/-- Split the convergent integral for either member of a Riemann–Roch pair.
+The two large-norm integrals interchange on reflecting the character. -/
+private theorem tate_zeta_pair_split (f φ : ℬ[F]) (χ : U[F]) (k : ℂ)
+    (hRR : ∀ g : C[F], adelicTheta f g + f zeroAdele =
+      (classNormℝ g : ℂ)⁻¹ * (adelicTheta φ g⁻¹ + φ zeroAdele))
+    (hpol : ∀ s : ℂ, 0 < s.re → (∫ x in {g : C[F] | classNormℝ g < 1},
+      ideleClassNormTwist χ s x ∂ideleClassTamagawaMeasure F) = k / s)
+    (s : ℂ) (hs : 1 < s.re) :
+    let L := {g : C[F] | 1 ≤ classNormℝ g}
+    globalIdelicZetaIntegral f (ideleClassNormTwist χ s) =
+      tateThetaMellinOn f χ L s + tateThetaMellinOn φ χ⁻¹ L (1 - s) +
+        φ zeroAdele * (k / (s - 1)) - f zeroAdele * (k / s) := by
+  let L := {g : C[F] | 1 ≤ classNormℝ g}
+  let S := {g : C[F] | classNormℝ g < 1}
+  let T := {g : C[F] | 1 < classNormℝ g}
+  let μ := ideleClassTamagawaMeasure F
+  let W := fun z : ℂ ↦ ideleClassNormTwist χ z
+  let D := fun g : C[F] ↦ adelicTheta φ g⁻¹ * W (s - 1) g
+  let a := f zeroAdele
+  let b := φ zeroAdele
+  let : BorelSpace C[F] := ⟨rfl⟩
+  let : μ.IsHaarMeasure := (ideleClassTamagawaMeasure_isWeil (F := F)).1
+  let : μ.Regular := (ideleClassTamagawaMeasure_isWeil (F := F)).2.1
+  let : T2Space C[F] := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.1
+  let : LocallyCompactSpace C[F] := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.1
+  have hL : MeasurableSet L := tate_continuous_classNormReal.measurable measurableSet_Ici
+  have hS : MeasurableSet S := tate_continuous_classNormReal.measurable measurableSet_Iio
+  have hc : Lᶜ = S := Set.ext fun g ↦ (not_le : ¬1 ≤ classNormℝ g ↔ _)
+  have hi : (fun g : C[F] ↦ g⁻¹) ⁻¹' T = S := by
+    ext g
+    change 1 < classNormℝ g⁻¹ ↔ classNormℝ g < 1
+    simp only [map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv]
+    exact one_lt_inv₀ (tate_classNormReal_pos g)
+  obtain ⟨hInt, hWhole⟩ := globalIdelicZetaIntegral_eq_thetaIntegral f (W s)
+    (tate_twist_mem_rightHalf χ s hs)
+  have hDform (g : C[F]) : adelicTheta f g * W s g = D g + b * W (s - 1) g - a * W s g := by
+    dsimp only [D, a, b, W]
+    rw [← tate_inv_norm_mul_twist]
+    linear_combination (ideleClassNormTwist χ s g) * hRR g
+  have hs₀ := zero_lt_one.trans hs
+  have hs₁ : 0 < (s - 1).re := by simpa only [Complex.sub_re, Complex.one_re, sub_pos] using hs
+  obtain ⟨_, _, _, h⟩ := tate_integral_twist_smallNorm χ
+  have h₀ := (h s hs₀).1.const_mul a
+  have h₁ := (h (s - 1) hs₁).1.const_mul b
+  have hD : IntegrableOn D S μ := by
+    refine (integrableOn_congr_fun (g := D) (fun g _ ↦ ?_) hS).mp
+      ((hInt.integrableOn.add h₀).sub h₁)
+    change adelicTheta f g * W s g + a * W s g - b * W (s - 1) g = D g
+    rw [hDform]
+    ring
+  have hDual : (∫ g in S, D g ∂μ) = tateThetaMellinOn φ χ⁻¹ L (1 - s) := by
+    have hinv := (Measure.measurePreserving_inv μ).setIntegral_preimage_emb
+      (Homeomorph.inv (C[F])).toMeasurableEquiv.measurableEmbedding
+      (fun g ↦ adelicTheta φ g * ideleClassNormTwist χ⁻¹ (1 - s) g) T
+    rw [hi] at hinv
+    refine (setIntegral_congr_fun hS fun g _ ↦ ?_).trans (hinv.trans ?_)
+    · dsimp [D, W]
+      rw [tate_twist_inv_apply]
+    · exact setIntegral_congr_set tate_large_norm_ae
+  change _ = tateThetaMellinOn f χ L s + _ + _ - _
+  rw [hWhole, ← integral_add_compl hL hInt, hc]
+  change tateThetaMellinOn f χ L s + (∫ g in S, adelicTheta f g * W s g ∂μ) = _
+  simp_rw [hDform]
+  have hSub := integral_sub (hD.add h₁) h₀
+  simp only [Pi.add_apply] at hSub
+  rw [hSub, integral_add hD h₁, integral_const_mul, integral_const_mul, hDual,
+    hpol _ hs₁, hpol _ hs₀]
+  dsimp only [a, b]
+  ring
+
 /-- Paper: Theorem 3.2.2.1(1)(b), p. 124. Fourier transforming the test function
 and taking the norm times the inverse character preserves its global Z-function value. -/
 theorem globalIdelicZFunction_functionalEquation (f : ℬ[F]) (c : 𝒳[F]) :
     globalIdelicZFunction f c = globalIdelicZFunction (adeleSchwartzFourier f)
-      (dualQuasiCharacter (ideleClassNorm F) (isProperMap_ideleClassNorm F).continuous c) := by sorry
+      (dualQuasiCharacter (ideleClassNorm F) (isProperMap_ideleClassNorm F).continuous c) := by
+  obtain ⟨χ, s, rfl, hχ⟩ := tate_exists_normalized_twist c
+  obtain ⟨k, hk⟩ := tate_paired_polar_terms χ hχ
+  let φ := adeleSchwartzFourier f
+  have hRR (g : C[F]) : adelicTheta f g + f zeroAdele =
+      (classNormℝ g : ℂ)⁻¹ * (adelicTheta φ g⁻¹ + φ zeroAdele) := by
+    rw [adelicTheta_riemannRoch]
+    simp only [Complex.real_smul, Complex.ofReal_inv]
+    dsimp only [φ]
+    ring
+  have hRR' (g : C[F]) : adelicTheta φ g + φ zeroAdele =
+      (classNormℝ g : ℂ)⁻¹ * (adelicTheta f g⁻¹ + f zeroAdele) := by
+    rw [hRR, inv_inv g]
+    simp only [map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv, Complex.ofReal_inv, inv_inv]
+    rw [← mul_assoc, inv_mul_cancel₀ (Complex.ofReal_ne_zero.mpr (tate_classNormReal_pos g).ne'),
+      one_mul]
+  let L := {g : C[F] | 1 ≤ classNormℝ g}
+  let P := tateThetaMellinOn f χ L
+  let Q := tateThetaMellinOn φ χ⁻¹ L
+  let M (z : ℂ) := P z + Q (1 - z) + φ zeroAdele * (k / (z - 1)) - f zeroAdele * (k / z)
+  let : BorelSpace C[F] := ⟨rfl⟩
+  have hL : MeasurableSet L := tate_continuous_classNormReal.measurable measurableSet_Ici
+  have hP := (tate_differentiable_thetaMellinOn f χ hL (fun _ hg ↦ hg)).analyticAt
+  have hQ := (tate_differentiable_thetaMellinOn φ χ⁻¹ hL (fun _ hg ↦ hg)).analyticAt
+  have hSum (z : ℂ) : AnalyticAt ℂ (fun t ↦ P t + Q (1 - t)) z :=
+    (hP z).add ((hQ (1 - z)).comp (by fun_prop))
+  have hM : MeromorphicOn M univ := by
+    intro z _
+    have h := (hSum z).meromorphicAt
+    dsimp only [M]
+    fun_prop
+  let G := toMeromorphicNFOn M univ
+  have hG : MeromorphicNFOn G univ := meromorphicNFOn_toMeromorphicNFOn M univ
+  have hReg (z : ℂ) (hz : z ≠ 0) (hz₁ : z ≠ 1) : G z = M z := by
+    have h : AnalyticAt ℂ M z := by
+      have := hSum z
+      have h₁ := sub_ne_zero.mpr hz₁
+      dsimp only [M]
+      fun_prop
+    exact (toMeromorphicNFOn_eq_toMeromorphicNFAt hM (mem_univ z)).trans
+      (congrFun (toMeromorphicNFAt_eq_self.mpr h.meromorphicNFAt) z)
+  have hAgree (z : ℂ) (hz : 1 < z.re) :
+      G z = globalIdelicZetaIntegral f (ideleClassNormTwist χ z) := by
+    rw [hReg z (by rintro rfl; norm_num at hz) (by rintro rfl; norm_num at hz)]
+    exact (tate_zeta_pair_split f φ χ k hRR (hk χ (Or.inl rfl)) z hz).symm
+  have hDual (z : ℂ) (hz : 1 < z.re) : G (1 - z) =
+      globalIdelicZetaIntegral φ (ideleClassNormTwist χ⁻¹ z) := by
+    rw [hReg (1 - z) (sub_ne_zero.mpr (by rintro rfl; norm_num at hz))
+      (by intro h; have := congrArg Complex.re h; simp at this; linarith),
+      tate_zeta_pair_split φ f χ⁻¹ k hRR' (hk χ⁻¹ (Or.inr rfl)) z hz]
+    dsimp only [M, P, Q]
+    rw [inv_inv, sub_sub_cancel, sub_right_comm, sub_self, zero_sub, div_neg,
+      show 1 - z = -(z - 1) by ring, div_neg]
+    ring
+  have hReflect : MeromorphicNFOn (fun z ↦ G (1 - z)) univ := fun z _ ↦
+    (hG (mem_univ (1 - z))).comp_analyticAt (g := fun t : ℂ ↦ 1 - t) (by fun_prop)
+  have hChart (u : ℬ[F]) (η : U[F]) (H : ℂ → ℂ) (hNF : MeromorphicNFOn H univ)
+      (hA : ∀ z : ℂ, 1 < z.re → H z = globalIdelicZetaIntegral u (ideleClassNormTwist η z))
+      (z : ℂ) : globalIdelicZFunction u (ideleClassNormTwist η z) = H z :=
+    globalIdelicZetaIntegral_chartContinuation_eq u (globalIdelicZFunction_meromorphic u η) hNF
+      (fun t ht ↦ globalIdelicZFunction_eq_integral u (tate_twist_mem_rightHalf η t ht)) hA
+      (s := z) rfl
+  have hdualChar : dualQuasiCharacter (ideleClassNorm F) (isProperMap_ideleClassNorm F).continuous
+      (ideleClassNormTwist χ s) = ideleClassNormTwist χ⁻¹ (1 - s) := by
+    ext1 g
+    change (classNormℝ g : ℂ) * ideleClassNormTwist χ s g⁻¹ = _
+    have h := tate_twist_inv_apply χ s g⁻¹
+    rw [inv_inv g, ← tate_inv_norm_mul_twist] at h
+    simpa only [map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv, Complex.ofReal_inv, inv_inv]
+      using h.symm
+  rw [hdualChar, hChart f χ G hG hAgree s,
+    hChart φ χ⁻¹ (fun z ↦ G (1 - z)) hReflect hDual (1 - s), sub_sub_cancel]
 
 /-- An entire nonzero multiple of the completed series determines the corresponding
 global idelic Z-function whenever it agrees with the zeta integral on the right half-plane. -/

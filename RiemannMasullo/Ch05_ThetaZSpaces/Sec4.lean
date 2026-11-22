@@ -211,10 +211,76 @@ The quotient topology on every homogeneous S-local theta space is Fréchet. -/
 theorem sLocalHomogeneousThetaSpace_frechet (ω : PontryaginDual J₁) :
     IsFrechetTVS (Θω(ω)) := by sorry
 
+/-- A nuclear space is separable for each of its continuous seminorms (as in the private
+`seminorm_separable_of_nuclear` of Appendix D §1b): a totally bounded zero-neighbourhood
+spans the space and has separable span. -/
+private theorem sLocalHomogeneousThetaSpace_separable_seminorm.{w, x} {E : Type x}
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] [IsTopologicalAddGroup E]
+    [ContinuousSMul ℂ E] (h : IsNuclearTVS.{w} E) (p : Seminorm ℂ E) (hp : Continuous p) :
+    SeparableSpace (WithLocalSeminorm p) := by
+  obtain ⟨V, hV, htot⟩ := (isSchwartzTVS_of_isNuclearTVS h).2 p hp
+  let W : Set (WithLocalSeminorm p) := V
+  have hW : TotallyBounded W := htot
+  have hAbs : Absorbent ℂ W := by
+    change Absorbent ℂ V
+    exact absorbent_nhds_zero (𝕜 := ℂ) hV
+  have hspan : Submodule.span ℂ W = ⊤ :=
+    (hAbs.mono (Submodule.subset_span (R := ℂ))).submodule_eq_top
+  have hS := hW.isSeparable.span (R := ℂ)
+  rw [hspan, Submodule.top_coe] at hS
+  exact isSeparable_univ_iff.mp hS
+
+/-- A nuclear space with a countable neighbourhood basis at zero is separable: for each basic
+neighbourhood pick a continuous seminorm ball inside it and a dense sequence for that seminorm. -/
+private theorem sLocalHomogeneousThetaSpace_separable_aux.{w, x} {E : Type x} [AddCommGroup E]
+    [Module ℂ E] [TopologicalSpace E] [FirstCountableTopology E]
+    (h : IsNuclearTVS.{w} E) : SeparableSpace E := by
+  let := h.2.1
+  let := PolynormableSpace.isTopologicalAddGroup ℂ E
+  have hw := PolynormableSpace.withSeminorms ℂ E
+  let : ContinuousSMul ℂ E := hw.continuousSMul
+  obtain ⟨U, hU⟩ := (𝓝 (0 : E)).exists_antitone_basis
+  have hex (n : ℕ) : ∃ q : Seminorm ℂ E, Continuous q ∧ ∃ r > 0, q.ball 0 r ⊆ U n := by
+    obtain ⟨s, r, hr, hsub⟩ := (hw.mem_nhds_iff 0 (U n)).mp (hU.mem n)
+    refine ⟨s.sup fun p : {p : Seminorm ℂ E // Continuous p} ↦ p.1, ?_, r, hr, hsub⟩
+    exact hw.continuous_finsetSup_seminorm s
+  choose q hq r hr hsub using hex
+  have hsep (n : ℕ) : SeparableSpace (WithLocalSeminorm (q n)) :=
+    sLocalHomogeneousThetaSpace_separable_seminorm h (q n) (hq n)
+  have hd (n : ℕ) : ∃ d : ℕ → E, ∀ x : E, ∃ m, q n (x - d m) < r n := by
+    obtain ⟨d, hd⟩ := exists_dense_seq (WithLocalSeminorm (q n))
+    refine ⟨d, fun x ↦ ?_⟩
+    let x' : WithLocalSeminorm (q n) := x
+    obtain ⟨m, hm⟩ := hd.exists_dist_lt x' (hr n)
+    rw [dist_eq_norm] at hm
+    exact ⟨m, hm⟩
+  choose d hd using hd
+  refine ⟨range fun m : ℕ × ℕ ↦ d m.1 m.2, countable_range _, ?_⟩
+  intro x
+  rw [mem_closure_iff_nhds]
+  intro W hW
+  have hW0 : (fun y ↦ x + y) ⁻¹' W ∈ 𝓝 (0 : E) :=
+    (continuous_const.add continuous_id).continuousAt.preimage_mem_nhds (by simpa using hW)
+  obtain ⟨n, -, hn⟩ := hU.1.mem_iff.mp hW0
+  obtain ⟨m, hm⟩ := hd n x
+  refine ⟨d n m, ?_, ⟨(n, m), rfl⟩⟩
+  have : d n m - x ∈ U n := hsub n (by rw [Seminorm.mem_ball, sub_zero, map_sub_rev]; exact hm)
+  simpa using hn this
+
+/-- A nuclear Fréchet space is separable. The instances are implicit arguments, so that they are
+read off the hypotheses instead of being unfolded through the quotient. -/
+private theorem sLocalHomogeneousThetaSpace_separable_of_frechet.{w, x} {E : Type x}
+    {_ : AddCommGroup E} {_ : Module ℂ E} {_ : TopologicalSpace E} (hf : IsFrechetTVS E)
+    (h : IsNuclearTVS.{w} E) : SeparableSpace E := by
+  obtain ⟨_, -, _, -⟩ := hf
+  exact sLocalHomogeneousThetaSpace_separable_aux h
+
 /-- Paper: Theorem 5.4.1.1(2), p. 266.
 Every homogeneous S-local theta space is separable. -/
 theorem sLocalHomogeneousThetaSpace_separable (ω : PontryaginDual J₁) :
-    SeparableSpace (Θω(ω)) := by sorry
+    SeparableSpace (Θω(ω)) :=
+  sLocalHomogeneousThetaSpace_separable_of_frechet.{0}
+    (sLocalHomogeneousThetaSpace_frechet ω) (sLocalHomogeneousThetaSpace_nuclear ω)
 
 -- The nuclearity assertion in (2) is `sLocalHomogeneousThetaSpace_nuclear` from §5.2.3.
 

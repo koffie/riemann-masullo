@@ -3253,6 +3253,20 @@ theorem summable_bruhatMellin_of_polynomialCount
       (∏ j : Fin d, (((e g).2.1 j : Circle) : ℂ) ^ z.val.2.1 j) *
       (z.val.2.2 (e g).2.2 : ℂ) ∂μ‖) := by sorry
 
+private theorem summable_ideleClassMellin_completedHeckeZeros_weight
+    {G : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] (m : G →ₜ* ℝ≥0ˣ) (hm : IsModulation m) (hms : Surjective m)
+    (f : 𝒟(G)) (b : ℝ) :
+    ∃ f' : 𝒟(G), ∀ g, f'.val g = (((m g).val : ℝ) : ℂ) ^ (b : ℂ) * f.val g := by
+  have hS : modulationWeight m b f.val ∈ schwartzBruhatSubmodule G :=
+    modulationWeight_mem_schwartzBruhat m univ ⟨b, mem_univ _⟩
+      ⟨f.val, bruhatCompactSupport_le_modulatedExponentialDecay m univ hm hms f.property⟩
+  refine ⟨⟨modulationWeight m b f.val, (mem_bruhatSmoothSubmodule_iff _).2
+    (schwartzBruhat_isBruhatSmooth (G := G) ⟨_, hS⟩), f.property.2.mul_left⟩, ?_⟩
+  intro g
+  change ((((m g).val : ℝ) ^ b : ℝ) : ℂ) * f.val g = _
+  rw [Complex.ofReal_cpow (m g).val.coe_nonneg]
+
 -- TODO(paper-gap): On p. 625, passing to a Lie quotient eliminates other kernel
 -- characters. A uniform zero count with multiplicity for the remaining characters
 -- is still needed to apply the corrected Lemma B.4.4.8.
@@ -3265,8 +3279,37 @@ theorem summable_ideleClassMellin_completedHeckeZeros (τ : ℝ≥0ˣ →ₜ* C[
     (_hτ : RightInverse τ (ideleClassNorm F)) (Z : Set (chartZeros(τ)))
     (f : 𝒟(C[F])) (a : ℝ) :
     Summable (fun z : Z ↦ ‖zeroMultiplicity(z.val) *
-      ∫ g, classMellinIntegrand(f, zeroCharacter(z.val), (a : ℂ)) g ∂classMeasure‖) :=
-  by sorry
+      ∫ g, classMellinIntegrand(f, zeroCharacter(z.val), (a : ℂ)) g ∂classMeasure‖) := by
+  -- Absorb the shift from the centered exponent of the idelic explicit formula into the test.
+  obtain ⟨m, hmNorm, hm, hms⟩ := exists_ideleClassModulation F
+  obtain ⟨f', h'⟩ := summable_ideleClassMellin_completedHeckeZeros_weight
+    (G := C[F]) m hm hms f (a + 1 / 2)
+  have hw (g : C[F]) : f'.val g * classWeight(g, -1 / 2) = f.val g * classWeight(g, (a : ℂ)) := by
+    have hx : 0 < ((ideleClassNorm F g).val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+    rw [h', show m g = ideleClassNorm F g from DFunLike.congr_fun hmNorm g, mul_comm _ (f.val g),
+      mul_assoc, ← Complex.cpow_add _ _ (Complex.ofReal_ne_zero.mpr hx.ne')]
+    push_cast
+    ring_nf
+  have hvol : 0 < classVolume := by
+    rw [normOneIdeleClassTamagawaMeasure_volume]
+    have := NumberField.classNumber_pos F
+    have := NumberField.Units.regulator_pos F
+    have := NumberField.Units.torsionOrder_pos F
+    have := Int.natAbs_pos.mpr (NumberField.discr_ne_zero F)
+    rw [ENNReal.toReal_ofReal (by positivity)]
+    positivity
+  -- Restrict the absolutely summable spectral family and undo its volume normalization.
+  obtain ⟨S, _, _, _, hSval, _, _, _, hsum, _⟩ := idelicExplicitFormula τ _hτ
+  refine (((hsum f').subtype (fun z ↦ z ∈ Z)).mul_left ‖(classVolume : ℂ)‖).congr fun z ↦ ?_
+  change ‖(classVolume : ℂ)‖ * ‖S z.val f'‖ = _
+  rw [← norm_mul, hSval]
+  congr 1
+  rw [← mul_assoc, mul_div_assoc', mul_div_cancel_left₀ _ (Complex.ofReal_ne_zero.mpr hvol.ne')]
+  congr 1
+  apply integral_congr_ae
+  filter_upwards with g
+  calc _ = (f'.val g * classWeight(g, -1 / 2)) * zeroCharacter(z.val) g := by ring
+       _ = _ := by rw [hw]; ring
 
 end IdelicExplicitFormula
 

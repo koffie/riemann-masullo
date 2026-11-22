@@ -1,6 +1,8 @@
 module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec3a
+import Mathlib.LinearAlgebra.Matrix.Rank
+import Mathlib.LinearAlgebra.Vandermonde
 
 /-!
 # §5.3.1–5.3.2: statements that are false as printed
@@ -138,13 +140,143 @@ def Printed.distribution_coordinatePlane_coefficientOrder : Prop :=
       ∀ f : 𝒟(ι ⊕ κ), T f = ∑ α : indices(ι ⊕ κ, N),
         A α (restriction(ι, κ) (∂𝒟[ι ⊕ κ, multi(α)] f))
 
+/-- On a one-point space every distribution has order zero: each test is its value
+times the constant test one. -/
+private theorem distribution_coordinatePlane_coefficientOrder_false_point
+    {E : Type} [NormedAddCommGroup E] [NormedSpace ℝ E] [Subsingleton E]
+    (A : StrongDual ℂ 𝓓((⊤ : Opens E), ℂ)) : DistributionOrderLE (⇑A) 0 := by
+  intro K
+  let g : 𝓓((⊤ : Opens E), ℂ) :=
+    ⟨fun _ ↦ 1, contDiff_const, (Set.toFinite _).isCompact, by simp⟩
+  refine ⟨‖A g‖, norm_nonneg _, fun f _ B _ hB ↦ ?_⟩
+  have hf : f = f 0 • g := TestFunction.ext fun x ↦ by
+    rw [Subsingleton.elim x 0]
+    simp only [FunLike.coe_smul, Pi.smul_apply, smul_eq_mul]
+    exact (mul_one _).symm
+  have h0 := hB 0 le_rfl 0
+  rw [norm_iteratedFDeriv_zero] at h0
+  rw [hf, map_smul, smul_eq_mul, norm_mul, mul_comm]
+  exact mul_le_mul_of_nonneg_left h0 (norm_nonneg _)
+
+/-- The derivative at zero along a unit vector `e` has exact order one and is supported
+at zero. Its order-one bound is the operator norm of the derivative. The tests
+`χₙ(x)⟪e, x⟫`, with `χₙ` a bump equal to one near zero and supported in the ball of
+radius `1/(n + 1)`, have sup norm at most `1/(n + 1)` but derivative one along `e`. -/
+private theorem distribution_coordinatePlane_coefficientOrder_false_deriv
+    {E : Type} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
+    (e : E) (he : ‖e‖ = 1) :
+    ∃ T : StrongDual ℂ 𝓓((⊤ : Opens E), ℂ),
+      DistributionOrderLE (⇑T) 1 ∧ ¬ DistributionOrderLE (⇑T) 0 ∧
+        Distribution.dsupport (⇑T) ⊆ {0} := by
+  let D : 𝓓((⊤ : Opens E), ℂ) →L[ℂ] 𝓓((⊤ : Opens E), ℂ) := TestFunction.lineDerivCLM ℂ e
+  let T : StrongDual ℂ 𝓓((⊤ : Opens E), ℂ) :=
+    (BoundedContinuousFunction.evalCLM ℂ (0 : E)).comp
+      ((TestFunction.toBoundedContinuousFunctionCLM ℂ).comp D)
+  have hT : ∀ f : 𝓓((⊤ : Opens E), ℂ), T f = fderiv ℝ (f : E → ℂ) 0 e := by
+    intro f
+    show (D f : E → ℂ) 0 = _
+    rw [TestFunction.lineDerivCLM_eq_fderivCLM, TestFunction.fderivCLM_apply]
+    split_ifs with hk
+    · rfl
+    · exact absurd le_top hk
+  refine ⟨T, ?_, ?_, ?_⟩
+  · intro K
+    refine ⟨1, zero_le_one, fun f _ B _ hB ↦ ?_⟩
+    have h1 := hB 1 le_rfl 0
+    rw [norm_iteratedFDeriv_one] at h1
+    rw [hT, one_mul]
+    calc ‖fderiv ℝ (f : E → ℂ) 0 e‖ ≤ ‖fderiv ℝ (f : E → ℂ) 0‖ * ‖e‖ :=
+          ContinuousLinearMap.le_opNorm _ _
+      _ = ‖fderiv ℝ (f : E → ℂ) 0‖ := by rw [he, mul_one]
+      _ ≤ B := h1
+  · intro hT0
+    obtain ⟨C, -, hC⟩ := hT0 ⟨Metric.closedBall 0 1, isCompact_closedBall 0 1⟩
+    obtain ⟨n, hn⟩ := exists_nat_gt C
+    set r : ℝ := 1 / ((n : ℝ) + 1) with hr
+    have hr0 : 0 < r := by positivity
+    have hr1 : r ≤ 1 := by
+      rw [hr, div_le_one (by positivity)]
+      linarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
+    let χ : ContDiffBump (0 : E) := ⟨r / 2, r, by positivity, by linarith⟩
+    let L : E →L[ℝ] ℂ := Complex.ofRealCLM.comp (innerSL ℝ e)
+    have hL : ∀ x, L x = ((inner ℝ e x : ℝ) : ℂ) := fun x ↦ rfl
+    let φ : E → ℂ := fun x ↦ (χ x : ℂ) * L x
+    have hφc : ContDiff ℝ ∞ φ :=
+      (Complex.ofRealCLM.contDiff.comp χ.contDiff).mul L.contDiff
+    have hχs : tsupport (fun x ↦ (χ x : ℂ)) ⊆ Metric.closedBall 0 r := by
+      refine (tsupport_comp_subset Complex.ofReal_zero _).trans ?_
+      rw [χ.tsupport_eq]
+    have hφs : tsupport φ ⊆ Metric.closedBall 0 r :=
+      (tsupport_mul_subset_left).trans hχs
+    let f : 𝓓((⊤ : Opens E), ℂ) :=
+      ⟨φ, hφc, (isCompact_closedBall 0 r).of_isClosed_subset (isClosed_tsupport _) hφs,
+        by simp⟩
+    have hfK : tsupport (f : E → ℂ) ⊆ Metric.closedBall 0 1 :=
+      hφs.trans (Metric.closedBall_subset_closedBall hr1)
+    have hbound : ∀ j ≤ 0, ∀ x, ‖iteratedFDeriv ℝ j (f : E → ℂ) x‖ ≤ r := by
+      intro j hj x
+      obtain rfl : j = 0 := by omega
+      rw [norm_iteratedFDeriv_zero]
+      show ‖(χ x : ℂ) * L x‖ ≤ r
+      rw [norm_mul, hL, Complex.norm_real, Complex.norm_real]
+      by_cases hx : x ∈ Metric.ball (0 : E) r
+      · have hχ1 : ‖χ x‖ ≤ 1 := by
+          rw [Real.norm_eq_abs, abs_of_nonneg (χ.nonneg)]
+          exact χ.le_one
+        have hin : ‖inner ℝ e x‖ < r := by
+          calc ‖inner ℝ e x‖ ≤ ‖e‖ * ‖x‖ := norm_inner_le_norm e x
+            _ = ‖x‖ := by rw [he, one_mul]
+            _ < r := by simpa using hx
+        calc ‖χ x‖ * ‖inner ℝ e x‖ ≤ 1 * r :=
+              mul_le_mul hχ1 hin.le (norm_nonneg _) zero_le_one
+          _ = r := one_mul r
+      · have hχ0 : χ x = 0 := by
+          rw [← Function.notMem_support, χ.support_eq]
+          exact hx
+        rw [hχ0, norm_zero, zero_mul]
+        exact hr0.le
+    have hloc : (f : E → ℂ) =ᶠ[nhds 0] L := by
+      filter_upwards [Metric.ball_mem_nhds (0 : E) (half_pos hr0)] with x hx
+      show (χ x : ℂ) * L x = L x
+      rw [χ.one_of_mem_closedBall (Metric.ball_subset_closedBall hx), Complex.ofReal_one, one_mul]
+    have hTf : T f = 1 := by
+      rw [hT, hloc.fderiv_eq, L.fderiv, hL, real_inner_self_eq_norm_sq, he]
+      norm_num
+    have := hC f hfK r hr0.le hbound
+    rw [hTf, norm_one] at this
+    have hCr : C * r < 1 := by
+      rw [hr, mul_one_div, div_lt_one (by positivity)]
+      linarith
+    linarith
+  · intro x hx
+    by_contra hx0
+    refine (Distribution.notMem_dsupport_iff x).2
+      ⟨{0}ᶜ, fun ψ hψ ↦ ?_, isOpen_compl_singleton, hx0⟩ hx
+    have h0 : (ψ : E → ℂ) =ᶠ[nhds 0] 0 :=
+      notMem_tsupport_iff_eventuallyEq.1 fun h ↦ hψ h rfl
+    rw [hT, h0.fderiv_eq, fderiv_zero]
+    rfl
+
 /-- Paper: Theorem 5.3.2.3(2), p. 245. Take one normal coordinate, no tangential
 coordinates, N = 1 and T = δ₀ + δ₀′. A compactly supported test equal to one near zero
 forces the zero-index coefficient to send one to one. Every distribution on a point has
 order at most zero, while the formula requires exact order one for that coefficient. -/
 theorem Printed.distribution_coordinatePlane_coefficientOrder_false :
     ¬ Printed.distribution_coordinatePlane_coefficientOrder := by
-  sorry
+  intro h
+  have : Subsingleton Eᵣ(Empty) := ⟨fun x y ↦ PiLp.ext fun i ↦ i.elim⟩
+  obtain ⟨e, he⟩ := exists_norm_eq Eᵣ(Unit ⊕ Empty) zero_le_one
+  obtain ⟨T, h1, h0, hsupp⟩ := distribution_coordinatePlane_coefficientOrder_false_deriv e he
+  have hplane : (0 : Eᵣ(Unit ⊕ Empty)) ∈
+      Set.range (fun y : Eᵣ(Empty) ↦ (insertPlane y : Eᵣ(Unit ⊕ Empty))) :=
+    ⟨0, PiLp.ext fun i ↦ by rcases i with _ | i <;> simp⟩
+  obtain ⟨A, hA, -⟩ := h Unit Empty T 1
+    ⟨h1, fun k hk ↦ by obtain rfl : k = 0 := (by omega); exact h0⟩
+    ((Set.finite_singleton 0).subset hsupp).isCompact
+    (hsupp.trans (Set.singleton_subset_iff.2 hplane))
+  let α₀ : indices(Unit ⊕ Empty, 1) := ⟨fun _ ↦ 0, by simp⟩
+  exact (hA α₀).1.2 0 (by simp [α₀])
+    (distribution_coordinatePlane_coefficientOrder_false_point (A α₀))
 
 open Classical in
 /-- Paper: Theorem 5.3.2.3(4), p. 245. As printed: The coefficients of (5.3.2.4)
@@ -186,6 +318,44 @@ def Printed.testFunction_inductiveTensor_equiv : Prop :=
     ∃ e : InductiveTensor 𝒟(ι) 𝒟(κ) ≃L[ℂ] 𝒟(ι ⊕ κ),
       ∀ (f : 𝒟(ι)) (g : 𝒟(κ)) (x : Eᵣ(ι ⊕ κ)), e (f ⊗ₜ[ℂ] g) x = factors(f, g, x)
 
+/-- A matrix of samples `Σ_{s ∈ S} F s (xₖ) G s (yₗ)` of a finite sum of products has rank
+at most `|S|`, so it is singular once it has more than `|S|` rows. -/
+private theorem testFunction_inductiveTensor_equiv_false_det {X Y σ : Type} (S : Finset σ)
+    (F : σ → X → ℂ) (G : σ → Y → ℂ) (n : ℕ) (hn : S.card < n) (xs : Fin n → X)
+    (ys : Fin n → Y) :
+    (Matrix.of fun k l ↦ ∑ s ∈ S, F s (xs k) * G s (ys l)).det = 0 := by
+  classical
+  let A : Matrix (Fin n) S ℂ := Matrix.of fun k s ↦ F s (xs k)
+  let B : Matrix S (Fin n) ℂ := Matrix.of fun s l ↦ G s (ys l)
+  have hAB : (Matrix.of fun k l ↦ ∑ s ∈ S, F s (xs k) * G s (ys l)) = A * B := by
+    ext k l
+    simp only [Matrix.of_apply, Matrix.mul_apply, A, B]
+    exact (Finset.sum_coe_sort S (fun s ↦ F s (xs k) * G s (ys l))).symm
+  by_contra hdet
+  rw [hAB] at hdet
+  have hunit : IsUnit (A * B) := (Matrix.isUnit_iff_isUnit_det _).2 (isUnit_iff_ne_zero.2 hdet)
+  have h2 := (Matrix.rank_mul_le_left A B).trans (Matrix.rank_le_card_width A)
+  rw [Matrix.rank_of_isUnit _ hunit, Fintype.card_fin, Fintype.card_coe] at h2
+  omega
+
+/-- The samples `exp((k/n)(l/n)) = (exp(k/n²))ˡ` form a Vandermonde matrix with
+distinct nodes, so they are not singular. -/
+private theorem testFunction_inductiveTensor_equiv_false_vandermonde (n : ℕ) (hn : 0 < n) :
+    (Matrix.of fun k l : Fin n ↦
+      ((Real.exp ((k : ℝ) / n * ((l : ℝ) / n)) : ℝ) : ℂ)).det ≠ 0 := by
+  have hn' : (n : ℝ) ≠ 0 := by positivity
+  have hV : (Matrix.of fun k l : Fin n ↦ ((Real.exp ((k : ℝ) / n * ((l : ℝ) / n)) : ℝ) : ℂ)) =
+      Matrix.vandermonde (fun k : Fin n ↦ ((Real.exp ((k : ℝ) / n / n) : ℝ) : ℂ)) := by
+    ext k l
+    rw [Matrix.of_apply, Matrix.vandermonde_apply, ← Complex.ofReal_pow, ← Real.exp_nat_mul]
+    congr 2
+    ring
+  rw [hV, Matrix.det_vandermonde_ne_zero_iff]
+  intro p q hpq
+  have h := Real.exp_injective (Complex.ofReal_injective hpq)
+  rw [div_left_inj₀ hn', div_left_inj₀ hn'] at h
+  exact Fin.ext (by exact_mod_cast h)
+
 /-- Paper: Remark 5.3.2.4, p. 246. Take one normal and one tangential coordinate and
 a smooth compactly supported real bump χ equal to one near zero. The test
 χ(x)χ(y) exp(xy) has x-derivatives at zero equal to the linearly independent functions
@@ -193,7 +363,63 @@ a smooth compactly supported real bump χ equal to one near zero. The test
 of the tangential factors. -/
 theorem Printed.testFunction_inductiveTensor_equiv_false :
     ¬ Printed.testFunction_inductiveTensor_equiv := by
-  sorry
+  intro h
+  obtain ⟨e, he⟩ := h Unit Unit
+  -- A test equal to `exp(xy)` on the ball of radius 10.
+  let χ : ContDiffBump (0 : Eᵣ(Unit ⊕ Unit)) := ⟨10, 11, by norm_num, by norm_num⟩
+  let c : Eᵣ(Unit ⊕ Unit) → ℝ := fun z ↦ z (.inl ()) * z (.inr ())
+  have hc : ContDiff ℝ ∞ c :=
+    (EuclideanSpace.proj (𝕜 := ℝ) (Sum.inl () : Unit ⊕ Unit)).contDiff.mul
+      (EuclideanSpace.proj (𝕜 := ℝ) (Sum.inr () : Unit ⊕ Unit)).contDiff
+  let φ : Eᵣ(Unit ⊕ Unit) → ℂ := fun z ↦ (χ z : ℂ) * (Real.exp (c z) : ℂ)
+  have hφc : ContDiff ℝ ∞ φ :=
+    (Complex.ofRealCLM.contDiff.comp χ.contDiff).mul (Complex.ofRealCLM.contDiff.comp hc.exp)
+  have hφs : HasCompactSupport φ :=
+    (χ.hasCompactSupport.comp_left Complex.ofReal_zero).mul_right
+  let H : 𝒟(Unit ⊕ Unit) := ⟨φ, hφc, hφs, by simp⟩
+  obtain ⟨t, ht⟩ := e.surjective H
+  obtain ⟨S, hS⟩ := TensorProduct.exists_finset (R := ℂ) (M := 𝒟(Unit)) (N := 𝒟(Unit)) t
+  let ev (z : Eᵣ(Unit ⊕ Unit)) : 𝒟(Unit ⊕ Unit) →L[ℂ] ℂ :=
+    (BoundedContinuousFunction.evalCLM ℂ z).comp (TestFunction.toBoundedContinuousFunctionCLM ℂ)
+  have hev : ∀ z (g : 𝒟(Unit ⊕ Unit)), ev z g = g z := fun _ _ ↦ rfl
+  have hsum : ∀ z, H z = ∑ i ∈ S, i.1 (WithLp.toLp 2 (fun j ↦ z (.inl j))) *
+      i.2 (WithLp.toLp 2 (fun j ↦ z (.inr j))) := by
+    intro z
+    -- Evaluation after `e`, as a linear map on the algebraic tensor product.
+    let L : 𝒟(Unit) ⊗[ℂ] 𝒟(Unit) →ₗ[ℂ] ℂ :=
+      (ev z).toLinearMap ∘ₗ (e : InductiveTensor 𝒟(Unit) 𝒟(Unit) →L[ℂ] 𝒟(Unit ⊕ Unit)).toLinearMap
+    have hL : H z = L t := by rw [← ht]; rfl
+    rw [hL, hS, map_sum]
+    refine Finset.sum_congr rfl fun i _ ↦ ?_
+    exact he i.1 i.2 z
+  -- Sample at the grid `(k/n, l/n)`, with more points than pure tensors.
+  set n := S.card + 1 with hn
+  let a : Fin n → ℝ := fun k ↦ (k : ℝ) / n
+  have ha : ∀ k, 0 ≤ a k ∧ a k ≤ 1 := fun k ↦
+    ⟨by positivity, by
+      rw [div_le_one (by positivity)]
+      exact_mod_cast k.isLt.le⟩
+  let z : Fin n → Fin n → Eᵣ(Unit ⊕ Unit) := fun k l ↦
+    WithLp.toLp 2 (Sum.elim (fun _ ↦ a k) (fun _ ↦ a l))
+  have hHz : ∀ k l, H (z k l) = (Real.exp (a k * a l) : ℂ) := by
+    intro k l
+    have hnorm : z k l ∈ Metric.closedBall (0 : Eᵣ(Unit ⊕ Unit)) 10 := by
+      rw [mem_closedBall_zero_iff, EuclideanSpace.norm_eq, Real.sqrt_le_left (by norm_num)]
+      simp only [z, Fintype.sum_sum_type, Finset.univ_unique, Finset.sum_singleton,
+        Sum.elim_inl, Sum.elim_inr, Real.norm_eq_abs, sq_abs]
+      nlinarith [ha k, ha l]
+    show (χ (z k l) : ℂ) * (Real.exp (c (z k l)) : ℂ) = _
+    rw [χ.one_of_mem_closedBall hnorm, Complex.ofReal_one, one_mul]
+    simp [c, z]
+  have hdet := testFunction_inductiveTensor_equiv_false_det S
+    (fun i x ↦ i.1 x) (fun i y ↦ i.2 y) n (by omega)
+    (fun k ↦ WithLp.toLp 2 (fun _ ↦ a k)) (fun l ↦ WithLp.toLp 2 (fun _ ↦ a l))
+  refine testFunction_inductiveTensor_equiv_false_vandermonde n (by omega) ?_
+  rw [← hdet]
+  congr 1
+  ext k l
+  rw [Matrix.of_apply, Matrix.of_apply, ← hHz, hsum]
+  rfl
 
 /-- Paper: Remark 5.3.2.4, p. 246. As printed: The product of test functions induces no
 linear homeomorphism for either the projective or the injective tensor topology. The set of

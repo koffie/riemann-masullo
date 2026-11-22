@@ -187,6 +187,40 @@ theorem finiteHeckeEulerFactor_inv_eq_phase (χ : U) (v : V)
 -- In Terminology 6.3.1.1 the descent is `sIdeleRestriction` from §3.1 and the
 -- product (6.3.1.5) is `sLocalHeckeL` from §3.3.
 
+private theorem sLocalHeckeL_poleOrder_eq_rightHalf {S : Finset V}
+    (χ : PontryaginDual (SIdeleQuotient F S)) {s : ℂ} (hs : 0 < s.re) :
+    AnalyticAt ℂ (fun z ↦ sLocalHeckeL (normChartₛ(χ) z)) s ∧
+      sLocalHeckeL (normChartₛ(χ) s) ≠ 0 := by
+  classical
+  obtain ⟨η, h, hχ, -⟩ := sLocal_character_extension χ
+  simp_rw [sLocalHeckeL_eq_partialEulerProduct χ η h hχ]
+  have hΓ := heckeGammaFactor_ne_zero_of_re_pos η hs
+  have haΓ : AnalyticAt ℂ (heckeGammaFactor η) s := by
+    simpa only [Pi.inv_def, inv_inv] using
+      (((differentiable_inv_heckeGammaFactor η).analyticAt s).inv (inv_ne_zero hΓ))
+  have hfinite (v : V) : AnalyticAt ℂ (finiteHeckeEulerFactor η v) s ∧
+      finiteHeckeEulerFactor η v s ≠ 0 := by
+    by_cases hv : χ₀(η).IsUnramifiedAt v
+    · have hq : 1 < (q(v) : ℝ) := by exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+      have hq' : (q(v) : ℂ) ≠ 0 := Nat.cast_ne_zero.mpr (HeightOneSpectrum.one_lt_absNorm v).ne_zero
+      have hlt : ‖χ₀(η).localValue v * (q(v) : ℂ) ^ (-s)‖ < 1 := by
+        rw [norm_mul, norm_ideleClassNormTwist_zero_localValue, one_mul,
+          ← Complex.ofReal_natCast, Complex.norm_cpow_eq_rpow_re_of_pos (zero_lt_one.trans hq)]
+        exact Real.rpow_lt_one_of_one_lt_of_neg hq (by simpa using hs)
+      have hn : 1 - χ₀(η).localValue v * (q(v) : ℂ) ^ (-s) ≠ 0 :=
+        sub_ne_zero.mpr fun he ↦ hlt.ne (he ▸ norm_one)
+      have hd : Differentiable ℂ (fun z : ℂ ↦ 1 - χ₀(η).localValue v * (q(v) : ℂ) ^ (-z)) :=
+        (differentiable_const _).sub ((differentiable_const _).mul
+          (differentiable_neg.const_cpow (Or.inl hq')))
+      change AnalyticAt ℂ (fun z ↦ finiteHeckeEulerFactor η v z) s ∧ _
+      simp only [finiteHeckeEulerFactor, ite_eq_left hv]
+      exact ⟨(hd.analyticAt s).inv hn, inv_ne_zero hn⟩
+    · change AnalyticAt ℂ (fun z ↦ finiteHeckeEulerFactor η v z) s ∧ _
+      simp only [finiteHeckeEulerFactor, ite_eq_right hv]
+      exact ⟨analyticAt_const, one_ne_zero⟩
+  exact ⟨haΓ.mul (Finset.univ.analyticAt_fun_prod fun (v : S) _ ↦ (hfinite v.val).1),
+    mul_ne_zero hΓ (Finset.prod_ne_zero_iff.mpr fun (v : S) _ ↦ (hfinite v.val).2)⟩
+
 /-- Paper: Terminology 6.3.1.1, p. 303.
 The S-local Hecke L-function and the local functional-equation factor have the
 same poles with the same orders.
@@ -195,7 +229,38 @@ theorem sLocalHeckeL_poleOrder_eq (S : Finset V) (χ : PontryaginDual (SIdeleQuo
     (s : ℂ) :
     min 0 (meromorphicOrderAt (fun z ↦ sLocalHeckeL (normChartₛ(χ) z)) s) =
       min 0 (meromorphicOrderAt (fun z ↦ sLocalRhoFactor (normChartₛ(χ) z)) s) := by
-  sorry
+  let L (η : PontryaginDual (SIdeleQuotient F S)) (z : ℂ) := sLocalHeckeL (normChartₛ(η) z)
+  by_cases hs : 0 < s.re
+  · have hρ := sLocalRhoFactor_iteratedDeriv_analyticOn χ 0 s hs
+    rw [iteratedDeriv_zero] at hρ
+    rw [min_eq_left (sLocalHeckeL_poleOrder_eq_rightHalf χ hs).1.meromorphicOrderAt_nonneg,
+      min_eq_left hρ.meromorphicOrderAt_nonneg]
+  · have hs' : 0 < (1 - s).re := by simp only [Complex.sub_re, Complex.one_re]; linarith
+    obtain ⟨ha, hn⟩ := sLocalHeckeL_poleOrder_eq_rightHalf χ⁻¹ hs'
+    let D (z : ℂ) := L χ⁻¹ (1 - z)
+    let ε (z : ℂ) := sLocalEpsilonFactor (normChartₛ(χ) z)
+    have hD : AnalyticAt ℂ D s := ha.comp (show AnalyticAt ℂ (fun z : ℂ ↦ 1 - z) s by fun_prop)
+    have hunit : AnalyticAt ℂ (ε / D) s := (sLocalEpsilonFactor_entire χ s trivial).div hD hn
+    have hne : (ε / D) s ≠ 0 := div_ne_zero (sLocalEpsilonFactor_ne_zero _) hn
+    have heq : (fun z ↦ sLocalRhoFactor (normChartₛ(χ) z)) =ᶠ[𝓝[≠] s] (ε / D) * L χ := by
+      filter_upwards [nhdsNE_le_codiscrete s (sLocalRhoFactor_eq_epsilon_mul χ)] with z hz
+      have hd : dualQuasiCharacter (sIdeleQuotientNorm F S)
+          (isProperMap_sIdeleQuotientNorm F S).continuous (normChartₛ(χ) z) =
+          normChartₛ(χ⁻¹) (1 - z) := by
+        ext1 g
+        let N : ℂ := (((sIdeleQuotientNorm F S g : ℝ≥0) : ℝ) : ℂ)
+        have hN : N ≠ 0 := Complex.ofReal_ne_zero.mpr
+          (NNReal.coe_ne_zero.mpr (sIdeleQuotientNorm F S g).ne_zero)
+        change N * normChartₛ(χ) z g⁻¹ = _
+        rw [map_inv]
+        change N * ((χ g : ℂ) * N ^ z)⁻¹ = (χ g : ℂ)⁻¹ * N ^ (1 - z)
+        rw [mul_inv_rev, Complex.cpow_sub 1 z hN, Complex.cpow_one, div_eq_mul_inv]
+        ac_rfl
+      dsimp only at hz
+      rw [hd] at hz
+      change sLocalRhoFactor (normChartₛ(χ) z) = ε z / D z * L χ z
+      exact hz.trans (by change ε z * (L χ z / D z) = _; ring)
+    rw [meromorphicOrderAt_congr heq, meromorphicOrderAt_mul_of_ne_zero hunit hne]
 
 /-- Paper: Terminology 6.3.1.1, p. 303.
 The completed Hecke L-function on the norm chart is the meromorphic continuation

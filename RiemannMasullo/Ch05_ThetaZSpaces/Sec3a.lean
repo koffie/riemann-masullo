@@ -236,12 +236,57 @@ def finitePlacePrincipalValue (v : V) : ℬ(Fᵥ(v)) →L[ℂ] ℬ(Fᵥ(v)) :=
   ⟨(finitePlacePrincipalValue_isLinear v π).mk' (pvBundle(v, π)),
     finitePlacePrincipalValue_continuous v π⟩
 
+/-- A left-invariant set integral is unchanged by left translation by an element that
+preserves the set. -/
+private theorem finitePlacePrincipalValue_spec_setIntegral_mul_left {G : Type*} [Group G]
+    [MeasurableSpace G] [MeasurableMul G] (μ : Measure G) [μ.IsMulLeftInvariant] (S : Set G)
+    (hS : MeasurableSet S) (g : G → ℂ) (w : G) (hw : ∀ u, w * u ∈ S ↔ u ∈ S) :
+    ∫ u in S, g (w * u) ∂μ = ∫ u in S, g u ∂μ := by
+  rw [← integral_indicator hS, ← integral_indicator hS,
+    ← integral_mul_left_eq_self (S.indicator g) w]
+  congr 1
+  funext u
+  by_cases hu : u ∈ S
+  · rw [Set.indicator_of_mem hu, Set.indicator_of_mem ((hw u).mpr hu)]
+  · rw [Set.indicator_of_notMem hu, Set.indicator_of_notMem (fun h ↦ hu ((hw u).mp h))]
+
+/-- The scalar principal-value formula does not depend on the choice of uniformizer, by left
+invariance of the multiplicative Haar measure on the integer units. -/
+private theorem finitePlacePrincipalValue_spec_indep (v : V) (π π' : Fᵥ(v)ˣ)
+    (hπ : vval(v).IsUniformizer π.val) (hπ' : vval(v).IsUniformizer π'.val) (f : ℬ(Fᵥ(v)))
+    (x : Multiplicative Fᵥ(v)) :
+    finitePlacePrincipalValueFun v π f x = finitePlacePrincipalValueFun v π' f x := by
+  have : BorelSpace Fᵥ(v)ˣ := ⟨rfl⟩
+  have : μᵥ(v).IsMulLeftInvariant := by
+    unfold finiteLocalMultiplicativeTamagawaMeasure
+    infer_instance
+  have hu : π * π'⁻¹ ∈ Uᵥ(v) :=
+    HeightOneSpectrum.adicCompletionIntegers.mem_units_iff_valued_eq_one.mpr (by
+      rw [Units.val_mul, Units.val_inv_eq_inv_val, map_mul, map_inv₀, hπ.val, ← hπ'.val]
+      exact mul_inv_cancel₀ hπ'.val_ne_zero)
+  have hw : π'⁻¹ * π ∈ Uᵥ(v) := mul_comm π π'⁻¹ ▸ hu
+  have hU : MeasurableSet (Uᵥ(v) : Set Fᵥ(v)ˣ) :=
+    (Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)).measurableSet
+  unfold finitePlacePrincipalValueFun
+  congr 2
+  refine Eq.trans ?_ (finitePlacePrincipalValue_spec_setIntegral_mul_left μᵥ(v) _ hU
+    (fun u : Fᵥ(v)ˣ ↦ f (Multiplicative.ofAdd ((↑u⁻¹ : Fᵥ(v)) * ((↑π'⁻¹ : Fᵥ(v)) * x.toAdd))))
+    (π'⁻¹ * π) (fun u ↦ Subgroup.mul_mem_cancel_left _ hw))
+  congr 1
+  funext u
+  rw [← mul_assoc, ← mul_assoc, ← Units.val_mul, ← Units.val_mul]
+  group
+
 /-- Paper: Definition 5.3.1.2 and Lemma 5.3.1.3, p. 241.
 The scalar formula for the operator works with every choice of uniformizer. -/
 theorem finitePlacePrincipalValue_spec (v : V) (π : Fᵥ(v)ˣ)
     (hπ : vval(v).IsUniformizer π.val) :
     ∀ (f : ℬ(Fᵥ(v))) (x : Multiplicative Fᵥ(v)),
-      finitePlacePrincipalValue v f x = finitePlacePrincipalValueFun v π f x := by sorry
+      finitePlacePrincipalValue v f x = finitePlacePrincipalValueFun v π f x := by
+  intro f x
+  let h := vval(v).exists_isUniformizer_of_isCyclic_of_nontrivial
+  exact finitePlacePrincipalValue_spec_indep v (Units.mk0 (h.choose : Fᵥ(v))
+    h.choose_spec.ne_zero) π h.choose_spec hπ f x
 
 open Classical in
 /-- Paper: Definition 5.3.1.2 and Lemma 5.3.1.3, p. 241.

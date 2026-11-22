@@ -59,7 +59,9 @@ def divisorialLocalIndicator (v : V) (g : I𝔽) : ℂ :=
 /-- Paper: §11.3.1.1, p. 492. The local indicator detects precisely the
 integer units in the chosen coordinate. -/
 theorem divisorialLocalIndicator_eq_one_iff (v : V) (g : I𝔽) :
-    divisorialLocalIndicator v g = 1 ↔ Valued.v (g.val.2 v) = 1 := by sorry
+    divisorialLocalIndicator v g = 1 ↔ Valued.v (g.val.2 v) = 1 := by
+  unfold divisorialLocalIndicator
+  split_ifs with h <;> simp [h]
 
 /-- Paper: (11.3.1.2), p. 492. Multiply the local unit indicators at the
 selected finite places. The base set enters through the choice of these places. -/
@@ -69,7 +71,8 @@ def divisorialIndicator (T : Finset V) (g : I𝔽) : ℂ :=
 /-- Paper: (11.3.1.2), p. 492. For a singleton the product recovers the local
 indicator. -/
 theorem divisorialIndicator_singleton (v : V) (g : I𝔽) :
-    divisorialIndicator {v} g = divisorialLocalIndicator v g := by sorry
+    divisorialIndicator {v} g = divisorialLocalIndicator v g := by
+  simp [divisorialIndicator]
 
 variable (F) in
 /-- Paper: §11.3.1.1, p. 492, after (11.3.1.2). The divisorial stratum imposes
@@ -81,7 +84,15 @@ def divisorialStratum (T : Finset V) : Set I𝔽 :=
 /-- Paper: §11.3.1.1, pp. 492–493. The finite product of local indicators
 is the indicator of the stratum. -/
 theorem divisorialIndicator_eq_indicator (T : Finset V) :
-    divisorialIndicator T = (divisorialStratum F T).indicator (fun _ ↦ 1) := by sorry
+    divisorialIndicator T = (divisorialStratum F T).indicator (fun _ ↦ 1) := by
+  ext g
+  by_cases h : g ∈ divisorialStratum F T
+  · rw [Set.indicator_of_mem h]
+    exact Finset.prod_eq_one fun v hv ↦ by simp [divisorialLocalIndicator, h v hv]
+  · rw [Set.indicator_of_notMem h]
+    obtain ⟨v, hv, hne⟩ : ∃ v ∈ T, ¬ Valued.v (g.val.2 v) = 1 := by
+      simpa [divisorialStratum] using h
+    exact Finset.prod_eq_zero hv (by simp [divisorialLocalIndicator, hne])
 
 /-- Paper: §11.3.1.1, p. 492. Every divisorial stratum is open and closed. -/
 theorem isClopen_divisorialStratum (T : Finset V) :
@@ -121,7 +132,9 @@ def primaryDivisorialPlaces (S : Finset V) (k : ℕ) : Finset V :=
 next rational prime. -/
 theorem primaryDivisorialPlaces_succ (S : Finset V) (k : ℕ) :
     primaryDivisorialPlaces F S (k + 1) =
-      primaryDivisorialPlaces F S k ∪ above(primaryDivisorialPrime S k) := by sorry
+      primaryDivisorialPlaces F S k ∪ above(primaryDivisorialPrime S k) := by
+  simp only [primaryDivisorialPlaces, Finset.range_add_one, Finset.biUnion_insert]
+  exact Finset.union_comm _ _
 
 /-- Paper: §11.3.1.1, p. 493. Together the indices exhaust the finite places
 outside a saturated base. -/
@@ -250,7 +263,12 @@ theorem divisorialKernelDifference_eq_neg (S : Finset V) (k : ℕ) (K : I𝔽 ×
     (xy : I𝔽 × I𝔽)
     (_hxy : xy.2 ∈ divisorialStratum F (primaryDivisorialPlaces F S k) \
       divisorialStratum F (primaryDivisorialPlaces F S (k + 1))) :
-    divisorialKernelDifference S k K xy = -K xy := by sorry
+    divisorialKernelDifference S k K xy = -K xy := by
+  have h1 : divisorialIndicator (primaryDivisorialPlaces F S k) xy.2 = 1 := by
+    rw [divisorialIndicator_eq_indicator]; exact Set.indicator_of_mem _hxy.1 _
+  have h2 : divisorialIndicator (primaryDivisorialPlaces F S (k + 1)) xy.2 = 0 := by
+    rw [divisorialIndicator_eq_indicator]; exact Set.indicator_of_notMem _hxy.2 _
+  simp [divisorialKernelDifference, h1, h2]
 
 variable (F) in
 /-- Paper: §11.3.1.1, p. 491, and §11.3.2, p. 495. The S-local idelic
@@ -370,7 +388,8 @@ theorem orbitalSectionWeight_skewIntegral_eq_zero (E : Set N𝔽) (τ : ℝ≥0�
     (∑' ξ : Fˣ, ∫ t, ∫ g in E,
       let xy := (τ t, principal ξ * g.val * τ t)
       (orbitalSectionWeight E τ xy : ℂ) * K xy
-      ∂normOneIdeleTamagawaMeasure F ∂positiveRealHaar) = 0 := by sorry
+      ∂normOneIdeleTamagawaMeasure F ∂positiveRealHaar) = 0 := by
+  simp [orbitalSectionWeight_eq_zero E τ _hτ]
 
 -- TODO(paper-gap): Theorem 11.3.2.1 (11.3.2.1) cannot use the weight (11.3.2.2).
 -- A normalized lift and a shell-by-shell identification with the trace operator

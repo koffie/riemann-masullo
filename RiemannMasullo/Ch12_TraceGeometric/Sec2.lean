@@ -437,28 +437,128 @@ variable {u : (G ⧸ H) × (G ⧸ H) → ℂ} (hu : LocallyIntegrable u (ν.prod
 local notation "uSmooth" => (dSequenceKernelSmoothening ν Ū u)
 local notation "Ψ" => (diagonalIndentationLift H (Measure.count : Measure H) b)
 
+/-- Weil's formula makes the preimage of a quotient-null set null. -/
+private theorem aemeasurable_diagonalIndentationLift_quotient_qmp
+    {G : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+    [T2Space G] [LocallyCompactSpace G] [SecondCountableTopology G]
+    [MeasurableSpace G] [BorelSpace G] (H : Subgroup G)
+    [DiscreteTopology H] (hH : IsClosed (H : Set G))
+    (μ : Measure G) [μ.IsHaarMeasure] (ν : Measure (G ⧸ H))
+    (hν : IsWeilQuotientMeasure H μ Measure.count ν) :
+    QuasiMeasurePreserving (QuotientGroup.mk' H) μ ν := by
+  let : BorelSpace (G ⧸ H) := ⟨rfl⟩
+  let : (Measure.count : Measure H).IsHaarMeasure :=
+    { lt_top_of_isCompact := fun _ hs ↦ Measure.count_apply_lt_top.mpr hs.finite_of_discrete
+      open_pos := fun _ _ hs ↦ Measure.count_ne_zero hs }
+  let : Countable H := TopologicalSpace.separableSpace_iff_countable.mp inferInstance
+  let : LocallyCompactSpace H := hH.locallyCompactSpace
+  let qmap : G → G ⧸ H := QuotientGroup.mk' H
+  have hqmap : Measurable qmap := QuotientGroup.continuous_mk.measurable
+  refine ⟨hqmap.aemeasurable, Measure.AbsolutelyContinuous.mk ?_⟩
+  intro S hS hnull
+  rw [Measure.map_apply hqmap hS]
+  let f : G → ℂ := (qmap ⁻¹' S).indicator (fun _ ↦ 1)
+  have hpre : MeasurableSet (qmap ⁻¹' S) := hS.preimage hqmap
+  have hf : Measurable f := measurable_const.indicator hpre
+  have hnot : ∀ᵐ q ∂ν, q ∉ S := measure_eq_zero_iff_ae_notMem.mp hnull
+  have hquot (q : G ⧸ H) (h : H) : qmap (q.out * (h : G)) = q := by
+    have hh : qmap (h : G) = 1 := (QuotientGroup.eq_one_iff _).mpr h.property
+    change (QuotientGroup.mk' H) (q.out * (h : G)) = q
+    dsimp only [qmap] at hh
+    rw [map_mul, hh, mul_one]
+    exact Quotient.out_eq' q
+  have hzero (q : G ⧸ H) (hq : q ∉ S) (h : H) :
+      f (q.out * (h : G)) = 0 := by
+    exact indicator_of_notMem (by simpa only [mem_preimage, hquot] using hq) _
+  have hnorm :
+      (∫⁻ q, ∫⁻ h : H, ‖f (q.out * (h : G))‖₊ ∂Measure.count ∂ν) = 0 := by
+    apply lintegral_eq_zero_of_ae_eq_zero
+    filter_upwards [hnot] with q hq
+    simp [hzero q hq]
+  obtain ⟨hi, he⟩ := integrable_of_weilNormIntegral H hH μ Measure.count ν hν hf
+    (by rw [hnorm]; exact ENNReal.zero_lt_top)
+  have hfib : lcaCosetIntegral H Measure.count f =ᵐ[ν] fun _ ↦ 0 := by
+    filter_upwards [hnot] with q hq
+    simp [lcaCosetIntegral, hzero q hq]
+  rw [integral_congr_ae hfib, integral_zero] at he
+  have hfinite : μ (qmap ⁻¹' S) < ∞ := by
+    simpa using ((integrable_indicator_iff hpre).mp hi)
+  have hreal : μ.real (qmap ⁻¹' S) = 0 := by
+    apply Complex.ofReal_injective
+    simpa only [f, integral_indicator_const (1 : ℂ) hpre,
+      Complex.real_smul, mul_one, Complex.ofReal_zero] using he
+  exact (measureReal_eq_zero_iff hfinite.ne).mp hreal
+
 include hH hν hS hb hu in
 /-- Paper: Proposition 12.2.2.2(2), p. 508. The lifted kernel is measurable for
 completed product Haar measure.
 Deviation: The local integrability hypothesis uses the product measure as in the proof. -/
 theorem aemeasurable_diagonalIndentationLift :
-    AEMeasurable (Ψ u) (μ.prod μ) := by sorry
+    AEMeasurable (Ψ u) (μ.prod μ) := by
+  let : IsClosed (H : Set G) := hH
+  let : BorelSpace (G ⧸ H) := ⟨rfl⟩
+  let : ν.IsHaarMeasure := hν.1
+  have hq := aemeasurable_diagonalIndentationLift_quotient_qmp H hH μ ν hν
+  exact (continuous_diagonalIndentationWeight H hH hν hS hb).measurable.complex_ofReal.aemeasurable.mul
+    (hu.aestronglyMeasurable.aemeasurable.comp_quasiMeasurePreserving (hq.prodMap hq))
 
 variable (hdiag : ∀ᵐ q ∂ν, (q, q) ∈
     dSequenceRegularSet (ν.prod ν)
       (fun n ↦ (QuotientGroup.mk' H '' U n) ×ˢ (QuotientGroup.mk' H '' U n)) u)
 
+/-- Translated averages of a measurable function are measurable in the center. -/
+private theorem aemeasurable_dSequenceKernelSmoothening_diagonal_average
+    {A : Type*} [CommGroup A] [TopologicalSpace A] [IsTopologicalGroup A]
+    [SecondCountableTopology A] [MeasurableSpace A] [BorelSpace A]
+    (m : Measure A) [m.IsHaarMeasure] [SFinite m]
+    (V : Set A) (g : A → ℂ) (hg : Measurable g) :
+    Measurable (fun x : A ↦ dSequenceAverage m V g x) := by
+  have hprod : StronglyMeasurable (fun p : A × A ↦ g (p.1 * p.2)) := by
+    simpa only [Function.comp_def, Pi.mul_apply] using
+      (hg.comp (measurable_fst.mul measurable_snd)).stronglyMeasurable
+  have hint : Measurable (fun x : A ↦ ∫ y in V, g (x * y) ∂m) :=
+    hprod.integral_prod_right'.measurable
+  have havg (x : A) : dSequenceAverage m V g x =
+      (m.real V)⁻¹ • ∫ y in V, g (x * y) ∂m := by
+    rw [dSequenceAverage, setAverage_eq,
+      show m.real (x • V) = m.real V by simp only [Measure.real, measure_smul]]
+    congr 1
+    exact (measurePreserving_smul x m).setIntegral_image_emb
+      (measurableEmbedding_const_smul x) g V
+  have hfun : (fun x : A ↦ dSequenceAverage m V g x) =
+      (fun x : A ↦ (m.real V)⁻¹ • ∫ y in V, g (x * y) ∂m) := funext havg
+  rw [hfun]
+  simpa only [Pi.smul_def] using hint.const_smul (m.real V)⁻¹
+
 include hH hν hS hu hdiag in
 /-- Paper: Proposition 12.2.2.2(2), p. 508. The smoothened quotient diagonal is
 measurable for the completed quotient Haar measure. -/
 theorem aemeasurable_dSequenceKernelSmoothening_diagonal :
-    AEMeasurable (fun q ↦ uSmooth (q, q)) ν := by sorry
+    AEMeasurable (fun q ↦ uSmooth (q, q)) ν := by
+  let : BorelSpace (G ⧸ H) := ⟨rfl⟩
+  let : IsClosed (H : Set G) := hH
+  let : ν.IsHaarMeasure := hν.1
+  obtain ⟨g, hg, hug⟩ := hu.aestronglyMeasurable.aemeasurable
+  have havg (n : ℕ) (p : Q × Q) :
+      dSequenceAverage (ν.prod ν) (Ū n ×ˢ Ū n) u p =
+        dSequenceAverage (ν.prod ν) (Ū n ×ˢ Ū n) g p := by
+    exact average_congr (ae_restrict_of_ae hug)
+  have hm (n : ℕ) : Measurable (fun q : Q ↦
+      dSequenceAverage (ν.prod ν) (Ū n ×ˢ Ū n) u (q, q)) := by
+    have h := (aemeasurable_dSequenceKernelSmoothening_diagonal_average
+      (ν.prod ν) (Ū n ×ˢ Ū n) g hg).comp (measurable_id.prodMk measurable_id)
+    simpa only [havg, Function.comp_def, id_eq] using h
+  refine aemeasurable_of_tendsto_metrizable_ae atTop (fun n ↦ (hm n).aemeasurable) ?_
+  filter_upwards [hdiag] with q hq
+  simpa only [dSequenceKernelSmoothening, dSequenceSmootheningOrZero,
+    dite_eq_left hq, dSequenceSmoothening] using (tendsto_nhds_limUnder hq)
 
 include hH hν hS hu hdiag in
 /-- Paper: Proposition 12.2.2.2(2), p. 508. The quotient points used on both skew
 diagonals of the lift are regular for almost every group coordinate. -/
 theorem ae_quotient_diagonal_mem_dSequenceRegularSet :
-    ∀ᵐ x ∂μ, (π x, π x) ∈ dSequenceRegularSet (ν.prod ν) (fun n ↦ Ū n ×ˢ Ū n) u := by sorry
+    ∀ᵐ x ∂μ, (π x, π x) ∈ dSequenceRegularSet (ν.prod ν) (fun n ↦ Ū n ×ˢ Ū n) u := by
+  exact (aemeasurable_diagonalIndentationLift_quotient_qmp H hH μ ν hν).tendsto_ae.eventually hdiag
 
 variable (hi : Integrable (fun q ↦
   dSequenceKernelSmoothening ν (fun n ↦ QuotientGroup.mk' H '' U n) u (q, q)) ν)
@@ -469,7 +569,23 @@ gives a function measurable for the completed product measure.
 Deviation: The product measure follows the coordinate order `(x, h)`. -/
 theorem aemeasurable_diagonalIndentationLift_left :
     AEMeasurable (fun p : G × H ↦ Ψ uSmooth ((p.2 : G)⁻¹ * p.1, p.1)) (μ.prod countH) :=
-  by sorry
+  by
+  let : Countable H := TopologicalSpace.separableSpace_iff_countable.mp inferInstance
+  have hq := aemeasurable_diagonalIndentationLift_quotient_qmp H hH μ ν hν
+  have hd := hi.aestronglyMeasurable.aemeasurable.comp_quasiMeasurePreserving hq
+  have hpull := hd.comp_quasiMeasurePreserving
+    (Measure.quasiMeasurePreserving_fst (μ := μ) (ν := countH))
+  have hw : Continuous (fun p : G × H ↦
+      diagonalIndentationWeight H countH b ((p.2 : G)⁻¹ * p.1, p.1)) :=
+    (continuous_diagonalIndentationWeight H hH hν hS hb).comp
+      (((continuous_subtype_val.comp continuous_snd).inv.mul continuous_fst).prodMk continuous_fst)
+  have hm := hw.measurable.complex_ofReal.aemeasurable.mul hpull
+  convert hm using 1
+  funext p
+  have h1 : π (p.2 : G) = 1 := (QuotientGroup.eq_one_iff _).mpr p.2.property
+  have hπ : π ((p.2 : G)⁻¹ * p.1) = π p.1 := by
+    rw [map_mul, map_inv, h1, inv_one, one_mul]
+  simp only [diagonalIndentationLift, Prod.map_apply, hπ, Function.comp_def, Pi.mul_apply]
 
 include hH hν hS hb hu hdiag hi in
 /-- Paper: Proposition 12.2.2.2(2), p. 508. Translating the second diagonal coordinate
