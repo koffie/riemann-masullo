@@ -43,7 +43,11 @@ local instance instIdeleClassSecondCountableSec5 : SecondCountableTopology C𝔽
 
 /-- Paper: Equation (7.5.0.2), p. 374.
 The pole-free homogeneous theta space is the quotient of zero-moment tests
-by the kernel of their homogeneous theta transform. -/
+by the kernel of their homogeneous theta transform.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev StrongCoprimalityThetaSpace (ω : PontryaginDual C₁) := ↥P ⧸ K(ω)
 
 /-- Paper: Equation (7.5.0.2), p. 374.
@@ -74,7 +78,11 @@ def strongCoprimalityDenominator (ω : PontryaginDual C₁) (S : Finset V) :
       strongCoprimalityPrincipalValue_mem_polar S f⟩ : StrongCoprimalityThetaSpace ω))
 
 /-- Paper: Equation (7.5.0.3), p. 375.
-The global orbital quotient carries the quotient topology of the pole-free theta space. -/
+The global orbital quotient carries the quotient topology of the pole-free theta space.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev StrongCoprimalityQuotient (ω : PontryaginDual C₁) (S : Finset V) :=
   StrongCoprimalityThetaSpace ω ⧸ strongCoprimalityDenominator ω S
 
@@ -253,7 +261,11 @@ theorem strongCoprimalityDenominator_insert_le (ω : PontryaginDual C₁) (S : F
 open Classical in
 /-- Paper: Equation (7.5.0.4), p. 375.
 The layer for one added place is the quotient of the current principal-value image
-by the image after applying principal value at that place as well. -/
+by the image after applying principal value at that place as well.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev StrongCoprimalityLayer (ω : PontryaginDual C₁) (S : Finset V) (v : V) :=
   let D := strongCoprimalityDenominator ω S
   D ⧸ (strongCoprimalityDenominator ω (insert v S)).comap D.subtype

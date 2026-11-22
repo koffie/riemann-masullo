@@ -416,7 +416,11 @@ variable (F) in
 /-- Paper: (11.2.2.1), p. 489. The prime-indexed Sobolev quotient divides the
 zero-line isotype by the closed principal-value subspace.
 Deviation: Use the closure of the principal-value image from §11.2.0.
-Zero-line theta density identifies the completed theta isotype with the ambient one. -/
+Zero-line theta density identifies the completed theta isotype with the ambient one.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev PrimeOrbitalSobolevQuotient (p : HeightOneSpectrum (𝓞 ℚ)) {s : ℝ} (hs : 0 ≤ s)
     (ω : PontryaginDual C₁) :=
   ↥(Wω(hs, ω)) ⧸ N(p, hs, ω)

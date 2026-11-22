@@ -72,7 +72,11 @@ instance instClosedSpectralIsotypeThetaSec2 (a : ℝ) {l r s : ℝ} (hI : l ≤ 
 variable (F) in
 /-- Paper: (10.2.1.1), p. 439, and (10.2.2.1), p. 445. Divide the weighted
 Sobolev space by the closure of the weighted polar-free theta functions.
-Deviation: The line uses the compact interval with both endpoints zero, as in §9.2. -/
+Deviation: The line uses the compact interval with both endpoints zero, as in §9.2.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev spectralSobolevQuotient (a : ℝ) {l r s : ℝ} (hI : l ≤ r) (hs : 0 ≤ s) :=
   W(l, r, s) ⧸ Θ(a, hI, hs)
 
@@ -84,7 +88,11 @@ theorem spectralSobolevQuotient_eq_zero (a : ℝ) {l r s : ℝ} (hI : l ≤ r) (
 
 variable (F) in
 /-- Paper: (10.2.1.2), p. 439, and (10.2.2.2), p. 445. Divide the ambient
-norm-one isotype by its closed weighted theta subspace. -/
+norm-one isotype by its closed weighted theta subspace.
+
+Kept as an `abbrev` for now (#5398): as a `def` with its own instances it breaks proofs and
+statements that use it, see the issue. Do not copy this pattern: a new type synonym with
+structure is a `def` with its own instances (`AGENTS.md`). -/
 abbrev spectralSobolevIsotypeQuotient (a : ℝ) {l r s : ℝ} (hI : l ≤ r) (hs : 0 ≤ s)
     (ω : PontryaginDual C₁) :=
   ↥(Wω(hI, hs, ω)) ⧸ (Θ(a, hI, hs)).comap (Wω(hI, hs, ω)).subtype
