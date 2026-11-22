@@ -898,12 +898,53 @@ theorem archimedeanWeightedSchwartzSubmodule_singleton_zero :
 
 /-- Paper: Lemma 5.3.3.3, p. 252.
 The topology is the initial locally convex topology for all the partial weight maps into
-the Schwartz–Bruhat space in (5.3.3.8). -/
-abbrev ArchimedeanWeightedSchwartz (I : Set ℝ) :=
+the Schwartz–Bruhat space in (5.3.3.8).
+
+This is a `def` with its own instances, not an `abbrev`, so that instance terms over it do
+not spell out its seminorm family (#5398). -/
+def ArchimedeanWeightedSchwartz (I : Set ℝ) :=
   WithGeneratingSeminorms (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I)
     (fun i : weights(ι, κ, I) ×
       {p : Seminorm ℂ (SchwartzBruhat (archMul(ι, κ))) // Continuous p} ↦
       i.2.val.comp (archimedeanSchwartzTwist I i.1))
+
+namespace ArchimedeanWeightedSchwartz
+
+variable (I : Set ℝ)
+
+instance instAddCommGroup : AddCommGroup (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (AddCommGroup (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+instance instModule : Module ℂ (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (Module ℂ (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+instance instTopologicalSpace :
+    TopologicalSpace (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (TopologicalSpace (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+instance instPolynormableSpace :
+    PolynormableSpace ℂ (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (PolynormableSpace ℂ (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+instance instIsTopologicalAddGroup :
+    IsTopologicalAddGroup (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (IsTopologicalAddGroup (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+instance instUniformSpace : UniformSpace (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (UniformSpace (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+instance instIsUniformAddGroup :
+    IsUniformAddGroup (ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I) :=
+  inferInstanceAs (IsUniformAddGroup (WithGeneratingSeminorms
+    (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I) _))
+
+end ArchimedeanWeightedSchwartz
 
 local notation "𝓦(" I ")" => ArchimedeanWeightedSchwartz (ι := ι) (κ := κ) I
 
