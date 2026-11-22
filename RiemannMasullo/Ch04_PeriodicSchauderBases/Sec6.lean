@@ -460,10 +460,32 @@ def modulatedLogMoment (ξ : PontryaginDual G) (r : ℕ) : StrongDual ℂ H₀[�
   let h := modulatedLogMoment_linearContinuous (m := m) (hm := hm) (hms := hms) (ω := ω) (μ := μ) ξ r
   ⟨IsLinearMap.mk' (fun f : H₀[ω] ↦ ∫ g, integrand[ξ, r, f] g ∂μ) h.2.1, h.2.2⟩
 
+/-- An integrand weighted by a function equal to one and a zeroth power integrates to the
+unweighted integral. -/
+private theorem integral_mul_one_mul_pow_zero {X : Type*} [MeasurableSpace X] (ν : Measure X)
+    (φ ξ L : X → ℂ) (hξ : ∀ x, ξ x = 1) : ∫ x, φ x * ξ x * L x ^ (0 : ℕ) ∂ν = ∫ x, φ x ∂ν := by
+  simp [hξ]
+
+/-- The trivial character takes the value one. -/
+private theorem coe_one_pontryaginDual_apply {H : Type*} [CommGroup H] [TopologicalSpace H]
+    (g : H) : (((1 : PontryaginDual H) g : Circle) : ℂ) = 1 := by
+  simp
+
+-- The binders below are the section variables, written out. Stated with the section
+-- variables themselves, every complete proof of this theorem fails to finish elaborating
+-- (even a one-term application of a lemma with the same type), while this form takes seconds.
+-- The universe is named `u_1` to keep the statement identical to the section-variable form.
 /-- Paper: Equation (4.6.1.14), p. 212. The zeroth moment at the trivial
 character is the integral of the test function. -/
-theorem modulatedLogMoment_one_zero (f : H₀[ω]) :
-    modulatedLogMoment (m := m) (hm := hm) (hms := hms) (ω := ω) (μ := μ) 1 0 f = ∫ g, f.val.val g ∂μ := by sorry
+theorem modulatedLogMoment_one_zero {G : Type u_1} [CommGroup G] [TopologicalSpace G]
+    [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] [hSC : SecondCountableTopology G]
+    (m : G →ₜ* ℝ≥0ˣ) (hm : IsModulation m) (hms : Surjective m)
+    (ω : PontryaginDual m.toMonoidHom.ker) [MeasurableSpace G] [BorelSpace G]
+    (μ : Measure G) [hμHaar : μ.IsHaarMeasure]
+    (f : modulatedDecayIsotype m (Set.univ : Set ℝ) (Set.mem_univ (0 : ℝ)) ω) :
+    modulatedLogMoment (m := m) (hm := hm) (hms := hms) (ω := ω) (μ := μ) 1 0 f = ∫ g, f.val.val g ∂μ := by
+  unfold modulatedLogMoment
+  exact integral_mul_one_mul_pow_zero μ _ _ _ fun g ↦ coe_one_pontryaginDual_apply g
 
 local notation "J" => {p : PontryaginDual G × ℕ // p.2 < modulatedPeriodicMultiplicity m ω γs p.1}
 local notation "S" => List.ofFn γs
