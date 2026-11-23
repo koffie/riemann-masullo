@@ -15,13 +15,16 @@ are in [`prompts/`](prompts/README.md). To change this file, follow
 1. Each paper section, or part of a long one, has a **section issue** (label `section`), labelled
    `blocked` until the sections it builds on have their statements on `main`.
 2. A **scout** comments on it with what already exists in Mathlib and other Lean projects.
-3. A **digester** writes the section's definitions and statements, with `sorry` for every proof.
+3. A **digester** writes the section's definitions and statements, with `sorry` for every proof,
+   and opens a pull request.
 4. The integrator runs `scripts/issues.py`, which opens one **proof issue** (label `proof`) per
    `sorry`.
 5. A **prover** proves one declaration or splits it into smaller `sorry`s, which become new proof
    issues. A **sweeper** closes as many open proof issues of one file as it can in one PR.
 6. Anyone who finds a false statement, a mistranslation or a gap in a printed argument **reports
-   it on the issue** (see "False statements and gaps").
+   it on the issue**. That is a result in its own right. The integrator checks the report, records
+   it in [`ERRATA.md`](ERRATA.md) and decides what becomes of the statement (see "False statements
+   and gaps").
 7. The **integrator** reviews and merges. The project is done when `lake comparator` accepts
    `Main.lean`, or every remaining `sorry` is a recorded gap.
 
@@ -41,8 +44,9 @@ Apache-2.0).
   - Write a hypothesis that one or two theorems use as an argument of those theorems, not as a
     `variable`.
   - Check with `scripts/signatures.sh --sorry-in-defs`.
-  - *Why:* a definition with `sorry` compiles but makes everything above it meaningless, and a
-    `variable` hypothesis that fails to elaborate silently becomes `sorry`.
+  - *Why:* a definition whose data is `sorry` compiles but makes everything above it meaningless,
+    one with `sorry` in a proof field changes when the proof is filled in, and a `variable`
+    hypothesis that fails to elaborate silently becomes `sorry`.
 - **Use only the three standard axioms.**
   - Do not use `axiom`, `native_decide`, `implemented_by`, `extern`, `unsafe`, `opaque` or
     `debug.*` options.
@@ -60,19 +64,22 @@ Apache-2.0).
   - Add the lemmas that characterize it (`mem_…_iff`, the coercion, the defining property), and
     use them instead of unfolding it.
   - *Why:* an `abbrev` copies its whole definition into every instance term. Towers of them grow
-    exponentially, and trivial proofs stop finishing (#5398: 10¹⁴ nodes).
+    exponentially, and trivial proofs stop finishing (#5362, #5398: 10¹⁴ nodes).
 - **Prevent cascading rebuilds.**
-  - Never add `import all`. To use another file's private lemma, remove `private` in place and
-    add a docstring, or move the lemma to `RiemannMasullo/ForMathlib/` in a `section` of its own.
-    Leave private instances private.
+  - Never add `import all`. To use another file's private lemma, make it public with a
+    descriptive name and a docstring, or move it to `RiemannMasullo/ForMathlib/` if it is general.
+    Remove `private` in place, or give a moved lemma a `section` of its own, so that the universe
+    names of later declarations do not change. Leave private instances private.
   - In a proof, use the imports the file already has. Put an unavoidable new import in the
-    section's `Sec<N>_Imports.lean` when it has one.
+    section's `Sec<N>_Imports.lean` when it has one: the section imports that file privately, so
+    a line added there rebuilds only the section.
   - Keep new helpers `private`.
   - Use the existing `f_def` and `f_apply` lemmas instead of `simp [f]` or `unfold f`.
   - *Why:* a module rebuilds when anything it reaches through `public import` changes its public
     interface: an import added or removed, a public declaration added or restated, a proof that
-    makes a public theorem free of `sorry`, or a new equation lemma `f.eq_1`. `import all` makes
-    every other edit cascade too. One added import rebuilt 58 modules instead of 5 (#6263), and
+    makes a public theorem free of `sorry`, or a new equation lemma `f.eq_1`. Changing a proof
+    that was already complete, a `private` helper or a docstring leaves it unchanged, but
+    `import all` makes every edit cascade. One added import rebuilt 58 modules instead of 5 (#6263), and
     one proof edit under `import all` rebuilt 76 (#5960). The plan for the existing `import all`
     lines is #5966.
 - **Start the docstring of every declaration taken from the paper with `Paper:`.**
@@ -97,11 +104,12 @@ from the paper. Keep them apart.
 
 - **Never leave a false statement as a theorem**, with or without `sorry`.
   - Keep the paper's claim as `def Printed.<name> : Prop`, exactly as printed, with all its
-    quantifiers.
+    quantifiers. It asserts nothing.
   - Next to it, state `theorem Printed.<name>_false : ¬ Printed.<name>`. Its proof is the
     refutation, in Lean. Until it is written it is a `sorry` with a `refutation` issue.
   - Put both in `RiemannMasullo/<Chapter>/Sec<N>_Printed.lean`, which imports the section file
-    and which nothing imports. The model is `RiemannMasullo/AppA_AlgebraicNT/Sec1_Printed.lean`.
+    and which nothing imports, so adding to it rebuilds nothing else. The model is
+    `RiemannMasullo/AppA_AlgebraicNT/Sec1_Printed.lean`.
   - Give the repaired statement the ordinary name in the section file, with a `Deviation:` line.
   - Name every instance in a `_Printed.lean` file.
   - *Why:* everything above a false theorem could use it and still compile. `_Printed` files do
@@ -136,18 +144,19 @@ lake lean .agent/Check.lean                           # with `#print axioms Riem
 
 - A proof must leave the `--compare` list empty.
 - If it lists a declaration you did not touch, a helper you added above it probably renamed its
-  universe parameters (a new `variable`, `universe` or auto-bound `Type*` in the same section).
-  Put the helper in a `section` of its own.
+  universe parameters (a new `variable`, `universe` or auto-bound `Type*` in the same section
+  turns `u_1` into `u_2`). Put the helper in a `section` of its own, with its own variables.
 - Put scratch files under `.agent/`, which git ignores.
 - Use `lake lean`, not `lake env lean`. *Why:* only `lake lean` applies the options in
   `lakefile.toml`; without them `autoImplicit` is on and some files compile dozens of times more
-  slowly.
+  slowly (a linter the project turns off).
 
 ## Your issue, and handing in work
 
 Check whether `.agent/PROMPT.md` exists in your working directory.
 
-**It exists: the launcher set you up.** Your issue is at the end of that file.
+**It exists: the launcher set you up.** You are in a private worktree made by `scripts/agent.sh`,
+and your issue is at the end of that file.
 - You have no git access, and no network unless you are a scout. Do not run `git` or `gh`.
 - Leave your changes in the working tree.
 - If you changed files, write `.agent/PR.md`: the first line is the PR title, the rest the
@@ -157,7 +166,8 @@ Check whether `.agent/PROMPT.md` exists in your working directory.
 - The launcher builds, commits, pushes and opens the pull request.
 
 **It does not exist: you are working by hand.** Read your issue with `gh issue view <n> --comments`.
-- A scout changes no files: post the report with `gh issue comment <n> --body-file .agent/REPORT.md`.
+- A scout changes no files, so it can work in any checkout. Post the report with
+  `gh issue comment <n> --body-file .agent/REPORT.md`.
 - A digester or prover needs a checkout nobody else edits. In your own clone or fork, comment
   `Claiming` on the issue, branch from `main`, and open a PR against `main` with `Closes #<n>`.
 - In a shared checkout, such as the integrator's, stop and ask for a worktree:
@@ -192,15 +202,17 @@ import list. Declarations live in `namespace RiemannMasullo`.
 ## Using existing Lean
 
 - Look in Mathlib first. Then see [`RiemannMasullo/External/SURVEY.md`](RiemannMasullo/External/SURVEY.md):
-  declarations in other Lean projects that cover parts of the paper, with pinned commits.
+  declarations in other Lean projects that cover parts of the paper (Tate's thesis, Pontryagin
+  duality, Haar measure on the adeles, nuclear operators and more), with pinned commits.
 - Those projects use other Lean versions: you can port a proof from them, but not import one. If
   the launcher's prompt names a directory of reference copies, read them there.
 - When you adapt a proof or definition, say so in the PR and add a line to
-  [`RiemannMasullo/External/ATTRIBUTION.md`](RiemannMasullo/External/ATTRIBUTION.md). For MIT
-  code, name the notice kept in `RiemannMasullo/External/licenses/`. Never copy from a project
-  without a license.
-- The launcher's prompt may name a directory of outside documents on gaps in the paper. Treat a
-  report there as a lead: test it against the page and the Lean statement, and name the document
+  [`RiemannMasullo/External/ATTRIBUTION.md`](RiemannMasullo/External/ATTRIBUTION.md): the projects
+  are Apache-2.0 or MIT, which require the credit. For MIT code, name the notice kept in
+  `RiemannMasullo/External/licenses/`. Never copy from a project without a license.
+- The launcher's prompt may name a directory of outside documents on gaps in the paper and
+  possible repairs. Nothing in them has been checked by this project. Treat a report there as a
+  lead: test it against the page and the Lean statement, and name the document
   when a finding of yours started from one.
 
 ## Reading the paper

@@ -54,7 +54,8 @@ prompts in this directory.
 - **Keep the file under about 250 lines.** If it grows past that, look for rules to merge, move
   to a role prompt, or delete.
 - **Keep these headings unchanged**; other files refer to them by name:
-  - "Rules for Lean code" (the Layout table in AGENTS.md),
-  - "False statements and gaps" (AGENTS.md itself),
+  - "Rules for Lean code" (the Layout table, `prompts/digester.md`),
+  - "False statements and gaps" (`prompts/prover.md`, `prompts/digester.md`),
+  - "Building and checking" (`prompts/prover.md`),
   - "Using existing Lean" (`scripts/agent.sh`).
 - AGENTS.md is integrator territory: change it through a pull request.
