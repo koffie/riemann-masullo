@@ -3,12 +3,11 @@ module
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec3a
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 import Mathlib.Algebra.Order.Archimedean.Real.Hom
-import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
-import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import Mathlib.Analysis.Calculus.InverseFunctionTheorem.ContDiff
@@ -1310,7 +1309,7 @@ theorem archimedeanWeightedSchwartz_empty_equiv (I : Set ℝ) :
   let a : W := (Empty.elim, Empty.elim)
   have htwist (b : W) (f : E) (u : G) : archimedeanSchwartzTwist I b f u = f.val u := by
     simp [archimedeanSchwartzTwist_apply]
-  obtain ⟨f, hf, _⟩ := schwartzBruhat_exists_test (1 : G) 1
+  obtain ⟨f, hf, _⟩ := schwartzBruhat_exists_separating_function (1 : G) 1
   let f₀ : E := ⟨f.val, by
     apply (Submodule.mem_iInf _).mpr
     intro b
@@ -1352,9 +1351,30 @@ theorem archimedeanWeightedSchwartz_empty_equiv (I : Set ℝ) :
 -- family of exponents in I bracketing each exponent in I, together with zero.
 
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
+Metrizability half of the lemma. A weight at an exponent between two exponents of `I`
+is bounded by the larger of the two weights, so countably many exponents in `I`
+together with zero already generate the seminorm topology. This is where the printed
+proof uses integer exponents, which need not lie in an interval `I` that misses `ℤ`. -/
+theorem archimedeanWeightedSchwartz_metrizable {I : Set ℝ} (ho : IsOpen I)
+    (hi : OrdConnected I) (hne : I.Nonempty) : MetrizableSpace 𝓦(I) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(1), p. 252.
+Completeness half of the lemma. The partial weight maps embed the weighted space as a
+closed submodule of a product of complete Schwartz–Bruhat spaces, so every Cauchy
+filter of twists converges to the family of its pointwise limits. -/
+theorem archimedeanWeightedSchwartz_complete {I : Set ℝ} (ho : IsOpen I)
+    (hi : OrdConnected I) (hne : I.Nonempty) : CompleteSpace 𝓦(I) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the topology from the partial weight maps is Fréchet. -/
 theorem archimedeanWeightedSchwartz_frechet {I : Set ℝ} (_ho : IsOpen I)
-    (_hi : OrdConnected I) (_hne : I.Nonempty) : IsFrechetTVS 𝓦(I) := by sorry
+    (_hi : OrdConnected I) (_hne : I.Nonempty) : IsFrechetTVS 𝓦(I) := by
+  refine ⟨inferInstance, inferInstance,
+    archimedeanWeightedSchwartz_metrizable _ho _hi _hne, ?_⟩
+  rw [IsUniformAddGroup.rightUniformSpace_eq]
+  exact archimedeanWeightedSchwartz_complete _ho _hi _hne
 
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the weighted Schwartz–Bruhat space is separable. -/
@@ -1619,12 +1639,43 @@ theorem archimedeanFlatSchwartz_isClosed :
 -- supported close to, but away from, the origin.
 
 /-- Paper: Lemma 5.3.3.3(3), p. 253.
+Forward half of the restriction equivalence: restricting a flat Schwartz function to the
+product of the punctured lines is a continuous linear map into the all-exponent weighted
+space. The estimates (5.3.3.21)–(5.3.3.23) fail for bumps supported close to, but away
+from, the origin; the bound comes instead from Taylor's theorem at the coordinate walls. -/
+theorem archimedeanFlatSchwartz_restrict_to_weighted :
+    ∃ R : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) →L[ℂ] 𝓦(univ),
+      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (R f).val u = f.val (archVal u) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(3), p. 253.
+Inverse half of the restriction equivalence, for a fixed restriction map: a function of
+the all-exponent weighted space extends by zero across the coordinate walls to a flat
+Schwartz function, the extension is continuous, and it is a left inverse of restriction. -/
+theorem archimedeanWeightedSchwartz_zeroExtension
+    (R : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) →L[ℂ] 𝓦(univ))
+    (hR : ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (R f).val u =
+      f.val (archVal u)) :
+    ∃ E : 𝓦(univ) →L[ℂ] ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)),
+      (∀ (f : 𝓦(univ)) (u : archMul(ι, κ)), (E f).val (archVal u) = f.val u) ∧
+        ∀ f, E (R f) = f := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(3), p. 253.
 Restriction to the product of the punctured lines identifies flat Schwartz functions
 with the all-exponent weighted space. The inverse extends by zero. -/
 theorem archimedeanFlatSchwartz_restrict_equiv :
     ∃ e : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) ≃L[ℂ] 𝓦(univ),
-      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (e f).val u = f.val (archVal u) :=
-  by sorry
+      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (e f).val u = f.val (archVal u) := by
+  obtain ⟨R, hR⟩ := archimedeanFlatSchwartz_restrict_to_weighted (ι := ι) (κ := κ)
+  obtain ⟨E, hE, hER⟩ :=
+    archimedeanWeightedSchwartz_zeroExtension (ι := ι) (κ := κ) R hR
+  have hRE : ∀ g : 𝓦(univ), R (E g) = g := by
+    intro g
+    apply Subtype.ext
+    funext u
+    rw [hR (E g) u, hE g u]
+  exact ⟨ContinuousLinearEquiv.equivOfInverse R E hER hRE, hR⟩
 
 /-- Paper: Lemma 5.3.3.3(3), p. 253.
 A continuous quasi-character on the product of punctured fields acts by multiplication
