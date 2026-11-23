@@ -8,6 +8,7 @@ public import Mathlib.NumberTheory.ArithmeticFunction.VonMangoldt
 import Mathlib.RingTheory.Ideal.Int
 import Mathlib.RingTheory.RamificationInertia.Basic
 import Mathlib.Analysis.Complex.LocallyUniformLimit
+import Mathlib.NumberTheory.LSeries.WienerIkehara
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 import RiemannMasullo.ForMathlib.NumberTheory.EulerProduct.Basic
@@ -585,12 +586,375 @@ theorem heckeIdealSummatory_tendsto_of_trivial_on_normOne (χ : U[F])
   rw [Nat.card_congr e, Nat.card_eq_fintype_card, finsum_eq_sum_of_fintype, Finset.sum_congr rfl fun I _ ↦ hval I.2.1, Finset.sum_const,
     Finset.card_univ, nsmul_eq_mul, mul_one]
 
+/-- Conjugating the coefficients of a Dirichlet series conjugates its sum at the
+conjugate point. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_conj (f : ℕ → ℂ)
+    (s a : ℂ) (h : LSeriesHasSum f ((starRingEnd ℂ) s) a) :
+    LSeriesHasSum (fun n ↦ (starRingEnd ℂ) (f n)) s ((starRingEnd ℂ) a) := by
+  have h' := h.star
+  unfold LSeriesHasSum
+  convert h' using 1
+  · funext n
+    rcases eq_or_ne n 0 with rfl | hn
+    · simp
+    rw [LSeries.term_of_ne_zero hn, LSeries.term_of_ne_zero hn]
+    change _ = (starRingEnd ℂ) _
+    rw [map_div₀, ← Complex.conj_cpow _ _ (by rw [Complex.natCast_arg]; positivity),
+      Complex.conj_natCast]
+  · rfl
+
+/-- The summatory function groups by integral norm. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_sum (χ : 𝒳[F])
+    (x : ℝ) (hx : 0 ≤ x) :
+    heckeIdealSummatory χ x = ∑ n ∈ Finset.Icc 0 ⌊x⌋₊, heckeNormCoefficient χ n := by
+  classical
+  have hfin : {I : Ideal (𝓞 F) | I ≠ ⊥ ∧ (I.absNorm : ℝ) ≤ x}.Finite :=
+    (Ring.HasFiniteQuotients.finite_absNorm_le (S := 𝓞 F) ⌊x⌋₊).subset
+      fun I hI ↦ Nat.le_floor hI.2
+  let T := hfin.toFinset
+  have hfib (n : ℕ) (hn : n ∈ Finset.Icc 0 ⌊x⌋₊) :
+      heckeNormCoefficient χ n = ∑ I ∈ T with I.absNorm = n, heckeIdealValue χ I := by
+    have hset : {I : Ideal (𝓞 F) | I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} =
+        ↑(T.filter fun I ↦ I.absNorm = n) := by
+      ext I
+      simp only [Set.mem_ofPred_eq, Finset.coe_filter, T, Set.Finite.mem_toFinset]
+      constructor
+      · rintro ⟨h0, h1⟩
+        have h1' : I.absNorm = n := by exact_mod_cast h1
+        refine ⟨⟨h0, ?_⟩, h1'⟩
+        rw [h1]
+        exact (Nat.le_floor_iff hx).mp (Finset.mem_Icc.mp hn).2
+      · rintro ⟨⟨h0, -⟩, h1⟩
+        exact ⟨h0, by exact_mod_cast h1⟩
+    unfold heckeNormCoefficient
+    change ∑ᶠ I : ↥{I : Ideal (𝓞 F) | I ≠ ⊥ ∧ (I.absNorm : ℝ) = n}, heckeIdealValue χ I = _
+    rw [hset, finsum_set_coe_eq_finsum_mem, finsum_mem_coe_finset]
+  unfold heckeIdealSummatory
+  change ∑ᶠ I : ↥{I : Ideal (𝓞 F) | I ≠ ⊥ ∧ (I.absNorm : ℝ) ≤ x}, heckeIdealValue χ I = _
+  rw [finsum_set_coe_eq_finsum_mem, finsum_mem_eq_finite_toFinset_sum _ hfin,
+    Finset.sum_congr rfl hfib]
+  refine (Finset.sum_fiberwise_of_maps_to (fun I hI ↦ ?_) _).symm
+  simp only [Set.Finite.mem_toFinset, Set.mem_ofPred_eq] at hI
+  exact Finset.mem_Icc.mpr ⟨Nat.zero_le _, Nat.le_floor hI.2⟩
+
+
+/-- The norm-one-twisted trivial character has coefficient equal to the number of
+nonzero ideals of the given norm. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_one (n : ℕ) :
+    heckeNormCoefficient (ideleClassNormTwist (1 : U[F]) 0) n =
+      ((Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} : ℝ) : ℂ) := by
+  classical
+  have hone (g : IdeleClassGroup (𝓞 F) F) : ideleClassNormTwist (1 : U[F]) 0 g = 1 := by
+    change ((1 : U[F]) g : ℂ) * _ ^ (0 : ℂ) = 1
+    simp
+  have : Finite {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} :=
+    ((Ring.HasFiniteQuotients.finite_absNorm_eq (S := 𝓞 F) n).subset
+      (show {I : Ideal (𝓞 F) | I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} ⊆ {I | I.absNorm = n} from
+        fun I hI ↦ by exact_mod_cast hI.2)).to_subtype
+  have : Fintype {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} := Fintype.ofFinite _
+  unfold heckeNormCoefficient
+  rw [finsum_eq_sum_of_fintype, Finset.sum_congr rfl fun I _ ↦
+    heckeIdealSummatory_tendsto_of_trivial_on_normOne_value _ hone I.2.1, Finset.sum_const,
+    Finset.card_univ, Nat.card_eq_fintype_card, nsmul_eq_mul, mul_one]
+  norm_cast
+
+/-- Each coefficient of a unitary character is bounded by the number of ideals of that norm. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_norm_le (χ : U[F])
+    (n : ℕ) : ‖heckeNormCoefficient (ideleClassNormTwist χ 0) n‖ ≤
+      (Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} : ℝ) := by
+  classical
+  have hvalue {I : Ideal (𝓞 F)} (hI : I ≠ ⊥) :
+      ‖heckeIdealValue (ideleClassNormTwist χ 0) I‖ ≤ 1 := by
+    rw [heckeIdealValue, ite_eq_right hI]
+    refine finprod_induction (fun z : ℂ ↦ ‖z‖ ≤ 1) (by simp) (fun _ w hz hw ↦ ?_) (fun v ↦ ?_)
+    · rw [norm_mul]
+      exact (mul_le_of_le_one_left (norm_nonneg w) hz).trans hw
+    · rw [norm_pow]
+      apply pow_le_one₀ (norm_nonneg _)
+      split_ifs <;> simp [norm_ideleClassNormTwist_zero_localValue]
+  have : Finite {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} :=
+    ((Ring.HasFiniteQuotients.finite_absNorm_eq (S := 𝓞 F) n).subset
+      (show {I : Ideal (𝓞 F) | I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} ⊆ {I | I.absNorm = n} from
+        fun I hI ↦ by exact_mod_cast hI.2)).to_subtype
+  have : Fintype {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} := Fintype.ofFinite _
+  unfold heckeNormCoefficient
+  rw [finsum_eq_sum_of_fintype, Nat.card_eq_fintype_card]
+  refine (norm_sum_le_of_le _ fun I _ ↦ hvalue I.2.1).trans ?_
+  simp
+
+/-- The ideal counts have a linear summatory bound. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_bound :
+    ∃ C : ℝ, ∀ n : ℕ, ∑ i ∈ Finset.range n,
+      (Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = i} : ℝ) ≤ C * n := by
+  set N : ℕ → ℝ := fun i ↦ (Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = i} : ℝ)
+    with hN
+  set S : ℕ → ℝ := fun n ↦ ∑ i ∈ Finset.Icc 0 n, N i with hS
+  have hN0 (i : ℕ) : 0 ≤ N i := Nat.cast_nonneg _
+  have h1 : (1 : U[F]).toMonoidHom.comp (ideleClassNorm F).ker.subtype = 1 := by
+    ext; rfl
+  have hlim := (heckeIdealSummatory_tendsto_of_trivial_on_normOne (1 : U[F]) h1).2 0 (by simp)
+  have e : Complex.I * ((0 : ℝ) : ℂ) = 0 := by simp
+  rw [e] at hlim
+  have hR : Tendsto (fun n : ℕ ↦ S n / n) atTop (𝓝 (dedekindZeta_residue F)) := by
+    have := ((Complex.continuous_re.tendsto _).comp hlim).comp tendsto_natCast_atTop_atTop
+    refine this.congr fun n ↦ ?_
+    simp only [Function.comp_apply]
+    rw [heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_sum _ _ (Nat.cast_nonneg n),
+      Nat.floor_natCast]
+    simp_rw [heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_one]
+    rw [← Complex.ofReal_sum, ← Complex.ofReal_div, Complex.ofReal_re]
+  obtain ⟨n₀, hn₀⟩ := eventually_atTop.1
+    (hR.eventually (gt_mem_nhds (lt_add_one (dedekindZeta_residue F))))
+  have hres := dedekindZeta_residue_pos F
+  have hSmono {m n : ℕ} (h : m ≤ n) : S m ≤ S n :=
+    Finset.sum_le_sum_of_subset_of_nonneg (Finset.Icc_subset_Icc le_rfl h)
+      fun i _ _ ↦ hN0 i
+  have hS0 (n : ℕ) : 0 ≤ S n := Finset.sum_nonneg fun i _ ↦ hN0 i
+  refine ⟨dedekindZeta_residue F + 1 + S n₀, fun n ↦ ?_⟩
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp
+  have hn' : (1 : ℝ) ≤ n := by exact_mod_cast hn
+  have hle : ∑ i ∈ Finset.range n, N i ≤ S n :=
+    Finset.sum_le_sum_of_subset_of_nonneg
+      (fun i hi ↦ Finset.mem_Icc.mpr ⟨Nat.zero_le _, (Finset.mem_range.mp hi).le⟩)
+      fun i _ _ ↦ hN0 i
+  refine hle.trans ?_
+  rcases le_or_gt n₀ n with h | h
+  · have := hn₀ n h
+    rw [div_lt_iff₀ (by linarith)] at this
+    nlinarith [hS0 n₀]
+  · have := hSmono h.le
+    nlinarith [hS0 n₀]
+
+/-- On the right half-plane the ideal-count Dirichlet series has the sum given by the
+finite Dedekind zeta function. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_hasSum_one
+    (s : ℂ) (hs : 1 < s.re) :
+    LSeriesHasSum (fun n : ℕ ↦
+      ((Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} : ℝ) : ℂ)) s
+      (finiteHeckeL (1 : U[F]) ⟨s, hs⟩) := by
+  have := finiteHeckeL_hasSum_normCoefficients (1 : U[F]) ⟨s, hs⟩
+  simp_rw [heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_one] at this
+  exact this
+
+/-- The ideal-count Dirichlet series minus a real multiple of `1 / (s - 1)` extends
+continuously to the closed half-plane `1 ≤ re s`. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_zeta :
+    ∃ c : ℝ, ∃ G : ℂ → ℂ, ContinuousOn G {s | 1 ≤ s.re} ∧
+      EqOn G (fun s ↦ LSeries (fun n : ℕ ↦
+        ((Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} : ℝ) : ℂ)) s -
+          c / (s - 1)) {s | 1 < s.re} := by
+  set a : ℕ → ℂ := fun n ↦
+    ((Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} : ℝ) : ℂ) with ha
+  obtain ⟨Λ, hΛ, hEq⟩ := completedHeckeL_exists_continuation (1 : U[F])
+  have h1 : (1 : U[F]).toMonoidHom.comp (ideleClassNorm F).ker.subtype = 1 := by
+    ext; rfl
+  obtain ⟨t, ⟨ht, -, hord, han⟩, -⟩ :=
+    completedHeckeL_continuation_simplePoles (1 : U[F]) Λ hΛ hEq h1
+  have ht0 : t = 0 := by
+    have := congrArg Complex.im (trivial_normTwist_injective (F := F) ht)
+    simpa using this.symm
+  subst ht0
+  have hord' : meromorphicOrderAt Λ 1 = -1 := by simpa using hord
+  let γ : ℂ → ℂ := fun s ↦ (heckeGammaFactor (1 : U[F]) s)⁻¹
+  have hγ : Differentiable ℂ γ := differentiable_inv_heckeGammaFactor _
+  have hLS (s : ℂ) (hs : 1 < s.re) : γ s * Λ s = LSeries a s := by
+    have hne := heckeGammaFactor_ne_zero_of_re_pos (1 : U[F]) (s := s) (by linarith)
+    rw [hEq ⟨s, hs⟩,
+      (heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_hasSum_one s hs).LSeries_eq]
+    change γ s * (heckeGammaFactor (1 : U[F]) s * finiteHeckeL (1 : U[F]) ⟨s, hs⟩) = _
+    rw [← mul_assoc, inv_mul_cancel₀ hne, one_mul]
+  have hreal (s : ℂ) (hs : 1 < s.re) (hsr : s.im = 0) : (LSeries a s).im = 0 := by
+    have hc : (starRingEnd ℂ) s = s := Complex.conj_eq_iff_im.mpr hsr
+    have hsum (s' : ℂ) (hs' : 1 < s'.re) : LSeriesHasSum a s' (LSeries a s') :=
+      (heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_hasSum_one (F := F) s'
+        hs').LSeriesSummable.LSeriesHasSum
+    have h₂ := heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_conj a s _
+      (hsum _ (by rwa [Complex.conj_re]))
+    have hfa : (fun n ↦ (starRingEnd ℂ) (a n)) = a := funext fun n ↦ Complex.conj_ofReal _
+    rw [hc, hfa] at h₂
+    rw [← Complex.conj_eq_iff_im]
+    exact HasSum.unique h₂ (hsum s hs)
+  obtain ⟨g, hg, -, hgeq⟩ :=
+    (meromorphicOrderAt_eq_int_iff (hΛ (mem_univ 1)).meromorphicAt).1 hord'
+  let h : ℂ → ℂ := fun s ↦ γ s * g s
+  have hh : DifferentiableAt ℂ h 1 := (hγ 1).mul hg.differentiableAt
+  have hnear : ∀ᶠ z in 𝓝[≠] (1 : ℂ), γ z * Λ z = (z - 1)⁻¹ * h z := by
+    filter_upwards [hgeq] with z hz
+    simp only [zpow_neg, zpow_one, smul_eq_mul] at hz
+    rw [hz]
+    ring
+  have hh1 : (h 1).im = 0 := by
+    have hto : Tendsto (fun σ : ℝ ↦ (σ : ℂ)) (𝓝[>] 1) (𝓝[≠] (1 : ℂ)) := by
+      refine tendsto_nhdsWithin_iff.mpr ⟨?_, ?_⟩
+      · exact (Complex.continuous_ofReal.tendsto' 1 1 (by simp)).mono_left nhdsWithin_le_nhds
+      · filter_upwards [self_mem_nhdsWithin] with σ hσ
+        exact fun h' ↦ (ne_of_gt (Set.mem_Ioi.mp hσ))
+          (by exact_mod_cast (Set.mem_singleton_iff.mp h'))
+    have hlim : Tendsto (fun σ : ℝ ↦ (h σ).im) (𝓝[>] 1) (𝓝 (h 1).im) :=
+      (Complex.continuous_im.tendsto _).comp
+        ((hh.continuousAt.tendsto.mono_left nhdsWithin_le_nhds).comp hto)
+    refine tendsto_nhds_unique hlim (tendsto_const_nhds.congr' ?_)
+    filter_upwards [hto.eventually hnear, self_mem_nhdsWithin] with σ hσ hσ1
+    have hσ1' : (1 : ℝ) < σ := hσ1
+    have hre : 1 < (σ : ℂ).re := by simpa using hσ1'
+    have hne : (σ : ℂ) - 1 ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast hσ1'.ne')
+    have : h σ = ((σ : ℂ) - 1) * LSeries a σ := by
+      rw [← hLS _ hre, hσ, ← mul_assoc, mul_inv_cancel₀ hne, one_mul]
+    rw [this, ← Complex.ofReal_one, ← Complex.ofReal_sub, Complex.im_ofReal_mul,
+      hreal _ hre (by simp), mul_zero]
+  set c : ℝ := (h 1).re with hc
+  have hcc : (c : ℂ) = h 1 := Complex.ext (by simp [hc]) (by simp [hh1])
+  let G : ℂ → ℂ := Function.update (fun s ↦ γ s * Λ s - c / (s - 1)) 1 (deriv h 1)
+  refine ⟨c, G, fun s hs ↦ ?_, fun s hs ↦ ?_⟩
+  · apply ContinuousAt.continuousWithinAt
+    by_cases hs1 : s = 1
+    · subst hs1
+      have hev : G =ᶠ[𝓝 1] dslope h 1 := by
+        filter_upwards [eventually_nhdsWithin_iff.mp hnear] with z hz
+        by_cases hz1 : z = 1
+        · subst hz1
+          simp only [G, Function.update_self, dslope_same]
+        · have hne : z - 1 ≠ 0 := sub_ne_zero.mpr hz1
+          simp only [G, Function.update_of_ne hz1]
+          rw [hz hz1, dslope_of_ne _ hz1, slope_def_field, hcc]
+          field_simp
+      exact (continuousAt_dslope_same.mpr hh).congr hev.symm
+    · have hs0 : s ≠ 0 := by
+        rintro rfl
+        norm_num at hs
+      have hΛs : ContinuousAt Λ s := (han s (by simp [hs0, hs1])).continuousAt
+      have hcont : ContinuousAt (fun s ↦ γ s * Λ s - c / (s - 1)) s :=
+        ((hγ s).continuousAt.mul hΛs).sub
+          (continuousAt_const.div (continuousAt_id.sub continuousAt_const)
+            (sub_ne_zero.mpr hs1))
+      refine hcont.congr ?_
+      filter_upwards [eventually_ne_nhds hs1] with z hz
+      simp [G, Function.update_of_ne hz]
+  · have hs1 : s ≠ 1 := by
+      rintro rfl
+      simp at hs
+    simp only [G, Function.update_of_ne hs1]
+    rw [hLS s hs]
+
+/-- If the character is nontrivial on norm-one classes, the Dirichlet series of its
+coefficients has an entire continuation. -/
+private theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_entire (χ : U[F])
+    (hχ : χ.toMonoidHom.comp (ideleClassNorm F).ker.subtype ≠ 1) :
+    ∃ M : ℂ → ℂ, Differentiable ℂ M ∧ ∀ s : ℂ, 1 < s.re →
+      LSeriesHasSum (fun n : ℕ ↦ heckeNormCoefficient (ideleClassNormTwist χ 0) n) s (M s) := by
+  obtain ⟨Λ, hΛ, hEq⟩ := completedHeckeL_exists_continuation χ
+  have hd := completedHeckeL_continuation_entire χ Λ hΛ hEq hχ
+  refine ⟨fun s ↦ (heckeGammaFactor χ s)⁻¹ * Λ s,
+    (differentiable_inv_heckeGammaFactor χ).mul hd, fun s hs ↦ ?_⟩
+  have hne := heckeGammaFactor_ne_zero_of_re_pos χ (s := s) (by linarith)
+  convert finiteHeckeL_hasSum_normCoefficients χ ⟨s, hs⟩ using 1
+  change (heckeGammaFactor χ s)⁻¹ * Λ s = _
+  rw [show Λ s = completedHeckeL χ ⟨s, hs⟩ from hEq ⟨s, hs⟩]
+  change _ * (heckeGammaFactor χ s * finiteHeckeL χ ⟨s, hs⟩) = _
+  rw [← mul_assoc, inv_mul_cancel₀ hne, one_mul]
+
 /-- Paper: Lemma B.6.1.2(2), p. 637. If the character is nontrivial on norm-one
 classes, its summatory function divided by `x` tends to zero. -/
 theorem heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne (χ : U[F])
     (hχ : χ.toMonoidHom.comp (ideleClassNorm F).ker.subtype ≠ 1) :
     Tendsto (fun x : ℝ ↦ heckeIdealSummatory (ideleClassNormTwist χ 0) x / x) atTop (𝓝 0) := by
-  sorry
+  set N : ℕ → ℝ := fun n ↦ (Nat.card {I : Ideal (𝓞 F) // I ≠ ⊥ ∧ (I.absNorm : ℝ) = n} : ℝ)
+    with hN
+  set a : ℕ → ℂ := fun n ↦ heckeNormCoefficient (ideleClassNormTwist χ 0) n with ha
+  have hN0 (n : ℕ) : 0 ≤ N n := Nat.cast_nonneg _
+  have haN (n : ℕ) : ‖a n‖ ≤ N n :=
+    heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_norm_le χ n
+  obtain ⟨C, hC⟩ := heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_bound (F := F)
+  obtain ⟨c, G, hG, hGeq⟩ := heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_zeta (F := F)
+  obtain ⟨M, hM, hMsum⟩ :=
+    heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_entire χ hχ
+  have hNsum (s : ℂ) (hs : 1 < s.re) :
+      LSeriesHasSum (fun n ↦ (N n : ℂ)) s (LSeries (fun n ↦ (N n : ℂ)) s) :=
+    (heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_hasSum_one (F := F) s
+      hs).LSeriesSummable.LSeriesHasSum
+  have hWI (u : ℕ → ℝ) (H : ℂ → ℂ) (hu : 0 ≤ u) (hu2 : ∀ n, u n ≤ 2 * N n)
+      (hH : ContinuousOn H {s | 1 ≤ s.re})
+      (hsum : ∀ s : ℂ, 1 < s.re →
+        LSeriesHasSum (fun n ↦ (u n : ℂ)) s (LSeries (fun n ↦ (N n : ℂ)) s + H s)) :
+      Tendsto (fun x : ℝ ↦ (∑ n ∈ Finset.Icc 0 ⌊x⌋₊, u n) / x) atTop (𝓝 c) := by
+    refine WienerIkehara.tendsto_sum_div (C := 2 * C) (G := fun s ↦ G s + H s)
+      (fun n ↦ ?_) (hG.add hH) (fun s hs ↦ ?_) hu
+    · calc ∑ i ∈ Finset.range n, u i ≤ ∑ i ∈ Finset.range n, 2 * N i :=
+            Finset.sum_le_sum fun i _ ↦ hu2 i
+        _ = 2 * ∑ i ∈ Finset.range n, N i := by rw [Finset.mul_sum]
+        _ ≤ 2 * (C * n) := by linarith [hC n]
+        _ = 2 * C * n := by ring
+    · simp only
+      rw [hGeq hs, (hsum s hs).LSeries_eq]
+      ring
+  have hT0 := hWI N 0 (fun n ↦ hN0 n) (fun n ↦ by linarith [hN0 n]) continuousOn_const
+    fun s hs ↦ by simpa using hNsum s hs
+  have hconj (s : ℂ) (hs : 1 < s.re) :
+      LSeriesHasSum (fun n ↦ (starRingEnd ℂ) (a n)) s ((starRingEnd ℂ) (M ((starRingEnd ℂ) s))) :=
+    heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_conj a s _
+      (hMsum _ (by rwa [Complex.conj_re]))
+  have hMc : Continuous fun s ↦ (starRingEnd ℂ) (M ((starRingEnd ℂ) s)) :=
+    Complex.continuous_conj.comp (hM.continuous.comp Complex.continuous_conj)
+  have hT1 := hWI (fun n ↦ N n + (a n).re) (fun s ↦ (M s + (starRingEnd ℂ) (M ((starRingEnd ℂ) s))) / 2)
+    (fun n ↦ by
+      have h1 := abs_le.mp (Complex.abs_re_le_norm (a n))
+      have h2 := haN n
+      simp only [Pi.zero_apply]
+      linarith [h1.1])
+    (fun n ↦ by linarith [Complex.re_le_norm (a n), haN n])
+    ((hM.continuous.add hMc).div_const 2).continuousOn
+    fun s hs ↦ by
+      have := (hNsum s hs).add (((hMsum s hs).add (hconj s hs)).smul (1 / 2 : ℂ))
+      convert this using 1
+      · funext n
+        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
+        push_cast
+        rw [Complex.re_eq_add_conj]
+        ring
+      · ring
+  have hT2 := hWI (fun n ↦ N n + (a n).im)
+    (fun s ↦ (M s - (starRingEnd ℂ) (M ((starRingEnd ℂ) s))) / (2 * Complex.I))
+    (fun n ↦ by
+      have h1 := abs_le.mp (Complex.abs_im_le_norm (a n))
+      have h2 := haN n
+      simp only [Pi.zero_apply]
+      linarith [h1.1])
+    (fun n ↦ by linarith [Complex.im_le_norm (a n), haN n])
+    ((hM.continuous.sub hMc).div_const _).continuousOn
+    fun s hs ↦ by
+      have := (hNsum s hs).add (((hMsum s hs).sub (hconj s hs)).smul (1 / (2 * Complex.I)))
+      convert this using 1
+      · funext n
+        simp only [Pi.add_apply, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
+        push_cast
+        rw [Complex.im_eq_sub_conj]
+        ring
+      · ring
+  have hdiff (u : ℕ → ℝ) (hu : Tendsto (fun x : ℝ ↦ (∑ n ∈ Finset.Icc 0 ⌊x⌋₊, (N n + u n)) / x)
+      atTop (𝓝 c)) : Tendsto (fun x : ℝ ↦ (∑ n ∈ Finset.Icc 0 ⌊x⌋₊, u n) / x) atTop (𝓝 0) := by
+    have := hu.sub hT0
+    rw [sub_self] at this
+    refine this.congr fun x ↦ ?_
+    rw [Finset.sum_add_distrib]
+    ring
+  have hre := hdiff _ hT1
+  have him := hdiff _ hT2
+  have hlim := ((Complex.continuous_ofReal.tendsto 0).comp hre).add
+    (((Complex.continuous_ofReal.tendsto 0).comp him).mul_const Complex.I)
+  simp only [Complex.ofReal_zero, zero_mul, add_zero] at hlim
+  refine hlim.congr' ?_
+  filter_upwards [eventually_ge_atTop 0] with x hx
+  rw [heckeIdealSummatory_tendsto_zero_of_nontrivial_on_normOne_sum _ x hx]
+  have hsplit : ∑ n ∈ Finset.Icc 0 ⌊x⌋₊, heckeNormCoefficient (ideleClassNormTwist χ 0) n =
+      ∑ n ∈ Finset.Icc 0 ⌊x⌋₊, ((a n).re : ℂ) + (∑ n ∈ Finset.Icc 0 ⌊x⌋₊, ((a n).im : ℂ)) *
+        Complex.I := by
+    rw [Finset.sum_mul, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun n _ ↦ (Complex.re_add_im _).symm
+  simp only [Function.comp_apply]
+  push_cast
+  rw [hsplit]
+  ring
 
 /-- Paper: Theorem B.6.1.3, p. 637. The logarithmic derivative is bounded by
 a squared logarithm for large absolute heights, uniformly over the narrower
