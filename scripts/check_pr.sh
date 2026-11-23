@@ -35,17 +35,39 @@ stray=$(echo "$files" | awk '!/^RiemannMasullo\/.*\.lean$/ || /^RiemannMasullo\/
 [ -z "$stray" ] || { echo "REFUSED: changes outside the library; read these by hand before running anything:"; echo "$stray" | sed 's/^/  /'; exit 1; }
 git merge -q --no-edit "$head" || { echo "REFUSED: does not merge cleanly into main"; exit 1; }
 
+# Reuse the launcher's build as a starting point. Copy under its lock so that a
+# seed refresh cannot change the files mid-copy. Lake still builds the exact
+# baseline and merged sources below.
+seed="$(dirname "$wt")/seed"
+seeded=0
+if [ -f "$seed/.lake/built-at" ]; then
+  if (
+    flock -s -w 5 8 &&
+    seed_head=$(git -C "$seed" rev-parse --verify HEAD) &&
+    git merge-base --is-ancestor "$seed_head" "$base" &&
+    git diff --quiet "$seed_head" "$base" -- lean-toolchain lake-manifest.json lakefile.lean lakefile.toml &&
+    cp -a --reflink=auto "$seed/.lake/build" .lake/build &&
+    echo "starting from the local seed build at ${seed_head:0:12}"
+  ) 8>>"$main/.agent/seed.lock"; then
+    seeded=1
+  else
+    rm -rf .lake/build
+  fi
+fi
+
 # A conflict needs no Lean build. On a cache miss, return to trusted main before
 # running the baseline build, then restore the exact merge for the sandbox.
 basefile="$main/.agent/base/pinned-main-$base.txt"
 if [ ! -s "$basefile" ]; then
   merged=$(git rev-parse HEAD)
   git checkout -q --detach "$base"
+  [ "$seeded" = 0 ] || python3 scripts/ci/prune_build.py >/dev/null
   mkdir -p "$main/.agent/base"
   scripts/signatures.sh >"$basefile.$$"
   mv "$basefile.$$" "$basefile"
   git checkout -q --detach "$merged"
 fi
+[ "$seeded" = 0 ] || python3 "$main/scripts/ci/prune_build.py" --root "$wt" >/dev/null
 cp "$basefile" .agent/base.txt
 echo "sorries added: $(git diff "$base" HEAD | grep -E '^\+[^+]' | grep -cw sorry || true)"
 

@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 

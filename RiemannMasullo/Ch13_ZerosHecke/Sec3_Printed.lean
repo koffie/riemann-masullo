@@ -1,8 +1,8 @@
 module
 
 public import RiemannMasullo.Ch13_ZerosHecke.Sec3
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.AppB_AnalyticNT.Sec4b
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.AppB_AnalyticNT.Sec4b
 
 /-! # Printed claims about the capped critical-line trace
 
@@ -41,7 +41,15 @@ one, the tests `b(log t)` and `b(log t) · conj (ω(k))` on `(t,k)` have, respec
 moment pairs `(1,0)` and `(0,1)` for the trivial character and `ω`, by Haar
 orthogonality. The common kernel therefore has codimension at least two. -/
 theorem Printed.criticalTraceTestCodimension_false : ¬ Printed.criticalTraceTestCodimension :=
-  by sorry
+  by
+  intro h
+  let q : (AdeleRing (𝓞 ℚ) ℚ)ˣ →ₜ* C[ℚ] := ⟨QuotientGroup.mk' _, continuous_quotient_mk'⟩
+  let τ : ℝ≥0ˣ →ₜ* C[ℚ] := q.comp
+    ⟨canonicalIdeleNormSection ℚ, canonicalIdeleNormSection_continuous ℚ⟩
+  have hτ : RightInverse τ (ideleClassNorm ℚ) := canonicalIdeleNormSection_rightInverse ℚ
+  have hrank := criticalTraceTestSubmodule_rat_codimension_ge_two τ hτ
+  rw [h ℚ τ hτ, Module.finrank_self] at hrank
+  norm_num at hrank
 
 local notation "ord[" F "](" χ ", " s ")" =>
   MeromorphicOn.divisor (continuedCompletedHeckeL (F := F) χ) univ s

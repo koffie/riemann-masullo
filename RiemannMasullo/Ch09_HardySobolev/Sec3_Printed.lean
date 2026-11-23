@@ -4,6 +4,7 @@ public import RiemannMasullo.Ch09_HardySobolev.Sec3
 public import RiemannMasullo.Ch12_TraceGeometric.Sec1a
 public import Mathlib.Topology.Algebra.Module.Spaces.PointwiseConvergenceCLM
 import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
+import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Gaussian
 
 /-! # §9.3: statements that are false as printed -/
 
@@ -409,6 +410,97 @@ def Printed.hardySobolevJetKernelProjection_tendsto : Prop :=
           range (P T) = {u | ∀ i : J, |i.val.1.im| ≤ T.val → δ i u = 0}) ∧
         ∀ u, Tendsto (fun T ↦ P T u) atTop (𝓝 u)
 
+/-- The Gaussian profile centred at `c`. -/
+private theorem gaussProfile_mem_hardySobolevJetKernelProjection (c : ℝ) :
+    (fun x : ℝ ↦ Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2))) ∈
+      logExponentialDecaySubmodule univ := by
+  refine Submodule.mem_iInf _ |>.mpr fun a ↦ ?_
+  refine Submodule.mem_comap.mpr ⟨(Real.exp (a * c + a ^ 2 / 4) : ℂ) •
+    SchwartzMap.compSubConstCLM ℂ (c + a / 2)
+      ((SchwartzMap.gaussian 1 one_pos).postcompCLM Complex.ofRealCLM), ?_⟩
+  funext x
+  change (Real.exp (a * c + a ^ 2 / 4) : ℂ) *
+      Complex.ofRealCLM (SchwartzMap.gaussian 1 one_pos (x - (c + a / 2))) =
+    (Real.exp (a * x) : ℂ) * Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2))
+  rw [SchwartzMap.gaussian_apply, Complex.ofRealCLM_apply, Real.norm_eq_abs, sq_abs,
+    Complex.ofReal_exp, Complex.ofReal_exp, Complex.ofReal_exp, ← Complex.exp_add,
+    ← Complex.exp_add]
+  congr 1
+  push_cast
+  ring
+
+/-- Integration against `dt/t` in logarithmic coordinates. -/
+private theorem integral_positiveRealHaar_hardySobolevJetKernelProjection
+    (_hBo : BorelSpace ℝ≥0ˣ) (F : ℝ≥0ˣ → ℂ) :
+    ∫ t, F t ∂positiveRealHaar = ∫ x : ℝ, F (Units.mk0 (Real.exp x).toNNReal
+      (Real.toNNReal_eq_zero.not.mpr (not_le_of_gt (Real.exp_pos x)))) := by
+  let E : ℝ → ℝ≥0ˣ := fun x ↦ Units.mk0 (Real.exp x).toNNReal
+    (Real.toNNReal_eq_zero.not.mpr (not_le_of_gt (Real.exp_pos x)))
+  let L : ℝ≥0ˣ → ℝ := fun t ↦ Real.log (t.val : ℝ)
+  have hE : Measurable E :=
+    measurable_comap_iff.mpr (continuous_real_toNNReal.comp Real.continuous_exp).measurable
+  have hL : Measurable L :=
+    Real.measurable_log.comp (NNReal.continuous_coe.measurable.comp MeasurableSpace.le_map_comap)
+  have hLE : LeftInverse L E := fun x ↦ by
+    change Real.log ((Real.exp x).toNNReal : ℝ) = x
+    rw [Real.coe_toNNReal _ (Real.exp_pos x).le, Real.log_exp]
+  have hEL : RightInverse L E := fun t ↦ Units.ext (NNReal.eq (by
+    change ((Real.exp (Real.log (t.val : ℝ))).toNNReal : ℝ) = _
+    rw [Real.exp_log (NNReal.coe_pos.mpr (Units.zero_lt t)),
+      Real.coe_toNNReal _ (NNReal.coe_nonneg _)]))
+  have hrange : range E = univ := range_eq_univ.mpr hEL.surjective
+  have hme : MeasurableEmbedding E :=
+    MeasurableEmbedding.of_measurable_inverse hE (hrange ▸ MeasurableSet.univ) hL hLE
+  exact hme.integral_map F
+
+/-- The Gaussian Laplace transform: the profile centred at `c` against `exp(zx)`. -/
+private theorem integral_gaussProfile_hardySobolevJetKernelProjection (c : ℝ) (z : ℂ) :
+    ∫ x : ℝ, Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2)) * Complex.exp (z * x) =
+      ((Real.pi : ℂ) / -(-1)) ^ (1 / 2 : ℂ) * Complex.exp (z ^ 2 / 4 + c * z) := by
+  have h (x : ℝ) : Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2)) * Complex.exp (z * x) =
+      Complex.exp (-1 * (x : ℂ) ^ 2 + (2 * c + z) * x + -(c : ℂ) ^ 2) := by
+    rw [← Complex.exp_add]
+    congr 1
+    push_cast
+    ring
+  simp_rw [h]
+  rw [integral_cexp_quadratic (by norm_num)]
+  congr 2
+  ring
+
+/-- The difference of the Gaussian profiles at `0` and `1` against `exp(zx)`. -/
+private theorem integral_gaussDifference_hardySobolevJetKernelProjection (z : ℂ) :
+    ∫ x : ℝ, (Complex.exp (-(((x - 0 : ℝ) : ℂ) ^ 2)) - Complex.exp (-(((x - 1 : ℝ) : ℂ) ^ 2))) *
+        Complex.exp (z * x) =
+      ((Real.pi : ℂ) / -(-1)) ^ (1 / 2 : ℂ) *
+        (Complex.exp (z ^ 2 / 4 + (0 : ℝ) * z) - Complex.exp (z ^ 2 / 4 + (1 : ℝ) * z)) := by
+  have hi (c : ℝ) : Integrable fun x : ℝ ↦
+      Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2)) * Complex.exp (z * x) := by
+    have h (x : ℝ) : Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2)) * Complex.exp (z * x) =
+        Complex.exp (-1 * (x : ℂ) ^ 2 + (2 * c + z) * x + -(c : ℂ) ^ 2) := by
+      rw [← Complex.exp_add]
+      congr 1
+      push_cast
+      ring
+    simp_rw [h]
+    exact integrable_cexp_quadratic (by norm_num) _ _
+  simp_rw [sub_mul]
+  rw [integral_sub (hi 0) (hi 1), integral_gaussProfile_hardySobolevJetKernelProjection,
+    integral_gaussProfile_hardySobolevJetKernelProjection, mul_sub]
+
+/-- On the base `[-1, 1]` with degree zero, the supremum of the endpoint norms is the
+norm with endpoints `-1` and `1`. -/
+private theorem intervalSobolevDensity_le_hardySobolevJetKernelProjection (a b : Icc (-1 : ℝ) 1)
+    (y : ℝ) : intervalSobolevDensity a b 0 y ≤ intervalSobolevDensity (-1) 1 0 y := by
+  have h (u : Icc (-1 : ℝ) 1) :
+      Real.exp (2 * u * y) ≤ max (Real.exp (2 * -1 * y)) (Real.exp (2 * 1 * y)) := by
+    obtain ⟨u, hu1, hu2⟩ := u
+    rcases le_total 0 y with hy | hy
+    · exact (Real.exp_le_exp.mpr (by nlinarith)).trans (le_max_right _ _)
+    · exact (Real.exp_le_exp.mpr (by nlinarith)).trans (le_max_left _ _)
+  unfold intervalSobolevDensity
+  exact mul_le_mul_of_nonneg_right (max_le (h a) (h b)) (by positivity)
+
 /-- Paper: Theorem 9.3.2.6, p. 426. Use the positive reals with identity module,
 trivial character, I = [−1,1] and s = 0. In log coordinates use
 g(x) = exp(−x²/4)/√(4π) and φ = −g′. Their Mellin transforms are exp(z²) and
@@ -418,7 +510,126 @@ range is the kernel of evaluation at zero. That functional takes value 1 on
 the vector of g, so continuity rules out convergence of its projections to g. -/
 theorem Printed.hardySobolevJetKernelProjection_tendsto_false :
     ¬ Printed.hardySobolevJetKernelProjection_tendsto := by
-  sorry
+  intro h
+  have hBo : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ ℝ≥0
+  have : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  have : positiveRealHaar.IsHaarMeasure := positiveRealHaar_isHaarMeasure
+  let m := ContinuousMonoidHom.id ℝ≥0ˣ
+  have hm : IsModulation m := isModulation_id_hardySobolevTranslation
+  let μ := canonicalModulatedHaar m hm
+  have : μ.IsHaarMeasure :=
+    (Classical.choose_spec (existsUnique_canonicalModulatedHaar m hm).exists).1
+  let k := μ.haarScalarFactor positiveRealHaar
+  have hμ : μ = k • positiveRealHaar := Measure.isMulLeftInvariant_eq_smul μ positiveRealHaar
+  have hk0 : (k : ℂ) ≠ 0 := by
+    exact_mod_cast (Measure.haarScalarFactor_pos_of_isHaarMeasure μ positiveRealHaar).ne'
+  obtain ⟨e, he⟩ := identityModulationExponentialDecay_equiv univ ordConnected_univ univ_nonempty
+  let p : ℝ → ℝ → ℂ := fun c x ↦ Complex.exp (-(((x - c : ℝ) : ℂ) ^ 2))
+  let g0 : ModulatedExponentialDecay m univ :=
+    e ⟨p 0, gaussProfile_mem_hardySobolevJetKernelProjection 0⟩
+  let φ : ModulatedExponentialDecay m univ :=
+    e ⟨p 0 - p 1, sub_mem (gaussProfile_mem_hardySobolevJetKernelProjection 0)
+      (gaussProfile_mem_hardySobolevJetKernelProjection 1)⟩
+  have hg0val (t : ℝ≥0ˣ) : g0.val t = p 0 (Real.log (t.val : ℝ)) := he _ t
+  have hφval (t : ℝ≥0ˣ) : φ.val t = (p 0 - p 1) (Real.log (t.val : ℝ)) := he _ t
+  let χ₀ := (⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp
+    (1 : PontryaginDual ℝ≥0ˣ)
+  have hχ (t : ℝ≥0ˣ) : χ₀ t = 1 := by
+    change (((1 : PontryaginDual ℝ≥0ˣ) t : Circle) : ℂ) = 1
+    rw [PontryaginDual.one_apply, Circle.coe_one]
+  let M := fun (f : ModulatedExponentialDecay m univ) (z : ℂ) ↦
+    modulatedFourierMellin m univ hm μ f.val
+      (quasiCharacterNormTwist m.toMonoidHom m.continuous χ₀ z)
+  -- The Fourier–Mellin transform of a log-profile is its Laplace transform, up to `k`.
+  have hM (f : ModulatedExponentialDecay m univ) (q : ℝ → ℂ)
+      (hq : ∀ t : ℝ≥0ˣ, f.val t = q (Real.log (t.val : ℝ))) (z : ℂ) :
+      M f z = (k : ℂ) * ∫ x : ℝ, q x * Complex.exp (z * x) := by
+    have hstrip : quasiCharacterNormTwist m.toMonoidHom m.continuous χ₀ z ∈
+        relativeVerticalStrip m.toMonoidHom (And.left hm) (And.right hm) univ := trivial
+    change Set.indicator _ _ _ = _
+    rw [Set.indicator_of_mem hstrip, hμ, integral_smul_nnreal_measure,
+      integral_positiveRealHaar_hardySobolevJetKernelProjection hBo]
+    refine (NNReal.smul_def k _).trans (Complex.real_smul.trans ?_)
+    congr 1
+    refine integral_congr_ae (ae_of_all _ fun x ↦ ?_)
+    have hx : ((Real.exp x).toNNReal : ℝ) = Real.exp x := Real.coe_toNNReal _ (Real.exp_pos x).le
+    change f.val _ * (χ₀ _ * ((((Real.exp x).toNNReal : ℝ≥0) : ℝ) : ℂ) ^ z) = _
+    rw [hq]
+    simp only [Units.val_mk0, hx, hχ, one_mul]
+    rw [Real.log_exp, Complex.ofReal_exp, Complex.cpow_def_of_ne_zero (Complex.exp_ne_zero _),
+      Complex.log_exp (by simp [Real.pi_pos]) (by simp [Real.pi_pos.le])]
+    simp [mul_comm]
+  let A : ℂ := ((Real.pi : ℂ) / -(-1)) ^ (1 / 2 : ℂ)
+  have hA : A ≠ 0 := by
+    simp only [A, Ne, Complex.cpow_eq_zero_iff, neg_neg, div_one, Complex.ofReal_eq_zero,
+      Real.pi_ne_zero, false_and, not_false_eq_true]
+  have hMφ (z : ℂ) : M φ z = (k : ℂ) * (A * (Complex.exp (z ^ 2 / 4 + ((0 : ℝ) : ℂ) * z) -
+      Complex.exp (z ^ 2 / 4 + ((1 : ℝ) : ℂ) * z))) := by
+    rw [hM φ (p 0 - p 1) hφval z]
+    exact congrArg _ (integral_gaussDifference_hardySobolevJetKernelProjection z)
+  have hzeros : ∀ z, M φ z = 0 → z.re ∈ interior (Icc (-1 : ℝ) 1) := by
+    intro z hz
+    rw [hMφ, mul_eq_zero, mul_eq_zero, sub_eq_zero] at hz
+    rcases hz with h0 | h0 | h0
+    · exact absurd h0 hk0
+    · exact absurd h0 hA
+    · simp only [Complex.ofReal_zero, Complex.ofReal_one, zero_mul, add_zero, one_mul,
+        Complex.exp_add] at h0
+      have h1 : Complex.exp z = 1 :=
+        ((mul_eq_left₀ (Complex.exp_ne_zero _)).mp h0.symm)
+      obtain ⟨n, hn⟩ := Complex.exp_eq_one_iff.mp h1
+      rw [interior_Icc, hn]
+      simp
+  have hval0 : M φ 0 = 0 := by
+    rw [hMφ]
+    simp
+  have han : AnalyticAt ℂ (M φ) 0 := by
+    rw [show M φ = _ from funext hMφ]
+    exact Differentiable.analyticAt (by fun_prop) 0
+  have hord : ((0 : ℕ) : ℕ∞) < analyticOrderAt (M φ) 0 := by
+    rw [Nat.cast_zero, pos_iff_ne_zero]
+    exact analyticOrderAt_ne_zero.mpr ⟨han, hval0⟩
+  -- The completion: weighted L² with the endpoint density of `[-1, 1]`.
+  obtain ⟨j, -, hjd, hjrep⟩ := modulatedIntervalSobolev_dense m hm (-1) 1 0 (by norm_num) le_rfl
+    univ isOpen_univ ordConnected_univ (subset_univ _)
+  have hnorm : ∀ f : ModulatedExponentialDecay m univ,
+      ENNReal.ofReal ‖(j : ModulatedExponentialDecay m univ →ₗ[ℂ] ModulatedIntervalSobolev m hm (-1) 1 0) f‖ =
+      intervalSobolevENorm μ (fun x ↦ Real.log ((m x).val : ℝ)) (Icc (-1) 1) 0 f.val := by
+    intro f
+    have hac : (μ.withDensity fun x ↦ ENNReal.ofReal
+        (intervalSobolevDensity (-1) 1 0 (Real.log ((m x).val : ℝ)))) ≪ μ :=
+      withDensity_absolutelyContinuous _ _
+    rw [Lp.norm_def, ENNReal.ofReal_toReal (Lp.eLpNorm_ne_top _)]
+    change eLpNorm (j f) 2 (μ.withDensity fun x ↦ ENNReal.ofReal
+      (intervalSobolevDensity (-1) 1 0 (Real.log ((m x).val : ℝ)))) = _
+    rw [eLpNorm_congr_ae (hac.ae_eq (hjrep f))]
+    refine le_antisymm (le_iSup₂_of_le (⟨-1, by norm_num⟩ : Icc (-1 : ℝ) 1)
+      (⟨1, by norm_num⟩ : Icc (-1 : ℝ) 1) le_rfl) (iSup₂_le fun a b ↦ ?_)
+    exact eLpNorm_mono_measure _ (withDensity_mono (ae_of_all _ fun x ↦
+      ENNReal.ofReal_le_ofReal (intervalSobolevDensity_le_hardySobolevJetKernelProjection a b _)))
+  have hI : (interior (Icc (-1 : ℝ) 1)).Nonempty := ⟨0, by rw [interior_Icc]; norm_num⟩
+  obtain ⟨δ, P, hδ, hP, hlim⟩ := h ℝ≥0ˣ m hm surjective_id (Icc (-1) 1) isClosed_Icc
+    ordConnected_Icc hI 0 le_rfl 1 φ hzeros _
+    (j : ModulatedExponentialDecay m univ →ₗ[ℂ] ModulatedIntervalSobolev m hm (-1) 1 0) hjd hnorm
+  -- Every projection lands in the kernel of the value at the zero `0`, so the limit does too.
+  let i₀ : {i : ℂ × ℕ // M φ i.1 = 0 ∧ (i.2 : ℕ∞) < analyticOrderAt (M φ) i.1} :=
+    ⟨(0, 0), hval0, hord⟩
+  let u := (j : ModulatedExponentialDecay m univ →ₗ[ℂ] ModulatedIntervalSobolev m hm (-1) 1 0) g0
+  have hT (T : Ioi (0 : ℝ)) : δ i₀ (P T u) = 0 := by
+    have hmem : P T u ∈ range (P T) := ⟨u, rfl⟩
+    rw [(hP T).2] at hmem
+    exact hmem i₀ (by simpa [i₀] using T.2.le)
+  have : Nonempty (Ioi (0 : ℝ)) := ⟨⟨1, one_pos⟩⟩
+  have hlim0 := ((δ i₀).continuous.tendsto u).comp (hlim u)
+  rw [show (δ i₀ ∘ fun T ↦ P T u) = fun _ ↦ 0 from funext hT] at hlim0
+  have hu : δ i₀ u = 0 := tendsto_nhds_unique tendsto_const_nhds hlim0 |>.symm
+  rw [hδ] at hu
+  change iteratedDeriv 0 (M g0) 0 = 0 at hu
+  rw [iteratedDeriv_zero, hM g0 (p 0) hg0val,
+    integral_gaussProfile_hardySobolevJetKernelProjection] at hu
+  simp only [zero_pow two_ne_zero, zero_div, mul_zero, add_zero, Complex.exp_zero,
+    mul_one, mul_eq_zero, hk0, false_or] at hu
+  exact hA hu
 
 /-- Paper: Theorem 9.3.3.5(3), (9.3.3.9), p. 429. On the reading that (3)
 uses the bounded compactly supported symbols in (1), the integral of the

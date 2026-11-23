@@ -38,13 +38,41 @@ def Printed.finiteEigendistribution_unitShell : Prop :=
         T ∈ schwartzBruhatEigendistributions c ∧
           T (finitePlaceDifference v π (finiteStandardGaussian v 1)) = 1
 
+/-- At any finite place with a uniformizer, the printed claim fails for the trivial
+character: every eigendistribution of the trivial character is invariant under the
+uniformizer, so it vanishes on the difference of a test and its translate. Stated for a
+general number field so that the argument is elaborated once, not at a concrete field. -/
+private theorem finiteEigendistribution_unitShell_false_of_uniformizer (F : Type) [Field F]
+    [NumberField F] (v : V(F)) (π : K(F, v)ˣ)
+    (hπ : (Valued.v : Valuation K(F, v) (WithZero (Multiplicative ℤ))).IsUniformizer π.val)
+    (h : Printed.finiteEigendistribution_unitShell) : False := by
+  obtain ⟨T, ⟨hT, h1⟩, -⟩ := h F v π hπ 1 fun _ _ ↦ rfl
+  let f : SchwartzBruhat (Multiplicative K(F, v)) := finiteStandardGaussian v 1
+  have heigen : ∀ (g : K(F, v)ˣ) (k : SchwartzBruhat (Multiplicative K(F, v))),
+      T (schwartzBruhatUnitTranslate g k) = (1 : QuasiCharacter K(F, v)ˣ) g * T k := hT
+  have hc : (1 : QuasiCharacter K(F, v)ˣ) π = 1 := by
+    rw [ContinuousMonoidHom.coe_one, Pi.one_apply]
+  have h0 : T (finitePlaceDifference v π f) = 0 := by
+    change T (f - schwartzBruhatUnitTranslate π f) = 0
+    calc
+      _ = T f - T (schwartzBruhatUnitTranslate π f) := map_sub T _ _
+      _ = T f - (1 : QuasiCharacter K(F, v)ˣ) π * T f := congrArg (fun a ↦ T f - a) (heigen π f)
+      _ = T f - 1 * T f := congrArg (fun b ↦ T f - b * T f) hc
+      _ = 0 := by ring
+  exact zero_ne_one (h0.symm.trans h1)
+
 /-- Paper: (5.3.1.3), p. 240. Take the 3-adic place of ℚ and the trivial quasi-character.
 Every invariant functional takes the same value on the integer-ring indicator and its
 translate by 3. By linearity its value on their difference is zero, so no functional
 satisfies the asserted normalization. -/
 theorem Printed.finiteEigendistribution_unitShell_false :
     ¬ Printed.finiteEigendistribution_unitShell := by
-  sorry
+  intro h
+  let v : V(ℚ) := Rat.HeightOneSpectrum.primesEquiv.symm ⟨3, Nat.prime_three⟩
+  obtain ⟨π, hπ⟩ : ∃ π : v.adicCompletionIntegers ℚ,
+      (Valued.v : Valuation K(ℚ, v) (WithZero (Multiplicative ℤ))).IsUniformizer (π : K(ℚ, v)) :=
+    Valuation.exists_isUniformizer_of_isCyclic_of_nontrivial _
+  exact finiteEigendistribution_unitShell_false_of_uniformizer ℚ v (Units.mk0 π.val hπ.ne_zero) hπ h
 
 end FinitePlace
 
@@ -70,6 +98,69 @@ def Printed.diracPolynomials_coefficientSeminorms : Prop :=
     q.moduleFilterBasis.topology =
       inferInstanceAs (TopologicalSpace (FinestLocallyConvex (MvPolynomial (Fin 2) ℂ)))
 
+/-- For nonnegative weights `w`, the weighted sum of the absolute values of the
+coefficients is a seminorm on `ℂ[X]` taking the value `w n` on `Xⁿ`. -/
+private theorem diracPolynomials_coefficientSeminorms_false_seminorm (w : ℕ → ℝ)
+    (hw : ∀ n, 0 ≤ w n) :
+    ∃ s : Seminorm ℂ (Polynomial ℂ), ∀ n, s (Polynomial.X ^ n) = w n := by
+  let f : Polynomial ℂ → ℝ := fun P ↦ P.sum fun n a ↦ w n * ‖a‖
+  have hf0 : ∀ n, w n * ‖(0 : ℂ)‖ = 0 := fun n ↦ by simp
+  have hrange : ∀ (P : Polynomial ℂ) (N : ℕ), P.natDegree < N →
+      f P = ∑ n ∈ Finset.range N, w n * ‖P.coeff n‖ :=
+    fun P N hN ↦ Polynomial.sum_over_range' P hf0 N hN
+  refine ⟨Seminorm.of f (fun P Q ↦ ?_) (fun a P ↦ ?_), fun n ↦ ?_⟩
+  · have hP : P.natDegree < max P.natDegree Q.natDegree + 1 :=
+      Nat.lt_succ_of_le (le_max_left _ _)
+    have hQ : Q.natDegree < max P.natDegree Q.natDegree + 1 :=
+      Nat.lt_succ_of_le (le_max_right _ _)
+    have hPQ : (P + Q).natDegree < max P.natDegree Q.natDegree + 1 :=
+      Nat.lt_succ_of_le (Polynomial.natDegree_add_le P Q)
+    rw [hrange _ _ hPQ, hrange P _ hP, hrange Q _ hQ, ← Finset.sum_add_distrib]
+    refine Finset.sum_le_sum fun n _ ↦ ?_
+    rw [Polynomial.coeff_add, ← mul_add]
+    exact mul_le_mul_of_nonneg_left (norm_add_le _ _) (hw n)
+  · rw [hrange _ (P.natDegree + 1)
+        (Nat.lt_succ_of_le (Polynomial.natDegree_smul_le a P)),
+      hrange P _ (Nat.lt_succ_self _), Finset.mul_sum]
+    refine Finset.sum_congr rfl fun n _ ↦ ?_
+    rw [Polynomial.coeff_smul, smul_eq_mul, norm_mul]
+    ring
+  · show f (Polynomial.X ^ n) = w n
+    rw [← Polynomial.monomial_one_right_eq_X_pow]
+    simp only [f]
+    rw [Polynomial.sum_monomial_index _ _ (hf0 n), norm_one, mul_one]
+
+/-- No countable family of seminorms on `ℂ[X]` makes every seminorm continuous. Scale
+the weights on `Xⁿ` past `(n + 1)` times the first `n + 1` family members at `Xⁿ`; a
+continuous seminorm is bounded by finitely many members, which fails for large `n`. -/
+private theorem diracPolynomials_coefficientSeminorms_false_of_continuous
+    (p : SeminormFamily ℂ (Polynomial ℂ) ℕ)
+    (hcont : ∀ s : Seminorm ℂ (Polynomial ℂ),
+      @Continuous _ _ p.moduleFilterBasis.topology _ s) : False := by
+  letI : TopologicalSpace (Polynomial ℂ) := p.moduleFilterBasis.topology
+  have hp : WithSeminorms p := ⟨rfl⟩
+  let M : ℕ → ℝ := fun n ↦ ∑ k ∈ Finset.range (n + 1), p k (Polynomial.X ^ n)
+  have hM : ∀ n, 0 ≤ M n := fun n ↦ Finset.sum_nonneg fun k _ ↦ apply_nonneg _ _
+  obtain ⟨s, hs⟩ := diracPolynomials_coefficientSeminorms_false_seminorm
+    (fun n ↦ ((n : ℝ) + 1) * (1 + M n)) (fun n ↦ by have := hM n; positivity)
+  obtain ⟨S, C, -, hle⟩ := Seminorm.bound_of_continuous hp s (hcont s)
+  let n : ℕ := S.sup id + ⌈(C : ℝ)⌉₊
+  have hkn : ∀ k ∈ S, k ≤ n := fun k hk ↦
+    (Finset.le_sup (f := id) hk).trans (Nat.le_add_right _ _)
+  have hsup : S.sup p (Polynomial.X ^ n) ≤ M n :=
+    Seminorm.finset_sup_apply_le (hM n) fun k hk ↦
+      Finset.single_le_sum (f := fun k ↦ p k (Polynomial.X ^ n))
+        (fun k _ ↦ apply_nonneg _ _) (Finset.mem_range.2 (Nat.lt_succ_of_le (hkn k hk)))
+  have h1 : ((n : ℝ) + 1) * (1 + M n) ≤ (C : ℝ) * S.sup p (Polynomial.X ^ n) := by
+    have := Seminorm.le_def.1 hle (Polynomial.X ^ n)
+    rw [hs] at this
+    exact this
+  have hC : (C : ℝ) ≤ n :=
+    (Nat.le_ceil _).trans (by exact_mod_cast Nat.le_add_left _ _)
+  have h2 : (C : ℝ) * S.sup p (Polynomial.X ^ n) ≤ n * M n :=
+    (mul_le_mul_of_nonneg_left hsup C.2).trans (mul_le_mul_of_nonneg_right hC (hM n))
+  nlinarith [hM n]
+
 /-- Paper: Theorem 5.3.2.1(1), p. 243. For the truncation extension, Xⁿ converges to zero
 for every fixed coefficient maximum, while the sum of absolute coefficients is continuous
 in the finest locally convex topology and has value one on each Xⁿ. For any extension p,
@@ -78,7 +169,12 @@ scale Xⁿ by λₙ = ((n + 1)(1 + max_{k ≤ n} pₖ(Xⁿ)))⁻¹. All pₖ ten
 one on each λₙXⁿ. The same argument applies to Theorem 5.3.2.5(1), p. 246. -/
 theorem Printed.diracPolynomials_coefficientSeminorms_false :
     ¬ Printed.diracPolynomials_coefficientSeminorms := by
-  sorry
+  intro h
+  dsimp only [Printed.diracPolynomials_coefficientSeminorms] at h
+  obtain ⟨p, -, -, -, hp, -⟩ := h
+  refine diracPolynomials_coefficientSeminorms_false_of_continuous p fun s ↦ ?_
+  rw [hp]
+  exact (finestLocallyConvex_withSeminorms (Polynomial ℂ)).continuous_seminorm s
 
 section CoordinatePlane
 

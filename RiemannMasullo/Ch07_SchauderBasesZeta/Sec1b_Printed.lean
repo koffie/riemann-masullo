@@ -53,12 +53,125 @@ def Printed.infinite_split_primes_reciprocalEulerProduct_normTwist : Prop :=
         ∀ s : ℂ, reciprocalPartialHeckeEulerProduct χ overₚ(S₀, p) s =
           (1 - (p.asIdeal.absNorm : ℂ) ^ (-s)) ^ Module.finrank ℚ F}.Infinite
 
+private theorem infinite_split_primes_reciprocalEulerProduct_normTwist_char (F : Type*) [Field F] [NumberField F] (x : ℝ) : ∃ χ : PontryaginDual (IdeleClassGroup (𝓞 F) F),
+    ideleClassNormTwist χ 0 = ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) ((x : ℂ) * Complex.I) := by
+  let c := ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) ((x : ℂ) * Complex.I)
+  have hn (g : IdeleClassGroup (𝓞 F) F) : ‖c g‖ = 1 := by
+    change ‖(1 : ℂ) * (((ideleClassNorm F g : ℝ≥0) : ℝ) : ℂ) ^ ((x : ℂ) * Complex.I)‖ = 1
+    rw [one_mul, Complex.norm_cpow_eq_rpow_re_of_pos
+      (NNReal.coe_pos.mpr (Units.zero_lt _))]
+    simp
+  let χ : PontryaginDual (IdeleClassGroup (𝓞 F) F) :=
+    { toFun := fun g ↦ ⟨c g, mem_sphere_zero_iff_norm.mpr (hn g)⟩
+      map_one' := Subtype.ext (map_one c)
+      map_mul' := fun a b ↦ Subtype.ext (map_mul c a b)
+      continuous_toFun := c.continuous.subtype_mk _ }
+  refine ⟨χ, ?_⟩
+  ext1 g
+  change c g * _ ^ (0 : ℂ) = c g
+  simp
+
+private theorem infinite_split_primes_reciprocalEulerProduct_normTwist_local (F : Type*) [Field F] [NumberField F] (x : ℝ) (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+    (hχ : ideleClassNormTwist χ 0 = ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) ((x : ℂ) * Complex.I))
+    (p : HeightOneSpectrum (𝓞 F)) (hu : (ideleClassNormTwist χ 0).IsUnramifiedAt p) :
+    (ideleClassNormTwist χ 0).localValue p = (p.asIdeal.absNorm : ℂ) ^ (-((x : ℂ) * Complex.I)) := by
+  let val : Valuation (p.adicCompletion F) (WithZero (Multiplicative ℤ)) := Valued.v
+  obtain ⟨π, hπ⟩ := val.exists_isUniformizer_of_isCyclic_of_nontrivial
+  let u := Units.mk0 (π : p.adicCompletion F) hπ.ne_zero
+  rw [hu.localValue_eq u hπ, HeckeCharacter.restrict, MulChar.ofUnitHom_coe, hχ]
+  change (1 : ℂ) * (((ideleClassNorm F (IdeleClassGroup.ofAdicCompletion (𝓞 F) F p u) : ℝ≥0) : ℝ) : ℂ) ^ ((x : ℂ) * Complex.I) = _
+  rw [one_mul, ideleClassNorm_ofAdicCompletion]
+  change (‖(π : p.adicCompletion F)‖ : ℂ) ^ _ = _
+  have hn : ‖(π : p.adicCompletion F)‖ = (p.asIdeal.absNorm : ℝ)⁻¹ := by
+    have hval : Valued.v (π : p.adicCompletion F) = WithZero.exp (-1 : ℤ) := hπ.trans
+      (congrArg Units.val (Valuation.IsRankOneDiscrete.generator_eq_exp_neg_one_of_surjective
+        (p.valuedAdicCompletion_surjective F)))
+    rw [FinitePlace.norm_def, hval, WithZeroMulInt.toNNReal_neg_apply _ (by simp)]
+    simp
+  rw [hn,
+      Complex.ofReal_inv, Complex.inv_cpow_ofReal_nonneg (Nat.cast_nonneg _) , ← Complex.cpow_neg, Complex.ofReal_natCast]
+
+private theorem infinite_split_primes_reciprocalEulerProduct_normTwist_generic : ∃ x : ℝ, ∀ n : ℕ, 1 < n → (n : ℂ) ^ (-((x : ℂ) * Complex.I)) ≠ 1 := by
+  -- A generic twist avoids even the exceptional prime in the explicit example:
+  -- for each possible norm n > 1, only countably many x give n^(-ix) = 1.
+  let bad : ℕ → Set ℝ := fun n ↦ {x | 1 < n ∧ (n : ℂ) ^ (-((x : ℂ) * Complex.I)) = 1}
+  have hc (n : ℕ) : (bad n).Countable := by
+    by_cases hn : 1 < n
+    · have hn0 : (n : ℂ) ≠ 0 := by exact_mod_cast (show n ≠ 0 by omega)
+      have hlog : Complex.log (n : ℂ) ≠ 0 := by
+        rw [← Complex.natCast_log]
+        apply Complex.ofReal_ne_zero.mpr
+        exact (Real.log_pos (by exact_mod_cast hn)).ne'
+      have hi : Function.Injective (fun x : ℝ ↦ Complex.log (n : ℂ) * (-((x : ℂ) * Complex.I))) := by
+        intro a b h
+        apply Complex.ofReal_injective
+        have h' := mul_left_cancel₀ hlog h
+        have h'' : (a : ℂ) * Complex.I = (b : ℂ) * Complex.I := neg_injective h'
+        exact mul_right_cancel₀ Complex.I_ne_zero h''
+      have he : (Complex.exp ⁻¹' ({1} : Set ℂ)).Countable := (Set.countable_singleton 1).preimage_cexp
+      apply (he.preimage hi).mono
+      intro x hx
+      change Complex.exp (Complex.log (n : ℂ) * (-((x : ℂ) * Complex.I))) = 1
+      exact (Complex.cpow_def_of_ne_zero hn0 _).symm.trans hx.2
+    · have : bad n = ∅ := by ext x; simp [bad, hn]
+      simp [this]
+  have hall := Set.countable_iUnion hc
+  have hne : (⋃ n, bad n) ≠ Set.univ := fun h ↦ Set.not_countable_univ (h ▸ hall)
+  obtain ⟨x, hx⟩ : ∃ x, x ∉ ⋃ n, bad n := by simpa [Set.eq_univ_iff_forall] using hne
+  refine ⟨x, ?_⟩
+  intro n hn he
+  exact hx (Set.mem_iUnion.mpr ⟨n, ⟨hn, he⟩⟩)
+
+open Classical in
+private theorem infinite_split_primes_reciprocalEulerProduct_normTwist_aux (F : Type*) [Field F] [NumberField F]
+    (h : ∀ (χ χ₀ : PontryaginDual (IdeleClassGroup (𝓞 F) F)),
+      IsOfFinOrder χ₀ → ∀ x : ℝ,
+        ideleClassNormTwist χ 0 = ideleClassNormTwist χ₀ ((x : ℂ) * Complex.I) →
+        {p : HeightOneSpectrum (𝓞 ℚ) | ∀ S₀ : Finset (HeightOneSpectrum (𝓞 F)),
+          (∀ v, v.under (𝓞 ℚ) = p → v ∈ S₀) → ∀ s : ℂ,
+          reciprocalPartialHeckeEulerProduct χ (S₀.filter (fun v ↦ v.under (𝓞 ℚ) = p)) s =
+            (1 - (p.asIdeal.absNorm : ℂ) ^ (-s)) ^ Module.finrank ℚ F}.Infinite) : False := by
+  classical
+  obtain ⟨x, hx⟩ := infinite_split_primes_reciprocalEulerProduct_normTwist_generic
+  obtain ⟨χ, hχ⟩ := infinite_split_primes_reciprocalEulerProduct_normTwist_char F x
+  have hi := h χ 1 IsOfFinOrder.one x hχ
+  obtain ⟨p, hp⟩ := hi.nonempty
+  let A : Set (HeightOneSpectrum (𝓞 F)) := {v | v.under (𝓞 ℚ) = p}
+  have hf : A.Finite := by
+    let f : A → p.asIdeal.primesOver (𝓞 F) := fun v ↦ ⟨v.1.asIdeal, v.1.isPrime,
+      ⟨(congrArg HeightOneSpectrum.asIdeal v.2).symm⟩⟩
+    have hfi : Function.Injective f := by
+      intro a b hab
+      exact Subtype.ext (HeightOneSpectrum.ext (congrArg Subtype.val hab))
+    let : Finite A := Finite.of_injective f hfi
+    exact Set.toFinite A
+  let S := hf.toFinset
+  have hs := hp S (fun v hv ↦ hf.mem_toFinset.mpr hv) 0
+  have hd : Module.finrank ℚ F ≠ 0 := (Module.finrank_pos (R := ℚ) (M := F)).ne'
+  simp only [neg_zero, Complex.cpow_zero, sub_self, zero_pow hd] at hs
+  change (∏ v ∈ S.filter (fun v ↦ v.under (𝓞 ℚ) = p), (finiteHeckeEulerFactor χ v 0)⁻¹) = 0 at hs
+  obtain ⟨v, hv, hz⟩ := Finset.prod_eq_zero_iff.mp hs
+  by_cases hu : (ideleClassNormTwist χ 0).IsUnramifiedAt v
+  · rw [finiteHeckeEulerFactor, ite_eq_left hu, inv_inv] at hz
+    simp only [neg_zero, Complex.cpow_zero, mul_one, sub_eq_zero] at hz
+    have he := infinite_split_primes_reciprocalEulerProduct_normTwist_local F x χ hχ v hu
+    exact hx v.asIdeal.absNorm (HeightOneSpectrum.one_lt_absNorm v) (he.symm.trans hz.symm)
+  · simp [finiteHeckeEulerFactor, hu] at hz
+
 /-- Paper: Remark 7.1.3.1, equation (7.1.3.1), p. 324.
 Use ℚ, the trivial finite-order character, and x = 2π/log 2. At s = 0 the
 identity requires p^(-ix) = 1, so the rational prime p is an integral power
 of 2. Only the prime 2 can satisfy the identity. -/
 theorem Printed.infinite_split_primes_reciprocalEulerProduct_normTwist_false :
-    ¬ Printed.infinite_split_primes_reciprocalEulerProduct_normTwist := by sorry
+    ¬ Printed.infinite_split_primes_reciprocalEulerProduct_normTwist := by
+  intro h
+  -- Lift ℚ to the universe quantified over by the printed claim.
+  let : Field (ULift ℚ) := { ULift.ring, ULift.groupWithZero, Equiv.ulift.field with }
+  have : CharZero (ULift ℚ) := ⟨fun a b hab ↦ by simpa using congrArg ULift.down hab⟩
+  have : NumberField (ULift ℚ) :=
+    { to_finiteDimensional := Module.Finite.ulift (R := ℚ) (M := ℚ) }
+  exact infinite_split_primes_reciprocalEulerProduct_normTwist_aux (ULift ℚ) (h (ULift ℚ))
+
 
 open Classical in
 /-- Paper: Theorem 7.1.3.2(2), p. 324.
@@ -190,12 +303,45 @@ def Printed.sLocalPolarMultiplicity_greatest_smaller : Prop :=
       let orders : Set ℕ := {m | 0 < m ∧ ∃ s : ℂ, sLocalPolarMultiplicity f (chart s) = m}
       ∃ M m : ℕ, IsGreatest orders M ∧ IsGreatest (orders ∩ Iio M) m
 
+/-- The S-local Z-function of the zero test is identically zero: the zero function is
+meromorphic in normal form and agrees with the zero integral, and the continuation is unique. -/
+private theorem Printed.sLocalPolarMultiplicity_greatest_smaller_false_zFunction_zero
+    (F : Type u) [Field F] [NumberField F] (S : Finset Places(F)) :
+    sLocalIdelicZFunction (F := F) (S := S) 0 = 0 :=
+  (sLocalIdelicZetaIntegral_exists_continuation (F := F) (S := S) 0).unique
+    (sLocalIdelicZetaIntegral_exists_continuation (F := F) (S := S) 0).exists.choose_spec
+    ⟨fun _ ↦ analyticOnNhd_const.meromorphicNFOn, fun c _ ↦ by
+      simp only [Pi.zero_apply, sLocalIdelicZetaIntegral]
+      exact (integral_eq_zero_of_ae (Eventually.of_forall fun _ ↦ zero_mul _)).symm⟩
+
+/-- The zero test has polar multiplicity zero at every quasi-character. -/
+private theorem Printed.sLocalPolarMultiplicity_greatest_smaller_false_zero
+    (F : Type u) [Field F] [NumberField F] (S : Finset Places(F))
+    (c : QuasiCharacter Jₛ(F, S)) :
+    sLocalPolarMultiplicity (0 : SchwartzBruhat (Multiplicative (SAdeleRing F S))) c = 0 := by
+  rw [sLocalPolarMultiplicity_eq_zero_iff]
+  refine le_top.trans_eq (meromorphicOrderAt_eq_top_iff.mpr (Eventually.of_forall fun z ↦ ?_)).symm
+  rw [Printed.sLocalPolarMultiplicity_greatest_smaller_false_zFunction_zero F S]
+  rfl
+
 /-- Paper: Corollary 7.1.3.3, p. 326.
 Use ℚ with only the real place, the trivial character and the zero test, for which
 the set of pole orders is empty. The Gaussian `exp(-πx²)` gives a second example:
 Γℝ(s) has only simple poles, so there is no positive order below one. -/
 theorem Printed.sLocalPolarMultiplicity_greatest_smaller_false :
-    ¬ Printed.sLocalPolarMultiplicity_greatest_smaller := by sorry
+    ¬ Printed.sLocalPolarMultiplicity_greatest_smaller := by
+  intro h
+  have : CharZero (ULift ℚ) := ⟨fun a b hab ↦ by simpa using congrArg ULift.down hab⟩
+  have : NumberField (ULift ℚ) := ⟨⟩
+  have hd : Module.finrank ℚ (ULift ℚ) = 1 := by simp
+  have hcard : Fintype.card (InfinitePlace (ULift ℚ)) = 1 := by
+    rw [InfinitePlace.card_eq_nrRealPlaces_add_nrComplexPlaces,
+      InfinitePlace.nrRealPlaces_eq_one_of_finrank_eq_one hd,
+      InfinitePlace.nrComplexPlaces_eq_zero_of_finrank_eq_one hd]
+  obtain ⟨M, m, hM, -⟩ := h (ULift ℚ) ∅ hcard 1 0
+  obtain ⟨hpos, s, hs⟩ := hM.1
+  rw [Printed.sLocalPolarMultiplicity_greatest_smaller_false_zero] at hs
+  omega
 
 /-- Paper: Theorem 7.1.4.2(1), equation (7.1.4.2), p. 326.
 As printed: The strong annihilator of the regularized completed Hecke ideal is linearly
@@ -291,11 +437,80 @@ def Printed.schwartzBergman_normalizedJet_le_max : Prop :=
     ‖iteratedDeriv k f.val s / (k.factorial : ℂ)‖ ≤
       (2 * Real.pi)⁻¹ * max (lineNorm (-1)) (lineNorm 2)
 
+private theorem schwartzBergman_normalizedJet_le_max_mem :
+    (fun z : ℂ ↦ Complex.exp (2 / 9 * (z - 1 / 2) ^ 2)) ∈ schwartzBergmanSubmodule univ := by
+  refine ⟨fun z hz ↦ absurd (mem_univ _) hz, ?_, ?_⟩
+  · exact (by fun_prop : Differentiable ℂ (fun z : ℂ ↦ Complex.exp (2 / 9 * (z - 1 / 2) ^ 2)))
+      |>.differentiableOn
+  · intro a b _ _ N
+    let M := max |a| |b|
+    refine ⟨N.factorial * Real.exp (M + 9 / 8 + 2 / 9 * (2 * M ^ 2 + 1 / 2)), ?_⟩
+    rintro _ ⟨z, hz, rfl⟩
+    have hstrip : z.re ∈ Icc a b := hz
+    have hM : |z.re| ≤ M := abs_le_max_abs_abs hstrip.1 hstrip.2
+    have hsq : z.re ^ 2 ≤ M ^ 2 := by
+      simpa using pow_le_pow_left₀ (abs_nonneg _) hM 2
+    have hweight : ‖z‖ ^ N ≤ N.factorial * Real.exp ‖z‖ := by
+      have h := (div_le_iff₀ (show 0 < (N.factorial : ℝ) by positivity)).mp
+        (Real.pow_div_factorial_le_exp ‖z‖ (norm_nonneg z) N)
+      simpa [mul_comm] using h
+    have hz' : ‖z‖ ≤ |z.re| + |z.im| := Complex.norm_le_abs_re_add_abs_im z
+    have hre : (2 / 9 * (z - 1 / 2) ^ 2 : ℂ).re = 2 / 9 * ((z.re - 1 / 2) ^ 2 - z.im ^ 2) := by
+      simp [sq, Complex.mul_re, Complex.mul_im]
+    change ‖z ^ N * Complex.exp (2 / 9 * (z - 1 / 2) ^ 2)‖ ≤ _
+    rw [norm_mul, norm_pow, Complex.norm_exp, hre]
+    calc
+      _ ≤ (N.factorial * Real.exp ‖z‖) * Real.exp (2 / 9 * ((z.re - 1 / 2) ^ 2 - z.im ^ 2)) :=
+        mul_le_mul_of_nonneg_right hweight (Real.exp_pos _).le
+      _ = N.factorial * Real.exp (‖z‖ + 2 / 9 * ((z.re - 1 / 2) ^ 2 - z.im ^ 2)) := by
+        rw [Real.exp_add, mul_assoc]
+      _ ≤ _ := by
+        apply mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr ?_) (by positivity)
+        have h1 : |z.im| - 2 / 9 * z.im ^ 2 ≤ 9 / 8 := by
+          nlinarith [sq_nonneg (|z.im| - 9 / 4), sq_abs z.im]
+        nlinarith [sq_nonneg (z.re + 1 / 2)]
+
+private theorem schwartzBergman_normalizedJet_le_max_line (σ : ℝ) (hσ : (σ - 1 / 2) ^ 2 = 9 / 4) :
+    ∫ y : ℝ, ‖Complex.exp (2 / 9 * (((σ : ℂ) + (y : ℂ) * Complex.I) - 1 / 2) ^ 2)‖ =
+      Real.exp (1 / 2) * Real.sqrt (Real.pi / (2 / 9)) := by
+  have hpt (y : ℝ) : ‖Complex.exp (2 / 9 * (((σ : ℂ) + (y : ℂ) * Complex.I) - 1 / 2) ^ 2)‖ =
+      Real.exp (1 / 2) * Real.exp (-(2 / 9) * y ^ 2) := by
+    rw [Complex.norm_exp, ← Real.exp_add]
+    congr 1
+    simp [sq, Complex.mul_re, Complex.mul_im]
+    nlinarith [hσ]
+  simp_rw [hpt]
+  rw [integral_const_mul, integral_gaussian]
+
+private theorem schwartzBergman_normalizedJet_le_max_num :
+    (2 * Real.pi)⁻¹ * (Real.exp (1 / 2) * Real.sqrt (Real.pi / (2 / 9))) < 1 := by
+  have hpi := Real.pi_gt_d2
+  have he := Real.exp_one_lt_d9
+  have hpos : 0 < Real.pi := Real.pi_pos
+  rw [inv_mul_lt_iff₀ (by positivity), mul_one]
+  have hx : 0 ≤ Real.exp (1 / 2) * Real.sqrt (Real.pi / (2 / 9)) := by positivity
+  apply lt_of_pow_lt_pow_left₀ 2 (by positivity)
+  rw [mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+  norm_num
+  nlinarith
+
 /-- Paper: Estimate after equation (7.1.4.22), p. 330.
 Use `Φ(s) = exp(2 (s - 1/2)^2 / 9)`, s = 1/2, and k = 0. The left side is 1.
 Each line norm is `3 √(π e/2)`, so the right side is `√(9 e/(8π)) < 1`. -/
 theorem Printed.schwartzBergman_normalizedJet_le_max_false :
-    ¬ Printed.schwartzBergman_normalizedJet_le_max := by sorry
+    ¬ Printed.schwartzBergman_normalizedJet_le_max := by
+  intro h
+  let f : schwartzBergmanSubmodule univ := ⟨_, schwartzBergman_normalizedJet_le_max_mem⟩
+  have key := h f ((1 / 2 : ℝ) : ℂ) (by norm_num) 0
+  have hl : ∀ σ : ℝ, (σ - 1 / 2) ^ 2 = 9 / 4 →
+      ∫ y : ℝ, ‖f.val ((σ : ℂ) + (y : ℂ) * Complex.I)‖ =
+        Real.exp (1 / 2) * Real.sqrt (Real.pi / (2 / 9)) :=
+    schwartzBergman_normalizedJet_le_max_line
+  have h1 : ‖iteratedDeriv 0 f.val ((1 / 2 : ℝ) : ℂ) / ((Nat.factorial 0 : ℕ) : ℂ)‖ = 1 := by
+    simp [f]
+  simp only [] at key
+  rw [h1, hl (-1) (by norm_num), hl 2 (by norm_num), max_self] at key
+  exact absurd key (not_le.mpr schwartzBergman_normalizedJet_le_max_num)
 
 section Orbital
 
@@ -335,7 +550,19 @@ At the origin the regularized completed zeta is nonzero, and each prime block
 contributes the same value functional. Their difference vanishes under the jet
 identification, and the first derivative at the resulting double zero is missing. -/
 theorem Printed.orbitalAnnihilator_prime_products_false :
-    ¬ Printed.orbitalAnnihilator_prime_products := by sorry
+    ¬ Printed.orbitalAnnihilator_prime_products := by
+  intro h
+  apply Printed.spectralAnnihilator_product_false
+  intro F _ _ χ τ hτ L hL hEq
+  let P := {p : RatPrimes // ∃ v ∈ (∅ : Finset Places(F)),
+    HeightOneSpectrum.under (𝓞 ℚ) v = p}
+  let A := ∀ p : P, ↥(Printed.orbitalPrimeJetSpace χ ∅ p.val)
+  let B := ∀ ρ : Zeros(L), ↥(Jet(L, ρ.val))
+  have : IsEmpty P := ⟨fun p => by obtain ⟨v, hv, _⟩ := p.property; simp at hv⟩
+  let : Unique A := { default := 0, uniq := fun a => Subsingleton.elim _ _ }
+  obtain ⟨e⟩ := h F χ ∅ τ hτ L hL hEq
+  rw [orbitalHeckeGenerator_empty] at e
+  exact ⟨(ContinuousLinearEquiv.uniqueProd ℂ B A).symm.trans e⟩
 
 /-- Paper: Theorem 7.1.4.3(1), equation (7.1.4.24), p. 331.
 As printed: The space of all jets associated with a rational prime block is
@@ -346,13 +573,141 @@ def Printed.orbitalPrimeJetSpace_finite : Prop :=
     (p : RatPrimes), (∃ v ∈ S₀, v.under (𝓞 ℚ) = p) →
       Module.Finite ℂ (Printed.orbitalPrimeJetSpace χ S₀ p)
 
+private theorem orbitalPrimeJetSpace_finite_order (q : ℝ) (hq : 1 < q) (z : ℂ)
+    (hz : (q : ℂ) ^ (-z) = 1) :
+    0 < (meromorphicOrderAt (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s)) z).untop₀.toNat := by
+  have hq0 : (q : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (by linarith)
+  have han : AnalyticAt ℂ (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s)) z :=
+    Differentiable.analyticAt (fun w ↦
+      (((hasDerivAt_neg w).const_cpow (Or.inl hq0)).const_sub 1).differentiableAt) z
+  have hd : HasDerivAt (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s))
+      (-((q : ℂ) ^ (-z) * Complex.log q * (-1))) z :=
+    ((hasDerivAt_neg z).const_cpow (Or.inl hq0)).const_sub 1
+  have hlog : Complex.log (q : ℂ) ≠ 0 := by
+    rw [← Complex.ofReal_log (by linarith)]
+    exact Complex.ofReal_ne_zero.mpr (Real.log_pos hq).ne'
+  have hne : analyticOrderAt (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s)) z ≠ ⊤ := by
+    intro htop
+    rw [analyticOrderAt_eq_top] at htop
+    have h0 : deriv (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s)) z = 0 := by
+      rw [Filter.EventuallyEq.deriv_eq (show (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s)) =ᶠ[𝓝 z]
+        fun _ ↦ (0 : ℂ) from htop)]
+      simp
+    rw [hd.deriv, hz] at h0
+    simp [hlog] at h0
+  have hpos : analyticOrderAt (fun s : ℂ ↦ 1 - (q : ℂ) ^ (-s)) z ≠ 0 := by
+    rw [ne_eq, han.analyticOrderAt_eq_zero, not_not]
+    simp [hz]
+  rw [han.meromorphicOrderAt_eq]
+  obtain ⟨n, hn⟩ := ENat.ne_top_iff_exists.mp hne
+  rw [← hn] at hpos ⊢
+  have : n ≠ 0 := by exact_mod_cast hpos
+  simp
+  omega
+
+private theorem orbitalPrimeJetSpace_finite_linearIndependent (z : ℕ → ℂ) (hz : Injective z) :
+    LinearIndependent ℂ (fun k ↦ entireJet (z k) 0) := by
+  classical
+  rw [linearIndependent_iff']
+  intro s g hg i hi
+  let p : Subtype (fun f : C(ℂ, ℂ) ↦ f ∈ entireContinuousMapSubalgebra) :=
+    ⟨⟨fun w ↦ ∏ j ∈ s.erase i, (w - z j), by fun_prop⟩,
+      (by fun_prop : Differentiable ℂ (fun w : ℂ ↦ ∏ j ∈ s.erase i, (w - z j)))⟩
+  have hp := congrArg (fun ℓ : StrongDual ℂ _ ↦ ℓ p) hg
+  simp only [FunLike.coe_sum, Finset.sum_apply, FunLike.coe_smul,
+    Pi.smul_apply, entireJet_apply, iteratedDeriv_zero, smul_eq_mul] at hp
+  rw [Finset.sum_eq_single i] at hp
+  · have hne : (∏ j ∈ s.erase i, (z i - z j)) ≠ 0 := by
+      rw [Finset.prod_ne_zero_iff]
+      intro j hj
+      exact sub_ne_zero.mpr fun h ↦ (Finset.ne_of_mem_erase hj) (hz h).symm
+    exact (mul_eq_zero.mp hp).resolve_right hne
+  · intro j hj hji
+    apply mul_eq_zero_of_right
+    exact Finset.prod_eq_zero (Finset.mem_erase.mpr ⟨hji, hj⟩) (sub_self _)
+  · intro h; exact absurd hi h
+
+open Classical in
+private theorem orbitalPrimeJetSpace_finite_aux (F : Type*) [Field F] [NumberField F]
+    (h : ∀ (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) (S₀ : Finset (HeightOneSpectrum (𝓞 F)))
+      (p : HeightOneSpectrum (𝓞 ℚ)), (∃ v ∈ S₀, v.under (𝓞 ℚ) = p) →
+        Module.Finite ℂ (Printed.orbitalPrimeJetSpace χ S₀ p)) : False := by
+  obtain ⟨m, hm⟩ := Ideal.exists_maximal (𝓞 F)
+  let v : HeightOneSpectrum (𝓞 F) := ⟨m, hm.isPrime, NeZero.ne m⟩
+  have hone :
+      ∀ g, ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) 0 g = 1 := by
+    intro g
+    change ((1 : Circle) : ℂ) * (_ : ℂ) ^ (0 : ℂ) = 1
+    simp
+  have hres : ∀ x : v.adicCompletion F, x ≠ 0 →
+      (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) 0).restrict v x =
+        1 := by
+    intro x hx
+    rw [show x = ((Units.mk0 x hx : (v.adicCompletion F)ˣ) : v.adicCompletion F) from rfl,
+      HeckeCharacter.restrict, MulChar.ofUnitHom_coe]
+    simp [hone]
+  have hunr :
+      (ideleClassNormTwist (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) 0).IsUnramifiedAt
+        v := by
+    rw [HeckeCharacter.isUnramifiedAt_iff]
+    intro x
+    exact hres _ (by simp)
+  let p := v.under (𝓞 ℚ)
+  have hfin := h 1 {v} p ⟨v, Finset.mem_singleton_self v, rfl⟩
+  let q : ℝ := v.asIdeal.absNorm
+  have hq : 1 < q := by
+    dsimp only [q]
+    exact_mod_cast NumberField.HeightOneSpectrum.one_lt_absNorm v
+  have hP : reciprocalPartialHeckeEulerProduct (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F))
+      (({v} : Finset (HeightOneSpectrum (𝓞 F))).filter (fun w ↦ w.under (𝓞 ℚ) = p)) =
+      fun s ↦ 1 - (q : ℂ) ^ (-s) := by
+    rw [Finset.filter_singleton, ite_eq_left rfl]
+    funext s
+    rw [reciprocalPartialHeckeEulerProduct_singleton _ v hunr,
+      hunr.localValue_eq _ Valued.v.exists_isUniformizer_of_isCyclic_of_nontrivial.choose_spec,
+      hres _ (Valued.v.exists_isUniformizer_of_isCyclic_of_nontrivial.choose_spec.ne_zero)]
+    simp [q]
+  have hlog : (Real.log q : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (Real.log_pos hq).ne'
+  let c : ℂ := 2 * Real.pi * Complex.I / Real.log q
+  have hc : c ≠ 0 := div_ne_zero (by simp [Real.pi_ne_zero]) hlog
+  let z : ℕ → ℂ := fun k ↦ (k : ℂ) * c
+  have hz : Injective z := fun a b hab ↦ by
+    exact_mod_cast mul_right_cancel₀ hc hab
+  have hzq (k : ℕ) : (q : ℂ) ^ (-z k) = 1 := by
+    rw [Complex.cpow_def_of_ne_zero (Complex.ofReal_ne_zero.mpr (by linarith)),
+      ← Complex.ofReal_log (by linarith), Complex.exp_eq_one_iff]
+    refine ⟨-(k : ℤ), ?_⟩
+    simp only [z, c]
+    field_simp
+    push_cast
+    ring
+  have hmem (k : ℕ) : entireJet (z k) 0 ∈
+      Printed.orbitalPrimeJetSpace (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) {v} p := by
+    apply Submodule.subset_span
+    refine ⟨z k, 0, ?_, rfl⟩
+    rw [hP]
+    exact orbitalPrimeJetSpace_finite_order q hq (z k) (hzq k)
+  have hli := orbitalPrimeJetSpace_finite_linearIndependent z hz
+  have hli' : LinearIndependent ℂ (fun k ↦ (⟨entireJet (z k) 0, hmem k⟩ :
+      Printed.orbitalPrimeJetSpace (1 : PontryaginDual (IdeleClassGroup (𝓞 F) F)) {v} p)) :=
+    LinearIndependent.of_comp (Submodule.subtype _) hli
+  have := hli'.finite
+  exact not_finite ℕ
+
 /-- Paper: Theorem 7.1.4.3(1), equation (7.1.4.24), p. 331.
 Take the trivial rational character and S₀ consisting of the place above 2.
 The polynomial `1 - 2^(-s)` has a simple zero at each `2πim/log 2`. Evaluations
 at these distinct points are linearly independent by interpolation with polynomials
 on any finite subset. -/
 theorem Printed.orbitalPrimeJetSpace_finite_false :
-    ¬ Printed.orbitalPrimeJetSpace_finite := by sorry
+    ¬ Printed.orbitalPrimeJetSpace_finite := by
+  intro h
+  -- Lift ℚ to the universe quantified over by the printed claim.
+  let : Field (ULift ℚ) := { ULift.ring, ULift.groupWithZero, Equiv.ulift.field with }
+  have : CharZero (ULift ℚ) := ⟨fun a b hab ↦ by simpa using congrArg ULift.down hab⟩
+  have : NumberField (ULift ℚ) :=
+    { to_finiteDimensional := Module.Finite.ulift (R := ℚ) (M := ℚ) }
+  exact orbitalPrimeJetSpace_finite_aux (ULift ℚ) (h (ULift ℚ))
 
 end Orbital
 
