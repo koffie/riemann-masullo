@@ -3,43 +3,9 @@ module
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 public import Mathlib.Analysis.Calculus.Deriv.Basic
 import all RiemannMasullo.AppC_LCTVS.Sec2a_part2
-import RiemannMasullo.AppC_LCTVS.Sec3a
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1c_Imports
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a
-import Mathlib.Topology.Algebra.MvPolynomial
-import Mathlib.Algebra.Category.Grp.Injective
-import Mathlib.Analysis.PSeries
-import Mathlib.Analysis.SpecialFunctions.JapaneseBracket
-import Mathlib.Analysis.Calculus.ContDiff.FiniteDimension
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gaussian.Schwartz
-import Mathlib.MeasureTheory.Function.Floor
-import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
-import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
-import Mathlib.Topology.ContinuousMap.ZeroAtInfty
-import Mathlib.MeasureTheory.Function.AEEqOfIntegral
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
-import Mathlib.MeasureTheory.Integral.Prod
-import Mathlib.MeasureTheory.Function.StronglyMeasurable.Lp
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.ContinuousMapDense
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Barrelled
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
-import Mathlib.Analysis.Calculus.FDeriv.Symmetric
-import Mathlib.Analysis.Convex.Contractible
-import Mathlib.Analysis.LocallyConvex.AbsConvexOpen
-import Mathlib.Analysis.Fourier.FourierTransformDeriv
-import Mathlib.LinearAlgebra.Basis.Prod
-import Mathlib.Topology.Covering.AddCircle
-import Mathlib.Topology.Compactness.CompactlyCoherentSpace
-import Mathlib.Topology.ContinuousMap.LocallyConvex
-import Mathlib.Topology.Homotopy.Lifting
-import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Symmetric
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Compact
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
-import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.TensorProduct.Bounded
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.TensorProduct.StrongDual
-import Mathlib.Topology.ContinuousMap.SecondCountableSpace
 
 /-!
 # Differential operators, Poisson summation, supports and translations

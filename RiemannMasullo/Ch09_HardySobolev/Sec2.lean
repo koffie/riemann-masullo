@@ -6,29 +6,15 @@ public import RiemannMasullo.Ch03_IdelicZeta.Sec3
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 public import Mathlib.Analysis.InnerProductSpace.TensorProduct
 public import Mathlib.Analysis.Fourier.LpSpace
-import RiemannMasullo.Ch02_AdelicTheta.Sec1
+import RiemannMasullo.Ch09_HardySobolev.Sec2_Imports
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
-import RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1d
-import RiemannMasullo.ForMathlib.Analysis.Calculus.ContDiff.LineDeriv
-import RiemannMasullo.ForMathlib.Topology.Algebra.OpenSubgroup
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2a
-import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
-import RiemannMasullo.ForMathlib.Analysis.Fourier.AbelLimit
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.L2Space
-import Mathlib.Analysis.MellinInversion
-import Mathlib.Analysis.Normed.Operator.Extend
-import Mathlib.MeasureTheory.Integral.IntegralEqImproper
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.L2Space.TensorProduct
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.ChangeVariables
-import Mathlib.Analysis.Normed.Lp.SmoothApprox
-import Mathlib.Analysis.Distribution.AEEqOfIntegralContDiff
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
 
 /-!
 # Hardy–Sobolev spaces and Paley–Wiener conditions

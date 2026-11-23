@@ -6,17 +6,7 @@ public import Mathlib.Analysis.InnerProductSpace.StarOrder
 public import Mathlib.Analysis.InnerProductSpace.l2Space
 public import Mathlib.Analysis.Normed.Operator.Compact.Basic
 public import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Basic
-import Mathlib.Analysis.LocallyConvex.StrongTopology
-import Mathlib.Analysis.Normed.Module.HahnBanach
-import Mathlib.Analysis.Normed.Operator.Compact.FiniteDimension
-import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Abs
-import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Order
-import RiemannMasullo.ForMathlib.Analysis.InnerProductSpace.Projection.Basic
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDual
-import Mathlib.Topology.Algebra.InfiniteSum.Module
-import Mathlib.Topology.UniformSpace.Ascoli
-import RiemannMasullo.ForMathlib.Topology.Algebra.InfiniteSum.Real
+import RiemannMasullo.AppC_LCTVS.Sec3a_Imports
 
 /-!
 # Nuclear operators and the trace on Hilbert spaces

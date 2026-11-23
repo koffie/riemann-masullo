@@ -2,14 +2,10 @@ module
 
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 public import Mathlib.Analysis.Distribution.TestFunction
-import RiemannMasullo.ForMathlib.Analysis.Distribution.ContDiffMapSupportedIn
-import Mathlib.Analysis.LocallyConvex.AbsConvexOpen
-import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
-import Mathlib.Analysis.Distribution.SchwartzSpace.CompactSupport
+import RiemannMasullo.AppD_SchwartzBruhat.Sec3b_Imports
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
 
 /-!
 # Uniform Fourier–Mellin estimates, jump singularities and compactly supported tests

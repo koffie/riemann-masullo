@@ -7,27 +7,8 @@ public import Mathlib.Analysis.LocallyConvex.PointwiseConvergence
 public import Mathlib.Analysis.LocallyConvex.WeakSpace
 public import Mathlib.Analysis.Normed.Module.Completion
 public import Mathlib.Topology.Algebra.Module.ContinuousLinearMap.Quotient
-import Mathlib.Algebra.Module.ULift
-import Mathlib.Analysis.LocallyConvex.Barrelled
+import RiemannMasullo.AppC_LCTVS.Sec1_Imports
 public import Mathlib.Analysis.LocallyConvex.Montel
-import Mathlib.Analysis.LocallyConvex.Separation
-import Mathlib.Analysis.InnerProductSpace.Dual
-import Mathlib.Analysis.Normed.Lp.lpSpace
-import Mathlib.Analysis.Normed.Module.DoubleDual
-import Mathlib.Analysis.Normed.Module.FiniteDimension
-import Mathlib.Analysis.Normed.Operator.BanachSteinhaus
-import Mathlib.Topology.Algebra.Module.Star
-import Mathlib.Topology.Baire.CompleteMetrizable
-import Mathlib.Topology.ContinuousMap.ZeroAtInfty
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WithSeminorms
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.DirectSum
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.Quotient
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.WeakDual
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.Pointwise
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
-import RiemannMasullo.ForMathlib.Topology.Maps.Strict.Module
-import RiemannMasullo.ForMathlib.Topology.MetricSpace.CompactQuotient
 
 /-!
 # Locally convex topological vector spaces

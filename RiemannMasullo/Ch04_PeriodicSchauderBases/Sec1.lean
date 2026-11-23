@@ -6,14 +6,7 @@ public import Mathlib.Analysis.Normed.Module.Bases
 public import Mathlib.Topology.Algebra.Equicontinuity
 public import Mathlib.Topology.Algebra.Module.Complement
 import all RiemannMasullo.AppC_LCTVS.Sec2b  -- for the Hilbert domination lemma
-import Mathlib.Analysis.InnerProductSpace.GramSchmidtOrtho
-import Mathlib.Analysis.LocallyConvex.StrongTopology
-import Mathlib.Analysis.PSeries
-import Mathlib.Analysis.InnerProductSpace.Dual
-import Mathlib.Topology.Baire.LocallyCompactRegular
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.WeakDual
-import RiemannMasullo.ForMathlib.Topology.Algebra.InfiniteSum.NatInt
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec1_Imports
 
 /-!
 # Schauder bases

@@ -10,52 +10,7 @@ public import Mathlib.Algebra.MvPolynomial.Eval
 public import Mathlib.Topology.Algebra.PontryaginDual
 public import Mathlib.Topology.ContinuousMap.ZeroAtInfty
 public import Mathlib.Topology.ContinuousMap.CompactlySupported
-import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Symmetric
-import RiemannMasullo.ForMathlib.Analysis.InnerProductSpace.PiL2
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SmoothFamily
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Separation
-import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
-import Mathlib.Topology.Algebra.IsUniformGroup.Basic
-import Mathlib.MeasureTheory.Function.LpSpace.ContinuousCompMeasurePreserving
-import Mathlib.MeasureTheory.Function.AEEqOfIntegral
-import Mathlib.Probability.Kernel.Composition.IntegralCompProd
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Measure
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Compact
-import Mathlib.Topology.ContinuousMap.StoneWeierstrass
-import Mathlib.Topology.TietzeExtension
-import Mathlib.Analysis.Calculus.ContDiff.Comp
-import Mathlib.Analysis.Calculus.ContDiff.Operations
-import Mathlib.Analysis.Calculus.UniformLimitsDeriv
-import Mathlib.Analysis.Convex.Contractible
-import Mathlib.MeasureTheory.Measure.Haar.Unique
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Extension
-import Mathlib.Topology.PartitionOfUnity
-import Mathlib.Topology.Semicontinuity.Basic
-import Mathlib.MeasureTheory.Function.LocallyIntegrable
-import Mathlib.MeasureTheory.Integral.Layercake
-import Mathlib.MeasureTheory.Function.ConvergenceInMeasure
-import Mathlib.MeasureTheory.Function.LpSpace.DomAct.Continuous
-import Mathlib.MeasureTheory.Function.Holder
-import Mathlib.MeasureTheory.Function.SimpleFuncDenseLp
-import Mathlib.Analysis.Normed.Operator.Mul
-import Mathlib.Analysis.PSeries
-import Mathlib.Topology.Algebra.Support
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.ContinuousMapDense
-import Mathlib.MeasureTheory.Constructions.Polish.StronglyMeasurable
-import Mathlib.Analysis.Normed.Operator.Extend
-import Mathlib.Analysis.InnerProductSpace.Projection.Submodule
-import Mathlib.MeasureTheory.Measure.WithDensity
-import Mathlib.MeasureTheory.Measure.Decomposition.RadonNikodym
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.ProdRegular
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.RegularDomination
-import Mathlib.Analysis.Normed.Lp.lpSpace
-import RiemannMasullo.ForMathlib.Analysis.Fourier.AddCircleMulti
-import Mathlib.Topology.ContinuousMap.Bounded.ArzelaAscoli
-import Mathlib.Algebra.Group.TransferInstance
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDual
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1a_Imports
 
 /-!
 # Fourier analysis and Schwartz spaces of elementary abelian Lie groups

@@ -6,11 +6,7 @@ public import RiemannMasullo.Ch03_IdelicZeta.Sec1
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
-import Mathlib.Algebra.Module.ZLattice.Summable
-import Mathlib.Analysis.Calculus.SmoothSeries
-import Mathlib.Analysis.Normed.Group.FunctionSeries
-import Mathlib.Topology.Algebra.Nonarchimedean.TotallyDisconnected
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.Ch02_AdelicTheta.Sec3_Imports
 
 /-!
 # S-local adelic theta functions

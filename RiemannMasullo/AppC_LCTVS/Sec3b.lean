@@ -1,13 +1,7 @@
 module
 
 public import RiemannMasullo.AppC_LCTVS.Sec3a_part2
-import RiemannMasullo.ForMathlib.Analysis.Normed.Lp.lpSpace
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.L2Space
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Support
-import Mathlib.MeasureTheory.Function.LpSpace.InfiniteSum
-import Mathlib.MeasureTheory.Integral.DominatedConvergence
-import Mathlib.MeasureTheory.Integral.Prod
-import Mathlib.MeasureTheory.Measure.SeparableMeasure
+import RiemannMasullo.AppC_LCTVS.Sec3b_Imports
 
 /-!
 # Integral kernels

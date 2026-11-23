@@ -9,18 +9,11 @@ public import Mathlib.MeasureTheory.Function.LpSeminorm.LpNorm
 public import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
 public import Mathlib.Analysis.InnerProductSpace.Calculus
 
-import Mathlib.Algebra.BigOperators.Group.Finset.Powerset
-import Mathlib.Algebra.Category.Grp.Injective
-import Mathlib.Topology.Covering.Quotient
-import Mathlib.MeasureTheory.Function.LpSeminorm.Count
-import Mathlib.MeasureTheory.Integral.Marginal
-import Mathlib.MeasureTheory.Integral.Pi
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1d_Imports
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
-import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Symmetric
-import RiemannMasullo.ForMathlib.RingTheory.PicardGroup
 
 /-!
 # Schwartz–Bruhat topologies on elementary groups and idele class groups

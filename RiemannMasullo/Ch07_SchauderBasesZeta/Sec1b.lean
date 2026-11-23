@@ -6,14 +6,7 @@ public import RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 public import Mathlib.NumberTheory.NumberField.DirichletDensity
 public import Mathlib.RingTheory.RamificationInertia.Inertia
 public import Mathlib.RingTheory.RamificationInertia.Ramification
-import RiemannMasullo.Ch06_LocalGlobal.Sec3
-import Mathlib.Analysis.Complex.LocallyUniformLimit
-import Mathlib.Analysis.Complex.PhragmenLindelof
-import Mathlib.Analysis.MellinInversion
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Barrelled
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Bounded
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.Ch07_SchauderBasesZeta.Sec1b_Imports
 import all RiemannMasullo.AppB_AnalyticNT.Sec1
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
 

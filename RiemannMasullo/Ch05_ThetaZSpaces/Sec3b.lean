@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec3a
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3b
-import Mathlib.Algebra.Order.Archimedean.Real.Hom
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec3b_Imports
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a
@@ -11,13 +11,6 @@ import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
-import Mathlib.Analysis.Calculus.InverseFunctionTheorem.ContDiff
-import Mathlib.Analysis.Meromorphic.RCLike
-import Mathlib.Analysis.SpecialFunctions.Complex.LogDeriv
-import Mathlib.Analysis.SpecialFunctions.Exponential
-import Mathlib.Geometry.Manifold.PartitionOfUnity
-import Mathlib.Topology.Algebra.IsOpenUnits
-import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
 
 /-! # Extensions by zero and holomorphic S-idelic zeta functions
 

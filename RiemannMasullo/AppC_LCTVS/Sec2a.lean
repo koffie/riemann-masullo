@@ -3,14 +3,7 @@ module
 public import RiemannMasullo.AppC_LCTVS.Sec1
 public import Mathlib.Analysis.LocallyConvex.Barrelled
 public import Mathlib.Analysis.LocallyConvex.Polar
-import Mathlib.Analysis.LocallyConvex.WeakDual
-import Mathlib.Analysis.Normed.Module.Dual
-import Mathlib.Analysis.Normed.Operator.BanachSteinhaus
-import Mathlib.Analysis.Normed.Operator.Completeness
-import Mathlib.Topology.Algebra.Module.UniformConvergence
-import Mathlib.Topology.Baire.CompleteMetrizable
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.BanachSteinhaus
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
+import RiemannMasullo.AppC_LCTVS.Sec2a_Imports
 
 /-!
 # Mapping spaces and topologies of a duality

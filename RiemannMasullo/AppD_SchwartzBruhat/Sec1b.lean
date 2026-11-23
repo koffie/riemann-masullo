@@ -8,43 +8,8 @@ public import Mathlib.Topology.MetricSpace.Ultra.Basic
 public import Mathlib.Topology.Instances.ZMod
 import all RiemannMasullo.AppC_LCTVS.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a
-import Mathlib.Algebra.Category.Grp.Injective
-import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Symmetric
+import RiemannMasullo.AppD_SchwartzBruhat.Sec1b_Imports
 import all RiemannMasullo.AppC_LCTVS.Sec1
-import Mathlib.Analysis.LocallyConvex.ContinuousOfBounded
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Convex
-import RiemannMasullo.ForMathlib.Analysis.Calculus.IteratedDeriv.UnitCube
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.ProjectionCompleteness
-import Mathlib.Analysis.PSeries
-import Mathlib.Data.Set.Finite.List
-import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Separation
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import Mathlib.Topology.Algebra.Valued.LocallyCompact
-import RiemannMasullo.ForMathlib.Algebra.Module.ZLattice.Quotient
-import RiemannMasullo.ForMathlib.Topology.Algebra.ContinuousMonoidHom
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.Divisible
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.LocalHom
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.LocalSubgroup
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Complex.CircleLocalHom
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Compact
-import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
-import Mathlib.Algebra.Group.Fin.Basic
-import Mathlib.Topology.Connected.TotallyDisconnected
-import Mathlib.Geometry.Manifold.HasGroupoid
-import Mathlib.GroupTheory.FiniteAbelian.Basic
-import Mathlib.Analysis.Normed.Module.Connected
-import Mathlib.Order.WellQuasiOrder
-import Mathlib.Topology.Homotopy.Lifting
-import Mathlib.Topology.Covering.AddCircle
-import Mathlib.Topology.Algebra.Group.OpenMapping
-import Mathlib.Topology.Baire.LocallyCompactRegular
-import Mathlib.Analysis.RCLike.Lemmas
 
 /-!
 # Structure of locally compact abelian groups and their Schwartz–Bruhat spaces

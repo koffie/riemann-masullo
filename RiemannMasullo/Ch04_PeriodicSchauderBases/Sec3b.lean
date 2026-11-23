@@ -1,12 +1,11 @@
 module
 
 public import RiemannMasullo.AppC_LCTVS.Sec4
-import Mathlib.Analysis.Convex.TotallyBounded
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b_Imports
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3a
 public import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 public import Mathlib.Topology.Algebra.Module.ContinuousLinearMap.Quotient
 
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
 
 /-! # Pettis averaging, invariants and isotypes -/
 

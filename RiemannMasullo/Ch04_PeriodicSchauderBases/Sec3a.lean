@@ -6,15 +6,7 @@ public import Mathlib.MeasureTheory.Function.L2Space
 public import Mathlib.MeasureTheory.Function.LpSpace.DomAct.Continuous
 public import Mathlib.Topology.ContinuousMap.CompactlySupported
 
-import Mathlib.MeasureTheory.Function.AEEqOfIntegral
-import Mathlib.MeasureTheory.Function.ContinuousMapDense
-import Mathlib.MeasureTheory.Function.LpSeminorm.Prod
-import Mathlib.MeasureTheory.Measure.SeparableMeasure
-import Mathlib.Topology.ContinuousMap.SecondCountableSpace
-import RiemannMasullo.ForMathlib.Analysis.Fourier.CompactGroup
-import RiemannMasullo.ForMathlib.Analysis.InnerProductSpace.Subspace
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Prod
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3a_Imports
 
 /-! # Strong continuity and the Hilbert-space isotypic transform -/
 

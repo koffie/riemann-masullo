@@ -4,23 +4,16 @@ public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec1b
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec5
 public import RiemannMasullo.Ch06_LocalGlobal.Sec2
 
-import Mathlib.Analysis.Complex.AbsMax
-import Mathlib.Analysis.LocallyConvex.StrongTopology
-import Mathlib.Tactic.TFAE
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
+import RiemannMasullo.Ch07_SchauderBasesZeta.Sec2_Imports
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec4
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import all RiemannMasullo.AppB_AnalyticNT.Sec4b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec5
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec3b
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
-import RiemannMasullo.Ch06_LocalGlobal.Sec3
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec1a
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 
 /-!
 # §7.2 Poles of the S-idelic zeta functions

@@ -10,19 +10,7 @@ public import Mathlib.MeasureTheory.Integral.Prod
 public import Mathlib.MeasureTheory.Measure.Complex
 public import Mathlib.MeasureTheory.VectorMeasure.Integral
 public import Mathlib.Topology.Algebra.Group.Quotient
-import Mathlib.Analysis.InnerProductSpace.Dual
-import Mathlib.Analysis.Normed.Operator.Banach
-import Mathlib.LinearAlgebra.Dual.Lemmas
-import Mathlib.MeasureTheory.Function.ConvergenceInMeasure
-import Mathlib.MeasureTheory.Integral.Bochner.ContinuousLinearMap
-import Mathlib.MeasureTheory.Integral.RieszMarkovKakutani.Real
-import Mathlib.MeasureTheory.Measure.Prokhorov
-import Mathlib.Topology.Algebra.LinearMapCompletion
-import Mathlib.Topology.Algebra.Module.Star
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.RegularDomination
-import RiemannMasullo.ForMathlib.MeasureTheory.VectorMeasure.WithDensityVec
+import RiemannMasullo.AppC_LCTVS.Sec4_Imports
 
 /-!
 # Integration in the sense of Pettis

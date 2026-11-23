@@ -11,17 +11,7 @@ public import Mathlib.Topology.Algebra.Module.ModuleTopology
 public import Mathlib.Topology.Maps.Proper.Basic
 public import RiemannMasullo.ForMathlib.Topology.Algebra.RestrictedProduct.TopologicalSpace
 
-import Mathlib.Analysis.Normed.Field.ProperSpace
-import Mathlib.LinearAlgebra.Dimension.RankNullity
-import Mathlib.NumberTheory.NumberField.CanonicalEmbedding.NormLeOne
-import Mathlib.NumberTheory.NumberField.ClassNumber
-import Mathlib.RingTheory.ClassGroup.ExtendedHom
-import Mathlib.RingTheory.DedekindDomain.SelmerGroup
-import Mathlib.Topology.Algebra.Group.Units
-import Mathlib.Topology.Algebra.IsOpenUnits
-import Mathlib.Topology.Algebra.Valued.LocallyCompact
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.RingTheory.PicardGroup
+import RiemannMasullo.AppA_AlgebraicNT.Sec1_Imports
 
 /-!
 # The topology of adeles, ideles and their class groups

@@ -6,6 +6,7 @@ public import RiemannMasullo.AppB_AnalyticNT.Sec5
 public import RiemannMasullo.AppB_AnalyticNT.Sec6
 public import RiemannMasullo.AppB_AnalyticNT.Sec3
 public import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.Ch06_LocalGlobal.Sec3_Imports
 
 /-! # Local and global converse theorems
 

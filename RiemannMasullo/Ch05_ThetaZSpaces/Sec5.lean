@@ -2,13 +2,9 @@ module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 
-import RiemannMasullo.Ch05_ThetaZSpaces.Sec1
-import RiemannMasullo.Ch03_IdelicZeta.Sec4
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec5_Imports
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import Mathlib.Analysis.Calculus.FDeriv.Mul
 
 /-! # Third Structure Theorem: strong duals and eigendistributions
 

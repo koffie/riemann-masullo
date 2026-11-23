@@ -7,34 +7,11 @@ public import Mathlib.Analysis.Meromorphic.NormalForm
 public import Mathlib.Analysis.SpecialFunctions.Gamma.Deligne
 public import RiemannMasullo.ForMathlib.NumberTheory.NumberField.DedekindZeta
 
-import RiemannMasullo.AppA_AlgebraicNT.Sec2
+import RiemannMasullo.Ch03_IdelicZeta.Sec2_Imports
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
-import RiemannMasullo.ForMathlib.Topology.Algebra.OpenSubgroup
-import Mathlib.Topology.LocallyConstant.Basic
-import Mathlib.Topology.MetricSpace.Ultra.TotallySeparated
-import Mathlib.MeasureTheory.Measure.Haar.DistribChar
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gamma.VerticalStripRatio
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gaussian.Hecke
-import Mathlib.MeasureTheory.Constructions.HaarToSphere
-import Mathlib.MeasureTheory.Measure.Lebesgue.VolumeOfBalls
-import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.RingTheory.Complex
-import Mathlib.Analysis.Complex.LocallyUniformLimit
-import Mathlib.NumberTheory.LSeries.Positivity
-import Mathlib.Analysis.SpecialFunctions.Complex.LogBounds
-import Mathlib.Analysis.SpecialFunctions.Log.Summable
-import Mathlib.Topology.Algebra.InfiniteSum.TsumUniformlyOn
-import Mathlib.Analysis.Calculus.ParametricIntegral
-import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.HeckeLFunction
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.NumberTheory.LSeries.Convergence
 
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
 
 /-!
 # Global idelic zeta functions

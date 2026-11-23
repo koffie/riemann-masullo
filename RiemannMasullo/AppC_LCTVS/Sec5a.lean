@@ -3,27 +3,12 @@ module
 public import RiemannMasullo.AppC_LCTVS.Sec4
 public import Mathlib.Analysis.Calculus.ContDiff.Basic
 public import Mathlib.Analysis.Calculus.Deriv.Basic
-import Mathlib.Analysis.Calculus.Deriv.Slope
-import Mathlib.Analysis.Calculus.Deriv.Shift
-import Mathlib.Analysis.Calculus.BumpFunction.InnerProduct
+import RiemannMasullo.AppC_LCTVS.Sec5a_Imports
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Topology.Compactness.Paracompact
 public import RiemannMasullo.ForMathlib.Topology.ContinuousMap.CompactlySupported
 public import Mathlib.Topology.Sets.Compacts
 public import RiemannMasullo.ForMathlib.Topology.UniformSpace.CompactConvergence
-import Mathlib.Analysis.Calculus.LineDeriv.Basic
-import Mathlib.Data.Finsupp.ToDFinsupp
-import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Partial
-import RiemannMasullo.ForMathlib.Analysis.Calculus.Deriv.Weak
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.DirectSum
-import RiemannMasullo.ForMathlib.Topology.Compactness.LocallyCompact
-import RiemannMasullo.ForMathlib.Topology.Compactness.Paracompact
-import RiemannMasullo.ForMathlib.Topology.ContinuousMap.LocallyConvex
-import RiemannMasullo.ForMathlib.Topology.ContinuousMap.Sigma
-import Mathlib.Analysis.Calculus.Deriv.Comp
-import Mathlib.Analysis.Calculus.FDeriv.RestrictScalars
-import Mathlib.Analysis.Calculus.MeanValue
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
 
 /-!
 # Vector-valued continuous and differentiable functions

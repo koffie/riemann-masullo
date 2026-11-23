@@ -5,18 +5,7 @@ public import RiemannMasullo.Ch02_AdelicTheta.Sec1
 public import RiemannMasullo.ForMathlib.Topology.Algebra.InfiniteSum
 public import Mathlib.Algebra.Module.ZLattice.Basic
 public import Mathlib.Topology.Algebra.InfiniteSum.UniformOn
-import Mathlib.Algebra.Module.ZLattice.Summable
-import Mathlib.Algebra.Order.Chebyshev
-import Mathlib.Analysis.PSeries
-import Mathlib.Analysis.SpecialFunctions.JapaneseBracket
-import Mathlib.LinearAlgebra.Countable
-import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
-import Mathlib.MeasureTheory.Measure.Real
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.Ch02_AdelicTheta.Sec2a_Imports
 
 /-!
 # Global adelic theta functions

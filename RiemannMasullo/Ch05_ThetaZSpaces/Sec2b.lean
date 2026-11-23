@@ -2,24 +2,15 @@ module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 
-import RiemannMasullo.Ch03_IdelicZeta.Sec2
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec2b_Imports
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.AutomaticContinuity
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Separable
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.StrongDualQuotient
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
 
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2
-import RiemannMasullo.ForMathlib.Topology.ContinuousMap.Sigma
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
 
-import Mathlib.MeasureTheory.Integral.Pi
 
 import all RiemannMasullo.AppC_LCTVS.Sec1
 

@@ -5,25 +5,7 @@ public import Mathlib.LinearAlgebra.Contraction
 public import Mathlib.LinearAlgebra.DirectSum.TensorProduct
 public import Mathlib.LinearAlgebra.TensorProduct.DirectLimit
 public import Mathlib.Topology.Algebra.LinearMapCompletion
-import Mathlib.Analysis.LocallyConvex.WeakDual
-import Mathlib.Analysis.Normed.Module.HahnBanach
-import Mathlib.Analysis.Normed.Module.WeakDual
-import Mathlib.Analysis.Convex.Gauge
-import Mathlib.Analysis.RCLike.Lemmas
-import Mathlib.LinearAlgebra.TensorProduct.Pi
-import Mathlib.Topology.Algebra.InfiniteSum.Real
-import Mathlib.Topology.Algebra.Module.Spaces.CompactConvergenceCLM
-import Mathlib.Topology.Baire.CompleteMetrizable
-import Mathlib.Topology.UniformSpace.Ascoli
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Completion
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WeakSpace
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WithSeminorms
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.DirectSum
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.Pi
-import RiemannMasullo.ForMathlib.LinearAlgebra.TensorProduct.DirectLimit
-import RiemannMasullo.ForMathlib.Topology.Algebra.GroupCompletion
+import RiemannMasullo.AppC_LCTVS.Sec2a_part2_Imports
 
 /-!
 # Topological tensor products

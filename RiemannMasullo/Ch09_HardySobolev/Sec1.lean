@@ -3,23 +3,7 @@ module
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3a
 public import Mathlib.MeasureTheory.Measure.WithDensity
-import Mathlib.Analysis.InnerProductSpace.Dual
-import Mathlib.MeasureTheory.Function.AEEqOfIntegral
-import Mathlib.MeasureTheory.Function.StronglyMeasurable.Lp
-import Mathlib.MeasureTheory.Function.LpSpace.ContinuousCompMeasurePreserving
-import Mathlib.MeasureTheory.Group.Integral
-import Mathlib.MeasureTheory.Integral.DominatedConvergence
-import Mathlib.MeasureTheory.Integral.Prod
-import Mathlib.MeasureTheory.Measure.SeparableMeasure
-import Mathlib.Topology.ContinuousMap.SecondCountableSpace
-import Mathlib.Algebra.Polynomial.Degree.Lemmas
-import Mathlib.Algebra.Polynomial.Degree.SmallDegree
-import Mathlib.Algebra.Polynomial.Roots
-import Mathlib.RingTheory.Adjoin.Polynomial.Basic
-import RiemannMasullo.AppD_SchwartzBruhat.Sec3b
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.ContinuousMapDense
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
+import RiemannMasullo.Ch09_HardySobolev.Sec1_Imports
 
 /-!
 # Sobolev spaces on locally compact abelian groups

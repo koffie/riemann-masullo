@@ -7,20 +7,8 @@ public import Mathlib.NumberTheory.NumberField.HeckeLFunction
 public import Mathlib.Topology.Algebra.Group.Units
 public import Mathlib.Topology.Algebra.PontryaginDual
 
-import RiemannMasullo.ForMathlib.Geometry.Manifold.LocalDiffeomorph
-import Mathlib.Analysis.Normed.Field.ProperSpace
-import Mathlib.Topology.Algebra.Order.ArchimedeanDiscrete
-import RiemannMasullo.AppA_AlgebraicNT.Sec2
+import RiemannMasullo.Ch03_IdelicZeta.Sec1_Imports
 
-import RiemannMasullo.ForMathlib.Analysis.Complex.CoveringMap
-import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.CharacterExtension
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.CompactOpen
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.Units
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Cyclic
 
 /-!
 # Riemann surfaces of continuous quasi-characters

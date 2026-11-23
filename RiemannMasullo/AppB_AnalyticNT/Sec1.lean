@@ -13,19 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 public import Mathlib.Topology.Order.Lattice
 
-import Mathlib.Analysis.Calculus.ParametricIntegral
-import Mathlib.Analysis.Complex.AbsMax
-import Mathlib.Analysis.Convex.Continuous
-import Mathlib.Analysis.Asymptotics.Lemmas
-import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
-import Mathlib.NumberTheory.LSeries.Deriv
-import Mathlib.NumberTheory.LSeries.Injectivity
-import Mathlib.Topology.Maps.Proper.CompactlyGenerated
-import RiemannMasullo.Ch03_IdelicZeta.Sec4
-import RiemannMasullo.ForMathlib.Analysis.Complex.Hadamard
-import RiemannMasullo.ForMathlib.Analysis.Complex.Liouville
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gamma.Bounds
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.HeckeLFunction
+import RiemannMasullo.AppB_AnalyticNT.Sec1_Imports
 
 /-!
 # Convexity bounds for finite Hecke L-functions

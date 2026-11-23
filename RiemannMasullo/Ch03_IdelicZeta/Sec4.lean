@@ -4,9 +4,7 @@ public import RiemannMasullo.Ch03_IdelicZeta.Sec3b
 public import RiemannMasullo.AppC_LCTVS.Sec5b
 public import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.Analysis.MellinTransform.Holomorphic
-import RiemannMasullo.ForMathlib.Analysis.MellinTransform.Gaussian
+import RiemannMasullo.Ch03_IdelicZeta.Sec4_Imports
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import all RiemannMasullo.AppC_LCTVS.Sec2a_part2
 import all RiemannMasullo.AppC_LCTVS.Sec2b
@@ -16,15 +14,6 @@ import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
-import Mathlib.Topology.Homeomorph.Lemmas
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Gaussian
-import Mathlib.Topology.LocallyConstant.Algebra
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.LocallyConstant
-import Mathlib.Analysis.Complex.Convex
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.ProdPi
-import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
-import Mathlib.Topology.Algebra.IsOpenUnits
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
 
 /-!
 # Eigendistributions and Weil's identity

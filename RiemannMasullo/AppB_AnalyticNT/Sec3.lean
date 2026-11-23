@@ -1,13 +1,8 @@
 module
 
-import Mathlib.Analysis.Meromorphic.Divisor
+import RiemannMasullo.AppB_AnalyticNT.Sec3_Imports
 public import RiemannMasullo.AppB_AnalyticNT.Sec2
-import Mathlib.Analysis.Complex.CauchyIntegral
 public import Mathlib.MeasureTheory.Integral.CircleIntegral
-import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
-import Mathlib.MeasureTheory.Integral.Asymptotics
-import RiemannMasullo.ForMathlib.Analysis.Complex.RectangleIntegral
-import RiemannMasullo.ForMathlib.Analysis.Meromorphic.PrincipalPart
 
 /-!
 # Slow growth near poles and the asymptotic residue theorem

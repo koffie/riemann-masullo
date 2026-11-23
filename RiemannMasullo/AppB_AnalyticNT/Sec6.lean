@@ -5,16 +5,8 @@ public import RiemannMasullo.ForMathlib.RingTheory.DedekindDomain.Ideal.Lemmas
 public import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Basic
 public import Mathlib.Analysis.Calculus.LogDeriv
 public import Mathlib.NumberTheory.ArithmeticFunction.VonMangoldt
-import Mathlib.RingTheory.Ideal.Int
-import Mathlib.RingTheory.RamificationInertia.Basic
-import Mathlib.Analysis.Complex.LocallyUniformLimit
-import Mathlib.NumberTheory.LSeries.WienerIkehara
+import RiemannMasullo.AppB_AnalyticNT.Sec6_Imports
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
-import RiemannMasullo.ForMathlib.Analysis.Complex.LandauLemma
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.NumberTheory.EulerProduct.Basic
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.HeckeLFunction
 
 /-!
 # Classical zero-free regions for Hecke L-functions

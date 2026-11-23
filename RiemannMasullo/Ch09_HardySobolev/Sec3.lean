@@ -5,25 +5,12 @@ public import RiemannMasullo.AppC_LCTVS.Sec3b
 public import RiemannMasullo.AppC_LCTVS.Sec4
 import all RiemannMasullo.AppC_LCTVS.Sec3a
 import all RiemannMasullo.AppC_LCTVS.Sec3a_part2
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
+import RiemannMasullo.Ch09_HardySobolev.Sec3_Imports
 import all RiemannMasullo.Ch09_HardySobolev.Sec1
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Seminorm
-import Mathlib.Analysis.Distribution.SchwartzSpace.CompactSupport
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual
-import RiemannMasullo.ForMathlib.Analysis.Fourier.CompactGroup
-import Mathlib.Analysis.Calculus.ParametricIntegral
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.Periodic
-import Mathlib.Analysis.Convex.TotallyBounded
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import Mathlib.MeasureTheory.Function.ContinuousMapDense
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.L2Space
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.L2Space.Integral
 
 /-!
 # Module structures over test functions and approximate units

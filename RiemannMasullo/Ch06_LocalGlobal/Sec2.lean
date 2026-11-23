@@ -3,17 +3,12 @@ module
 public import RiemannMasullo.Ch06_LocalGlobal.Sec1
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec3a
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3a
-import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
+import RiemannMasullo.Ch06_LocalGlobal.Sec2_Imports
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 import all RiemannMasullo.AppC_LCTVS.Sec2b
-import RiemannMasullo.ForMathlib.Analysis.Fourier.CompactGroup
-import Mathlib.LinearAlgebra.Eigenspace.Basic
 
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import Mathlib.Topology.Algebra.IsOpenUnits
 
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
 
 /-! # Structure Theorem V: isotypic exhaustiveness
 

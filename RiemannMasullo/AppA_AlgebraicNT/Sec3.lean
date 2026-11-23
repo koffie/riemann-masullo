@@ -13,37 +13,8 @@ public import Mathlib.RingTheory.DedekindDomain.Different
 public import Mathlib.Topology.Algebra.Group.Units
 
 import all RiemannMasullo.AppA_AlgebraicNT.Sec1  -- for the open integral subgroups
-import RiemannMasullo.AppA_AlgebraicNT.Sec2  -- for the diagonal adelic basis
+import RiemannMasullo.AppA_AlgebraicNT.Sec3_Imports
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a  -- for Weil disintegration
-import RiemannMasullo.AppD_SchwartzBruhat.Sec1b  -- for duality of a quotient and its annihilator
-import Mathlib.Analysis.SpecialFunctions.Complex.Circle
-import Mathlib.Analysis.SpecialFunctions.Complex.CircleAddChar
-import Mathlib.Analysis.SpecialFunctions.Gaussian.FourierTransform
-import Mathlib.Analysis.SpecialFunctions.Integrals.Basic
-import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
-import Mathlib.LinearAlgebra.Countable
-import Mathlib.LinearAlgebra.TensorProduct.Basis
-import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.MeasureTheory.Measure.Haar.DistribChar
-import Mathlib.MeasureTheory.Measure.Haar.Extension
-import Mathlib.MeasureTheory.Measure.Haar.Quotient
-import Mathlib.MeasureTheory.Measure.Haar.Unique
-import Mathlib.MeasureTheory.Measure.Lebesgue.VolumeOfBalls
-import Mathlib.NumberTheory.NumberField.Discriminant.Basic
-import Mathlib.NumberTheory.NumberField.Discriminant.Different
-import Mathlib.NumberTheory.Padics.ProperSpace
-import Mathlib.Topology.Algebra.Group.OpenMapping
-import Mathlib.Topology.Algebra.IsOpenUnits
-import Mathlib.Topology.Baire.LocallyCompactRegular
-import Mathlib.Topology.Maps.Proper.CompactlyGenerated
-import RiemannMasullo.ForMathlib.Analysis.Fourier.LpSpace
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Extension
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Unique
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Units
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.RingTheory.Trace.Defs
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
 
 /-! # Haar measures
 

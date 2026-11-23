@@ -1,32 +1,13 @@
 module
 
 public import RiemannMasullo.AppC_LCTVS.Sec2a_part2
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.DirectSum
+import RiemannMasullo.AppC_LCTVS.Sec2b_Imports
 public import Mathlib.Analysis.LocallyConvex.Montel
 public import Mathlib.MeasureTheory.Integral.Bochner.Basic
 public import Mathlib.MeasureTheory.Measure.Regular
 public import Mathlib.Topology.Algebra.Module.Complement
 public import Mathlib.Topology.ContinuousMap.Bounded.Normed
-import Mathlib.Data.Set.FiniteExhaustion
 import all RiemannMasullo.AppC_LCTVS.Sec1
-import Mathlib.Analysis.Normed.Group.FunctionSeries
-import Mathlib.Analysis.Normed.Module.Dual
-import RiemannMasullo.ForMathlib.Analysis.Normed.Operator.AbsolutelySumming.Composition
-import RiemannMasullo.ForMathlib.Analysis.Normed.Operator.Compact.Hilbert
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.DirectSum
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.WeakDual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WithSeminorms
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.RieszMarkovKakutani.Real
-import Mathlib.Analysis.Normed.Module.HahnBanach
-import Mathlib.Analysis.InnerProductSpace.Projection.Basic
-import Mathlib.Analysis.Normed.Operator.Extend
-import Mathlib.LinearAlgebra.TensorProduct.RightExactness
-import Mathlib.MeasureTheory.Function.L2Space
-import Mathlib.MeasureTheory.Function.LpSpace.ContinuousFunctions
-import Mathlib.MeasureTheory.Integral.Bochner.ContinuousLinearMap
-import Mathlib.MeasureTheory.Integral.RieszMarkovKakutani.Real
-import Mathlib.MeasureTheory.Measure.Prokhorov
 
 /-!
 # Nuclear spaces and the finest locally convex topology

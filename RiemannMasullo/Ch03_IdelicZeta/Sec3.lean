@@ -5,26 +5,10 @@ public import RiemannMasullo.Ch03_IdelicZeta.Sec2
 
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Count
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Unique
-import RiemannMasullo.ForMathlib.MeasureTheory.Measure.Haar.Units
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import Mathlib.Analysis.SpecialFunctions.ImproperIntegrals
-import Mathlib.MeasureTheory.Constructions.HaarToSphere
-import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.Topology.Algebra.IsOpenUnits
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.Units
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Barrelled
-import RiemannMasullo.ForMathlib.Analysis.MellinTransform.Weighted
+import RiemannMasullo.Ch03_IdelicZeta.Sec3_Imports
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.Ch09_HardySobolev.Sec1
-import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a
-import Mathlib.Analysis.Complex.Convex
-import Mathlib.Analysis.Calculus.BumpFunction.FiniteDimension
-import Mathlib.Topology.LocallyConstant.Algebra
-import Mathlib.Analysis.Calculus.Deriv.Star
-import Mathlib.Analysis.Fourier.FourierTransform
 
 /-!
 # S-local idelic zeta functions

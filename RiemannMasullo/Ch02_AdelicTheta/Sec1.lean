@@ -4,47 +4,7 @@ public import RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 public import RiemannMasullo.ForMathlib.Analysis.Distribution.TestFunction
 public import Mathlib.LinearAlgebra.PiTensorProduct.Basic
-import Mathlib.LinearAlgebra.PiTensorProduct.Generators
-import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Algebra.Group.Pointwise.Set.Scalar
-import Mathlib.Analysis.InnerProductSpace.l2Space
-import RiemannMasullo.External.GaussianField.HermiteFunctions
-import Mathlib.Analysis.Complex.RealDeriv
-import Mathlib.Data.Nat.Pairing
-import Mathlib.MeasureTheory.Integral.Pi
-import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
-import Mathlib.Analysis.PSeries
-import Mathlib.Data.List.FinRange
-import Mathlib.Data.List.OfFn
-import Mathlib.Data.Set.FiniteExhaustion
-import RiemannMasullo.ForMathlib.Analysis.Calculus.FDeriv.Symmetric
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Complete
-import Mathlib.Analysis.Calculus.IteratedDeriv.Defs
-import Mathlib.Analysis.Distribution.SchwartzSpace.Deriv
-import Mathlib.Topology.Instances.RealVectorSpace
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Real
-import Mathlib.Analysis.LocallyConvex.WeakDual
-import Mathlib.Analysis.LocallyConvex.AbsConvex
-import Mathlib.Analysis.LocallyConvex.Polar
-import Mathlib.Analysis.LocallyConvex.Separation
-import Mathlib.Analysis.LocallyConvex.StrongTopology
-import Mathlib.Analysis.RCLike.Lemmas
-import Mathlib.Analysis.SpecificLimits.Basic
-import Mathlib.Topology.Algebra.InfiniteSum.NatInt
-import Mathlib.Topology.Algebra.Module.Spaces.WeakDual
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Montel
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.Seminorm.DirectSum
-import RiemannMasullo.ForMathlib.Analysis.InnerProductSpace.PiL2
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import Mathlib.Analysis.Fourier.FiniteAbelian.PontryaginDuality
-import Mathlib.Analysis.Normed.Group.Ultra
-import Mathlib.Topology.Algebra.Nonarchimedean.TotallyDisconnected
-import Mathlib.Topology.Connected.LocallyConnected
-import Mathlib.Topology.Compactness.Bases
-import Mathlib.Topology.LocallyConstant.Algebra
-import RiemannMasullo.ForMathlib.Topology.LocallyConstant.CompactSupport
+import RiemannMasullo.Ch02_AdelicTheta.Sec1_Imports
 
 /-!
 # Schwartz–Bruhat functions

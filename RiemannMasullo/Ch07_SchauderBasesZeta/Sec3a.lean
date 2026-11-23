@@ -2,11 +2,9 @@ module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec2
 
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
+import RiemannMasullo.Ch07_SchauderBasesZeta.Sec3a_Imports
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
 
-import RiemannMasullo.AppC_LCTVS.Sec1
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 

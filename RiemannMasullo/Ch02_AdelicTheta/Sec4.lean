@@ -3,11 +3,7 @@ module
 public import RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.AppA_AlgebraicNT.Sec5a
-import RiemannMasullo.AppD_SchwartzBruhat.Sec1b
-import Mathlib.Analysis.SpecialFunctions.Log.Basic
-import Mathlib.Analysis.SpecificLimits.Normed
-import Mathlib.NumberTheory.NumberField.InfiniteAdeleRing
-import RiemannMasullo.ForMathlib.Analysis.Normed.Ring.InfiniteSum
+import RiemannMasullo.Ch02_AdelicTheta.Sec4_Imports
 
 /-!
 # Small-norm estimates for S-local adelic theta

@@ -6,18 +6,7 @@ public import Mathlib.Analysis.Distribution.ContDiffMapSupportedIn
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec1
 import all RiemannMasullo.AppC_LCTVS.Sec1
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.ChangeVariables
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.TranslationDifference
-import Mathlib.Analysis.Fourier.PoissonSummation
-import Mathlib.Analysis.InnerProductSpace.ProdL2
-import Mathlib.Analysis.PSeries
-import Mathlib.Analysis.SpecialFunctions.SmoothTransition
-import Mathlib.Topology.Baire.CompleteMetrizable
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Complete
-import RiemannMasullo.ForMathlib.Analysis.Fourier.PaleyWiener
-import RiemannMasullo.ForMathlib.Analysis.Fourier.PoissonSummation
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
-import RiemannMasullo.ForMathlib.Topology.MetricSpace.CompactQuotient
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec2_Imports
 
 /-!
 # Periodization and Schauder bases on the positive real axis

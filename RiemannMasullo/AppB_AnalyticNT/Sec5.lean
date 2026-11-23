@@ -4,9 +4,7 @@ public import Mathlib.Analysis.Complex.Hadamard
 public import Mathlib.Analysis.Complex.MeanValue
 public import Mathlib.Analysis.Fourier.AddCircleMulti
 public import RiemannMasullo.Ch03_IdelicZeta.Sec2
-import Mathlib.Topology.MetricSpace.UniformConvergence
-import Mathlib.Analysis.Complex.Tietze
-import Mathlib.Analysis.Convex.Measure
+import RiemannMasullo.AppB_AnalyticNT.Sec5_Imports
 
 /-!
 # §B.5 Recurrence and equidistribution

@@ -7,17 +7,8 @@ public import Mathlib.Analysis.InnerProductSpace.TensorProduct
 public import Mathlib.MeasureTheory.Function.L2Space
 public import Mathlib.MeasureTheory.Measure.Prod
 public import Mathlib.MeasureTheory.Measure.Regular
-import Mathlib.Analysis.InnerProductSpace.Projection.Submodule
-import Mathlib.Analysis.Normed.Group.Tannery
-import Mathlib.Analysis.Normed.Module.DoubleDual
-import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Abs
-import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Order
-import Mathlib.LinearAlgebra.Dimension.LinearMap
-import Mathlib.MeasureTheory.Integral.Prod
-import Mathlib.MeasureTheory.Measure.SeparableMeasure
-import Mathlib.Topology.MetricSpace.UniformConvergence
+import RiemannMasullo.AppC_LCTVS.Sec3a_part2_Imports
 import all RiemannMasullo.AppC_LCTVS.Sec3a  -- projective seminorm model and its comparison maps
-import RiemannMasullo.ForMathlib.Analysis.Normed.Operator.Compact.NormAttainment
 
 /-!
 # Nuclear convergence and Schatten classes

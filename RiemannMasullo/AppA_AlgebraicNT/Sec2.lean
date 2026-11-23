@@ -2,14 +2,7 @@ module
 
 public import RiemannMasullo.AppA_AlgebraicNT.Sec1
 public import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
-import Mathlib.GroupTheory.ArchimedeanDensely
-import Mathlib.RingTheory.Ideal.Norm.RelNorm
-import Mathlib.Topology.Algebra.Group.OpenMapping
-import Mathlib.Topology.Algebra.Group.Units
-import Mathlib.Topology.Baire.LocallyCompactRegular
-import Mathlib.Topology.Instances.Discrete
-import Mathlib.Topology.Instances.Matrix
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.AppA_AlgebraicNT.Sec2_Imports
 
 /-!
 # Orbital structures on adeles and ideles

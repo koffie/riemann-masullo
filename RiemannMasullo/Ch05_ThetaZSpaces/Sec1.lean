@@ -3,13 +3,9 @@ module
 public import RiemannMasullo.Ch03_IdelicZeta.Sec3
 public import Mathlib.Topology.Algebra.Module.ContinuousLinearMap.Quotient
 public import Mathlib.Topology.UniformSpace.CompactConvergence
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WithSeminorms
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Barrelled
-import RiemannMasullo.ForMathlib.MeasureTheory.Integral.Bochner.Regular
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec1_Imports
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
-import RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
-import Mathlib.NumberTheory.Harmonic.GammaDeriv
 
 /-!
 # Topological spaces of adelic theta functions and idelic Z-functions

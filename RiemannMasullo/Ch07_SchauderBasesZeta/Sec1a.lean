@@ -6,9 +6,7 @@ public import RiemannMasullo.Ch03_IdelicZeta.Sec3b
 
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
-import Mathlib.Analysis.Meromorphic.Complex
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gaussian.Schwartz
-import Mathlib.Topology.MetricSpace.ProperSpace.Lemmas
+import RiemannMasullo.Ch07_SchauderBasesZeta.Sec1a_Imports
 
 /-!
 # §7.1.1–7.1.2 Almost periodic functions and S-local theta asymptotics

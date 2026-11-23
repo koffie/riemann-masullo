@@ -5,16 +5,7 @@ public import RiemannMasullo.AppD_SchwartzBruhat.Sec1a
 public import Mathlib.MeasureTheory.Constructions.Polish.Basic
 public import Mathlib.MeasureTheory.Function.LocallyIntegrable
 public import Mathlib.Topology.Algebra.ProperAction.Basic
-import Mathlib.MeasureTheory.Covering.Vitali
-import Mathlib.MeasureTheory.Covering.OneDim
-import Mathlib.MeasureTheory.Measure.Haar.Extension
-import Mathlib.Topology.Algebra.Group.OpenMapping
-import Mathlib.Topology.Algebra.Group.Units
-import Mathlib.Topology.Algebra.IsUniformGroup.Basic
-import Mathlib.Topology.Algebra.ProperAction.CompactlyGenerated
-import Mathlib.Topology.Covering.Quotient
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Integral
-import RiemannMasullo.ForMathlib.Topology.Algebra.OpenSubgroup
+import RiemannMasullo.AppA_AlgebraicNT.Sec5a_Imports
 
 /-!
 # Maximal averages on the real line and D-sequences

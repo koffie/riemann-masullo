@@ -1,36 +1,10 @@
 module
 
-import Mathlib.Analysis.Distribution.SchwartzSpace.Fourier
-import Mathlib.Analysis.MellinInversion
-import RiemannMasullo.ForMathlib.Analysis.Complex.PhragmenLindelof
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.ChangeVariables
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
+import RiemannMasullo.AppD_SchwartzBruhat.Sec3a_Imports
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec2b
-import Mathlib.Analysis.Complex.Liouville
-import Mathlib.Analysis.Complex.RealDeriv
-import RiemannMasullo.ForMathlib.Analysis.Complex.VerticalCauchyIntegral
 public import Mathlib.Analysis.MellinTransform
-import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
 public import Mathlib.Analysis.Calculus.IteratedDeriv.Defs
-import Mathlib.Analysis.InnerProductSpace.Calculus
-import Mathlib.Analysis.InnerProductSpace.Continuous
-import Mathlib.MeasureTheory.Function.LpSeminorm.LpNorm
-import Mathlib.MeasureTheory.Integral.IntegralEqImproper
-import Mathlib.MeasureTheory.Measure.SeparableMeasure
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Montel
-import Mathlib.Analysis.PSeries
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Grid
-import RiemannMasullo.ForMathlib.Analysis.Normed.Module.CompactInterpolation
-import Mathlib.Analysis.Calculus.IteratedDeriv.Lemmas
-import Mathlib.Analysis.SpecialFunctions.ExpDeriv
-import Mathlib.Topology.Algebra.IsUniformGroup.DiscreteSubgroup
 public import RiemannMasullo.ForMathlib.Analysis.Distribution.ContDiffMapSupportedIn
-import RiemannMasullo.ForMathlib.Analysis.MellinTransform
-import RiemannMasullo.AppC_LCTVS.Sec2a
-import RiemannMasullo.Ch02_AdelicTheta.Sec1
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDual
 
 /-!
 # Schwartz–Bergman spaces and Schwartz–Bruhat functions with exponential decay

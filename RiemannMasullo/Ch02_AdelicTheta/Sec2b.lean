@@ -2,34 +2,10 @@ module
 
 public import RiemannMasullo.Ch02_AdelicTheta.Sec2a
 public import Mathlib.Analysis.Calculus.Deriv.Basic
-import Mathlib.Analysis.Calculus.BumpFunction.InnerProduct
-import Mathlib.Analysis.Calculus.ParametricIntegral
-import Mathlib.Analysis.Calculus.UniformLimitsDeriv
-import Mathlib.Analysis.Distribution.SchwartzSpace.Deriv
-import Mathlib.LinearAlgebra.TensorProduct.Finiteness
-import Mathlib.MeasureTheory.Function.SpecialFunctions.Basic
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
-import Mathlib.MeasureTheory.Integral.Prod
-import Mathlib.RingTheory.Complex
-import Mathlib.Topology.Algebra.Nonarchimedean.TotallyDisconnected
+import RiemannMasullo.Ch02_AdelicTheta.Sec2b_Imports
 import all RiemannMasullo.AppA_AlgebraicNT.Sec1
-import RiemannMasullo.AppA_AlgebraicNT.Sec2
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2a
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Basic
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.Complete
-import RiemannMasullo.ForMathlib.Analysis.Fourier.FourierPhase
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.ContinuousOfBounded
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Montel
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.Geometry.Manifold.Instances.UnitsOfNormedAlgebra
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.FundamentalDomain
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.InfiniteAdeleRing
-import RiemannMasullo.ForMathlib.RingTheory.Trace.Defs
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
-import RiemannMasullo.ForMathlib.Topology.Covering.AddCircle
 
 /-!
 # Directional derivatives and homogeneous adelic theta functions

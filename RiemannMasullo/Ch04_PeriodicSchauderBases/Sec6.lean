@@ -3,14 +3,10 @@ module
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec2
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec5
 
-import Mathlib.Algebra.Polynomial.Taylor
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6_Imports
 import all RiemannMasullo.AppC_LCTVS.Sec2b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.ContinuousLinearMap.Quotient
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.OpenMapping
-import RiemannMasullo.ForMathlib.MeasureTheory.Function.L1Space.Continuous
 
 /-!
 # Periodic Schauder bases in the presence of multiplicity

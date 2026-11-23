@@ -2,32 +2,10 @@ module
 
 public import RiemannMasullo.AppC_LCTVS.Sec5a
 public import Mathlib.Analysis.Calculus.IteratedDeriv.Defs
-import Mathlib.Analysis.Calculus.IteratedDeriv.Lemmas
+import RiemannMasullo.AppC_LCTVS.Sec5b_Imports
 public import Mathlib.Analysis.Complex.HasPrimitives
 public import Mathlib.Analysis.SpecialFunctions.Complex.CircleMap
 public import Mathlib.MeasureTheory.VectorMeasure.WithDensity
-import Mathlib.Analysis.Analytic.Order
-import Mathlib.Analysis.Calculus.FDeriv.Measurable
-import Mathlib.Analysis.Calculus.FDeriv.Mul
-import Mathlib.Analysis.Calculus.ParametricIntervalIntegral
-import Mathlib.Analysis.Complex.CauchyIntegral
-import Mathlib.Analysis.Complex.Liouville
-import Mathlib.Analysis.Complex.LocallyUniformLimit
-import Mathlib.Analysis.Complex.RealDeriv
-import Mathlib.Analysis.Complex.RemovableSingularity
-import Mathlib.Analysis.Complex.Tietze
-import Mathlib.Analysis.Meromorphic.Order
-import Mathlib.Analysis.Normed.Module.Ball.Pointwise
-import Mathlib.Analysis.Normed.Module.Completion
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
-import Mathlib.Topology.MetricSpace.Thickening
-import RiemannMasullo.ForMathlib.Analysis.Calculus.Deriv.Weak
-import RiemannMasullo.ForMathlib.Analysis.Complex.RectangleIntegral
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.HahnBanach
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
-import Mathlib.Analysis.Normed.Module.Connected
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.WeakSpace
-import RiemannMasullo.ForMathlib.MeasureTheory.VectorMeasure.Integral
 
 /-!
 # Holomorphic and meromorphic vector-valued functions

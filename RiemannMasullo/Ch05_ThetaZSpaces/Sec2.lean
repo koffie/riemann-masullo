@@ -10,14 +10,9 @@ import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
 import all RiemannMasullo.Ch02_AdelicTheta.Sec1
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongDualPrecompact
-import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.ChangeOfVariables
-import Mathlib.Data.Finset.Lattice.Union
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec2_Imports
 import all RiemannMasullo.AppC_LCTVS.Sec1
 import all RiemannMasullo.AppC_LCTVS.Sec2b
-import RiemannMasullo.ForMathlib.Topology.Algebra.Module.StrongDualQuotient
-import RiemannMasullo.ForMathlib.Analysis.Normed.Group.InfiniteSum
-import RiemannMasullo.ForMathlib.Topology.Algebra.Valued.LocallyConstant
 
 /-! # Structure Theorem I for adelic theta spaces
 

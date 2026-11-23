@@ -5,7 +5,7 @@ public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 public import RiemannMasullo.Ch06_LocalGlobal.Sec3
 public import RiemannMasullo.Ch09_HardySobolev.Sec3
 
-import RiemannMasullo.Ch05_ThetaZSpaces.Sec5
+import RiemannMasullo.Ch10_TraceSpectral.Sec1_Imports
 
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
@@ -13,8 +13,6 @@ import all RiemannMasullo.Ch09_HardySobolev.Sec2
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
 
-import RiemannMasullo.ForMathlib.Analysis.Fourier.CompactGroup
-import Mathlib.MeasureTheory.Measure.SeparableMeasure
 
 /-!
 # Hardy–Sobolev topologies on adelic theta spaces

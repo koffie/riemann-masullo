@@ -9,26 +9,7 @@ import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3
 import all RiemannMasullo.AppB_AnalyticNT.Sec2
 import all RiemannMasullo.AppC_LCTVS.Sec5b
-import Mathlib.Analysis.Normed.Field.ProperSpace
-import Mathlib.Analysis.Distribution.SchwartzSpace.Fourier
-import Mathlib.Analysis.SpecialFunctions.Gaussian.FourierTransform
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gaussian.Schwartz
-import Mathlib.RingTheory.Complex
-import RiemannMasullo.ForMathlib.RingTheory.Trace.Defs
-import Mathlib.Analysis.Calculus.ParametricIntegral
-import Mathlib.Analysis.SpecialFunctions.PolarCoord
-import Mathlib.Analysis.Calculus.Taylor
-import Mathlib.Analysis.Complex.Liouville
-import Mathlib.Analysis.Meromorphic.RCLike
-import Mathlib.Topology.LocallyConstant.Algebra
-import Mathlib.Topology.MetricSpace.Ultra.TotallySeparated
-import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Gamma.VerticalStrip
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
-import RiemannMasullo.ForMathlib.Topology.Algebra.Group.CompactOpen
-import RiemannMasullo.ForMathlib.Topology.Algebra.OpenSubgroup
+import RiemannMasullo.Ch03_IdelicZeta.Sec3b_Imports
 
 /-!
 # Partial Euler products and local zeta residues

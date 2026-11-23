@@ -2,15 +2,7 @@ module
 
 public import RiemannMasullo.AppA_AlgebraicNT.Sec3
 
-import Mathlib.Algebra.Order.Group.Cyclic
-import Mathlib.MeasureTheory.Measure.Haar.Unique
-import Mathlib.Topology.Algebra.Order.ArchimedeanDiscrete
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import Mathlib.Algebra.Category.Grp.Injective
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Pi
-import RiemannMasullo.ForMathlib.Topology.Algebra.PontryaginDual.Separation
-import RiemannMasullo.Ch03_IdelicZeta.Sec1
+import RiemannMasullo.AppD_SchwartzBruhat.Sec2a_Imports
 
 /-! # Modulated groups and their canonical Haar measures -/
 

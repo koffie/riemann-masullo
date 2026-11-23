@@ -9,14 +9,7 @@ import all RiemannMasullo.AppD_SchwartzBruhat.Sec1a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2a
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec2b
-import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
-import Mathlib.MeasureTheory.Integral.IntegralEqImproper
-import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
-import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Completion
-import Mathlib.Analysis.Distribution.SchwartzSpace.CompactSupport
-import Mathlib.Analysis.LocallyConvex.ContinuousOfBounded
-import RiemannMasullo.ForMathlib.Topology.ContinuousMap.LocallyConvex
-import Mathlib.Topology.ContinuousMap.SecondCountableSpace
+import RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2_Imports
 
 /-!
 # Structure and Fourier–Mellin transform of Schwartz–Bruhat decay spaces
