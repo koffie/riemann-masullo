@@ -269,17 +269,86 @@ theorem finitePlaceDifference_integerIndicator (v : V) (π : Fᵥ(v)ˣ)
       indicator_of_notMem (show _ ∉ (v.adicCompletionIntegers F : Set Fᵥ(v)) from h1),
       indicator_of_notMem fun hx ↦ h.ne' ((hmem x).mp hx), sub_zero]
 
+private theorem finitePlaceDifference_injective_aux (v : V) (π : Fᵥ(v)ˣ)
+    (hπ : vval(v).IsUniformizer π.val) (g : Fᵥ(v) → ℂ) (hlc : IsLocallyConstant g)
+    (hcs : HasCompactSupport g) (hg : ∀ x, g x = g ((↑π⁻¹ : Fᵥ(v)) * x)) : g = 0 := by
+  have hval : vval(v) π.val = WithZero.exp (-1 : ℤ) := hπ.trans
+    (congrArg Units.val (Valuation.IsRankOneDiscrete.generator_eq_exp_neg_one_of_surjective
+      (v.valuedAdicCompletion_surjective F)))
+  have hv1 : vval(v) π.val < 1 := by
+    rw [hval, ← WithZero.exp_zero, WithZero.exp_lt_exp]; norm_num
+  have hpow (n : ℕ) (x : Fᵥ(v)) : g ((π : Fᵥ(v)) ^ n * x) = g x := by
+    induction n generalizing x with
+    | zero => simp
+    | succ n ih => rw [pow_succ, mul_assoc, ih, hg (π * x), Units.inv_mul_cancel_left]
+  let := Valued.toNontriviallyNormedField (Fᵥ(v)) _
+  have hn : ‖(π : Fᵥ(v))‖ < 1 := Valued.toNormedField.norm_lt_one_iff.mpr hv1
+  have hconst (x : Fᵥ(v)) : g x = g 0 := by
+    have ht : Tendsto (fun n : ℕ ↦ (π : Fᵥ(v)) ^ n * x) atTop (𝓝 0) := by
+      simpa using (tendsto_pow_atTop_nhds_zero_of_norm_lt_one hn).mul_const x
+    have h := (hlc.continuous.tendsto 0).comp ht
+    simp only [Function.comp_def, hpow] at h
+    exact tendsto_nhds_unique tendsto_const_nhds h
+  funext x
+  by_contra hx
+  have hc : support g = univ := eq_univ_of_forall fun y ↦ by
+    rw [mem_support, hconst y, ← hconst x]; exact hx
+  have hK : IsCompact (univ : Set Fᵥ(v)) := by
+    have := hcs.isCompact
+    rwa [tsupport, hc, closure_univ] at this
+  exact noncompact_univ _ hK
+
+private theorem finitePlaceDifference_injective (v : V) (π : Fᵥ(v)ˣ)
+    (hπ : vval(v).IsUniformizer π.val) : Function.Injective (finitePlaceDifference v π) := by
+  intro f f' hf
+  have hg (x : Fᵥ(v)) : f (Multiplicative.ofAdd x) - f' (Multiplicative.ofAdd x) =
+      f (Multiplicative.ofAdd ((↑π⁻¹ : Fᵥ(v)) * x)) -
+        f' (Multiplicative.ofAdd ((↑π⁻¹ : Fᵥ(v)) * x)) := by
+    have h := congrArg (fun k : ℬ(Fᵥ(v)) ↦ k (Multiplicative.ofAdd x)) hf
+    change f (Multiplicative.ofAdd x) - f (Multiplicative.ofAdd ((↑π⁻¹ : Fᵥ(v)) * x)) =
+      f' (Multiplicative.ofAdd x) - f' (Multiplicative.ofAdd ((↑π⁻¹ : Fᵥ(v)) * x)) at h
+    linear_combination h
+  obtain ⟨hlc, hcs⟩ := (mem_finitePlaceSchwartz_iff F v
+    (fun x ↦ f (Multiplicative.ofAdd x))).1 ⟨f, fun _ ↦ rfl⟩
+  obtain ⟨hlc', hcs'⟩ := (mem_finitePlaceSchwartz_iff F v
+    (fun x ↦ f' (Multiplicative.ofAdd x))).1 ⟨f', fun _ ↦ rfl⟩
+  have h0 := finitePlaceDifference_injective_aux v π hπ
+    (fun x ↦ f (Multiplicative.ofAdd x) - f' (Multiplicative.ofAdd x)) (hlc.sub hlc')
+    (hcs.sub hcs') hg
+  refine Subtype.ext (funext fun y ↦ ?_)
+  have hy := congrFun h0 (Multiplicative.toAdd y)
+  exact sub_eq_zero.mp hy
+
+private theorem finestLocallyConvex_isEmbedding_of_injective {E : Type*} [AddCommGroup E]
+    [Module ℂ E] (D : FinestLocallyConvex E →ₗ[ℂ] FinestLocallyConvex E)
+    (hD : Function.Injective D) : IsEmbedding D := by
+  have : T2Space (FinestLocallyConvex E) := finestLocallyConvex_t2 E
+  obtain ⟨L, hL⟩ := D.exists_leftInverse_of_injective (LinearMap.ker_eq_bot.mpr hD)
+  have hLD : Function.LeftInverse L D := fun f ↦ LinearMap.congr_fun hL f
+  exact Topology.IsEmbedding.of_leftInverse hLD
+    (continuous_of_finestLocallyConvex E L) (continuous_of_finestLocallyConvex E D)
+
 /-- Paper: Lemma 5.3.1.1, p. 240.
 For each fixed uniformizer the local difference is a topological embedding. -/
 theorem finitePlaceDifference_isEmbedding (v : V) (π : Fᵥ(v)ˣ)
     (hπ : vval(v).IsUniformizer π.val) :
-    IsEmbedding (finitePlaceDifference v π) := by sorry
+    IsEmbedding (finitePlaceDifference v π) := by
+  have heq := finitePlaceSchwartz_finestTopology F v
+  have h := finestLocallyConvex_isEmbedding_of_injective (E := ℬ(Fᵥ(v)))
+    (finitePlaceDifference v π) (finitePlaceDifference_injective v π hπ)
+  exact (congrArg (fun t ↦ @IsEmbedding ℬ(Fᵥ(v)) ℬ(Fᵥ(v)) t t
+    (fun f ↦ finitePlaceDifference v π f)) heq).mpr h
 
 /-- Paper: Lemma 5.3.1.1, pp. 240–241.
 The range of the difference for a fixed uniformizer is closed on the full test space. -/
 theorem finitePlaceDifference_isClosed_range (v : V) (π : Fᵥ(v)ˣ)
     (_hπ : vval(v).IsUniformizer π.val) :
-    IsClosed (Set.range (finitePlaceDifference v π)) := by sorry
+    IsClosed (Set.range (finitePlaceDifference v π)) := by
+  have heq := finitePlaceSchwartz_finestTopology F v
+  have h := finestLocallyConvex_submodule_isClosed (E := ℬ(Fᵥ(v)))
+    (LinearMap.range (finitePlaceDifference v π))
+  exact (congrArg (fun t ↦ @IsClosed ℬ(Fᵥ(v)) t (Set.range (finitePlaceDifference v π)))
+    heq).mpr h
 
 -- TODO(paper-gap): ERRATA R7 gives the failure of independence and range on the whole space.
 

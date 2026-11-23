@@ -387,10 +387,99 @@ theorem divisorialThetaStage_empty (ω : PontryaginDual C₁) :
     Subtype.ext (LinearMap.ext_iff.mp divisorialThetaStage_empty_PV p.val)
   exact congrArg (fun y : P ↦ (Submodule.Quotient.mk y : Θ(ω))) e
 
+/-- Two linear maps agree once they agree on the pure tensors of an
+inductive tensor product with a finite tensor product. -/
+private theorem divisorialThetaStage_antitone_extPi {ι : Type*} [Fintype ι] {E N : Type*}
+    {M : ι → Type*} [∀ i, AddCommGroup (M i)] [∀ i, Module ℂ (M i)]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup N] [Module ℂ N] [TopologicalSpace N]
+    (e : InductiveTensor E (FinestLocallyConvex (PiTensorProduct ℂ M)) ≃L[ℂ] N)
+    (L₁ L₂ : N →ₗ[ℂ] N)
+    (h : ∀ (a : E) (g : ∀ i, M i),
+      L₁ (e (TensorProduct.tmul ℂ a (PiTensorProduct.tprod ℂ g))) =
+        L₂ (e (TensorProduct.tmul ℂ a (PiTensorProduct.tprod ℂ g)))) :
+    L₁ = L₂ := by
+  apply (LinearMap.cancel_right (g := e.toLinearMap) e.surjective).mp
+  apply TensorProduct.ext
+  exact LinearMap.ext fun a ↦ LinearMap.ext_on_range PiTensorProduct.span_tprod_eq_top (h a)
+
+/-- The S-local principal values compose over disjoint sets of selected places. -/
+private theorem divisorialThetaStage_antitone_sPV {T T' : Finset (HeightOneSpectrum (𝓞 F))} (hT : T ⊆ T') :
+    sAdelePrincipalValue F (Finset.Subset.refl T') =
+      (sAdelePrincipalValue F hT).comp (sAdelePrincipalValue F (Finset.sdiff_subset (s := T') (t := T))) := by
+  refine divisorialThetaStage_antitone_extPi (sAdeleSchwartz_inductiveTensor_equiv F T').choose _ _ fun a g ↦ ?_
+  have h1 := sAdelePrincipalValue_tmul (F := F) (Finset.Subset.refl T') a g
+  have h2 := sAdelePrincipalValue_tmul (F := F) (Finset.sdiff_subset (s := T') (t := T)) a g
+  have h3 := sAdelePrincipalValue_tmul (F := F) hT a
+    (fun w : T' ↦ if (w : HeightOneSpectrum (𝓞 F)) ∈ T' \ T then
+      finitePlacePrincipalValue (F := F) w.val (g w) else g w)
+  refine h1.trans ?_
+  refine Eq.trans ?_ (LinearMap.comp_apply _ _ _).symm
+  refine Eq.trans ?_ (congrArg (sAdelePrincipalValue F hT) h2.symm)
+  refine Eq.trans ?_ h3.symm
+  apply congrArg
+  apply congrArg
+  apply congrArg
+  funext w
+  by_cases hw : (w : HeightOneSpectrum (𝓞 F)) ∈ T
+  · simp [hw, w.2, Finset.mem_sdiff]
+  · simp [hw, w.2, Finset.mem_sdiff]
+
+/-- Two linear maps agree once they agree on the pure tensors of an inductive tensor product. -/
+private theorem divisorialThetaStage_antitone_extTail {E G N : Type*}
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [AddCommGroup G] [Module ℂ G] [TopologicalSpace G]
+    [AddCommGroup N] [Module ℂ N] [TopologicalSpace N]
+    (e : InductiveTensor E G ≃L[ℂ] N) (L₁ L₂ : N →ₗ[ℂ] N)
+    (h : ∀ (a : E) (b : G), L₁ (e (TensorProduct.tmul ℂ a b)) = L₂ (e (TensorProduct.tmul ℂ a b))) :
+    L₁ = L₂ := by
+  apply (LinearMap.cancel_right (g := e.toLinearMap) e.surjective).mp
+  apply TensorProduct.ext
+  exact LinearMap.ext fun a ↦ LinearMap.ext (h a)
+
+/-- The global principal value at a larger set is the one at the smaller set after the one
+at the difference. -/
+private theorem divisorialThetaStage_antitone_PV {T T' : Finset (HeightOneSpectrum (𝓞 F))} (hT : T ⊆ T') :
+    adelePrincipalValue F T' =
+      (adelePrincipalValue F T).comp (adelePrincipalValue F (T' \ T)) := by
+  refine divisorialThetaStage_antitone_extTail (sAdeleTailSchwartz_inductiveTensor_equiv F T').choose _ _ fun a b ↦ ?_
+  have h1 := adelePrincipalValue_tmul (F := F) (Finset.Subset.refl T') a b
+  have h2 := adelePrincipalValue_tmul (F := F) (Finset.sdiff_subset (s := T') (t := T)) a b
+  have h3 := adelePrincipalValue_tmul (F := F) hT
+    (sAdelePrincipalValue F (Finset.sdiff_subset (s := T') (t := T)) a) b
+  refine h1.trans ?_
+  refine Eq.trans ?_ (LinearMap.comp_apply _ _ _).symm
+  refine Eq.trans ?_ (congrArg (adelePrincipalValue F T) h2.symm)
+  refine Eq.trans ?_ h3.symm
+  apply congrArg
+  apply congrArg₂ _ _ rfl
+  exact (LinearMap.ext_iff.mp (divisorialThetaStage_antitone_sPV hT) a).trans (LinearMap.comp_apply _ _ _)
+
+/-- A factorization through a map preserving the submodule gives inclusion of images
+after applying the quotient map. -/
+private theorem divisorialThetaStage_antitone_range {A β : Type*} [AddCommMonoid A] [Module ℂ A]
+    (B : Submodule ℂ A) (Φ : B → β) (L L' R : A → A)
+    (h : ∀ f : B, L f.val ∈ B) (h' : ∀ f : B, L' f.val ∈ B) (hR : ∀ f : B, R f.val ∈ B)
+    (hc : ∀ f : B, L (R f.val) = L' f.val) :
+    Set.range (fun f : B ↦ Φ ⟨L' f.val, h' f⟩) ⊆ Set.range (fun f : B ↦ Φ ⟨L f.val, h f⟩) := by
+  rintro _ ⟨f, rfl⟩
+  exact ⟨⟨R f.val, hR f⟩, congrArg Φ (Subtype.ext (hc f))⟩
+
 /-- Paper: (11.3.1.3), p. 494. Adding places decreases the principal-value image
 of the polar theta space. -/
 theorem divisorialThetaStage_antitone (ω : PontryaginDual C₁) :
-    Antitone (divisorialThetaStage ω) := by sorry
+    Antitone (divisorialThetaStage ω) := by
+  intro T T' hTT'
+  have hP : ∀ f : P, adelePrincipalValue F T (adelePrincipalValue F (T' \ T) f.val) =
+      adelePrincipalValue F T' f.val := fun f ↦
+    ((LinearMap.ext_iff.mp (divisorialThetaStage_antitone_PV hTT') f.val).trans
+      (LinearMap.comp_apply _ _ _)).symm
+  unfold divisorialThetaStage
+  exact Submodule.span_mono (divisorialThetaStage_antitone_range P
+    (fun f : P ↦ (Submodule.Quotient.mk f : Θ(ω)))
+    (adelePrincipalValue F T) (adelePrincipalValue F T') (adelePrincipalValue F (T' \ T))
+    (adelePrincipalValue_mem_polarSubspace T) (adelePrincipalValue_mem_polarSubspace T')
+    (adelePrincipalValue_mem_polarSubspace (T' \ T)) hP)
 
 /-- Paper: (11.3.1.3), p. 494, and (7.4.0.2), p. 366. At the fibre over one
 rational prime the stage is the finite-place denominator of §7.4, so the first

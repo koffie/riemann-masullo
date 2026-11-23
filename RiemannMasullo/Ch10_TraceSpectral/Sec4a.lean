@@ -9,8 +9,12 @@ public import Mathlib.Topology.Algebra.Module.ContinuousLinearMap.Quotient
 public import Mathlib.Topology.Algebra.Module.Spaces.WeakBilin
 public import Mathlib.Topology.Algebra.Module.Spaces.WeakDual
 public import Mathlib.Topology.Compactness.Compact
+import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import all RiemannMasullo.Ch10_TraceSpectral.Sec3
 import all RiemannMasullo.AppC_LCTVS.Sec3a
+import all RiemannMasullo.AppC_LCTVS.Sec3a_part2
+import Mathlib.MeasureTheory.Integral.DominatedConvergence
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
 
 /-!
@@ -402,6 +406,208 @@ theorem truncatedConvolution_trace_split (hρ : IsModulatedCutoff m𝔽 Λ ε ρ
     exact (hL (g + s')).symm.trans ((L.map_add g s').trans (congrArg₂ (· + ·) (hL g) (hL s')))
   exact addTrace (H := ↥W₀) T G S heq hG hS
 
+/-- The weighted L² norm squared is the integral of the squared pointwise norm. -/
+private theorem spectralTruncatedConvolution_trace_tendsto_norm_sq (X : Type*) [MeasurableSpace X] (ν : Measure X) (v : Lp ℂ 2 ν) :
+    ‖v‖ ^ 2 = ∫ x, ‖v x‖ ^ 2 ∂ν := by
+  rw [norm_sq_eq_re_inner (𝕜 := ℂ), L2.inner_def]
+  rw [← integral_re]
+  congr 1
+  funext x
+  exact (norm_sq_eq_re_inner (𝕜 := ℂ) (v x)).symm
+  exact L2.integrable_inner v v
+
+/-- Bounded pointwise-convergent multiplier symbols give strong convergence on L². -/
+private theorem spectralTruncatedConvolution_trace_tendsto_multiplier (X : Type*) [MeasurableSpace X] (ν : Measure X)
+    (σ : ℝ → X → ℝ) (hσ : ∀ R, Measurable (σ R)) (hbound : ∀ R x, |σ R x| ≤ 1)
+    (hlim : ∀ x, Tendsto (fun R ↦ σ R x) atTop (𝓝 1))
+    (P : ℝ → Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν)
+    (hP : ∀ R u, (P R u : X → ℂ) =ᵐ[ν] fun x ↦ (σ R x : ℂ) * u x) :
+    ∀ u, Tendsto (fun R ↦ P R u) atTop (𝓝 u) := by
+  intro u
+  let f (R : ℝ) (x : X) : ℂ := (σ R x : ℂ) * u x - u x
+  have hfbound (R : ℝ) (x : X) : ‖f R x‖ ≤ 2 * ‖u x‖ := by
+    calc
+      ‖f R x‖ ≤ ‖(σ R x : ℂ) * u x‖ + ‖u x‖ := norm_sub_le _ _
+      _ = |σ R x| * ‖u x‖ + ‖u x‖ := by rw [norm_mul, Complex.norm_real, Real.norm_eq_abs]
+      _ ≤ 2 * ‖u x‖ := by nlinarith [hbound R x, norm_nonneg (u x)]
+  have hint : Integrable (fun x ↦ 4 * ‖u x‖ ^ 2) ν := by
+    exact ((memLp_two_iff_integrable_sq_norm (Lp.aestronglyMeasurable u)).mp (Lp.memLp u)).const_mul 4
+  have hconv : Tendsto (fun R ↦ ∫ x, ‖f R x‖ ^ 2 ∂ν) atTop (𝓝 0) := by
+    have hh := tendsto_integral_filter_of_dominated_convergence (l := (atTop : Filter ℝ))
+      (F := fun R : ℝ ↦ fun x : X ↦ ‖f R x‖ ^ 2) (f := fun _ : X ↦ (0 : ℝ)) (fun x ↦ 4 * ‖u x‖ ^ 2)
+      (Filter.Eventually.of_forall (fun R ↦ ((((Complex.measurable_ofReal.comp (hσ R)).aestronglyMeasurable.mul
+        (Lp.aestronglyMeasurable u)).sub (Lp.aestronglyMeasurable u)).norm.pow 2)))
+      (Filter.Eventually.of_forall (fun R ↦ Filter.Eventually.of_forall (fun x ↦ by
+        change ‖‖f R x‖ ^ 2‖ ≤ 4 * ‖u x‖ ^ 2
+        rw [Real.norm_of_nonneg (sq_nonneg _)]
+        nlinarith [hfbound R x, norm_nonneg (f R x), norm_nonneg (u x)]))) hint
+      (Filter.Eventually.of_forall (fun x ↦ ?_))
+    · simpa using hh
+    · have hh := ((Complex.continuous_ofReal.tendsto 1).comp (hlim x)).mul
+        (tendsto_const_nhds : Tendsto (fun _ : ℝ ↦ u x) atTop (𝓝 (u x)))
+      have hh' : Tendsto (fun R ↦ f R x) atTop (𝓝 0) := by
+        simpa [f] using hh.sub (tendsto_const_nhds : Tendsto (fun _ : ℝ ↦ u x) atTop (𝓝 (u x)))
+      simpa using hh'.norm.pow 2
+  have heq (R : ℝ) : ‖P R u - u‖ ^ 2 = ∫ x, ‖f R x‖ ^ 2 ∂ν := by
+    rw [spectralTruncatedConvolution_trace_tendsto_norm_sq]
+    apply integral_congr_ae
+    filter_upwards [hP R u, Lp.coeFn_sub (P R u) u] with x hx hsub
+    rw [hsub]
+    change ‖P R u x - u x‖ ^ 2 = ‖f R x‖ ^ 2
+    rw [hx]
+  have hsquare : Tendsto (fun R ↦ ‖P R u - u‖ ^ 2) atTop (𝓝 0) := by simpa only [heq] using hconv
+  apply tendsto_iff_norm_sub_tendsto_zero.mpr
+  simpa using hsquare.sqrt
+
+/-- Expanding cutoffs extend to a contractive family converging strongly to the identity. -/
+private theorem spectralTruncatedConvolution_trace_tendsto_family
+    (G : Type*) [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] [SecondCountableTopology G] [MeasurableSpace G] [BorelSpace G] (m : G →ₜ* ℝ≥0ˣ) (ν : Measure G)
+    (ε : ℝ → ℝ) (ρ : ℝ → G → ℝ)
+    (hε : Tendsto (fun R ↦ ε R * R) atTop (𝓝 0))
+    (hρ : ∀ᶠ R in atTop, IsModulatedCutoff m R (ε R) (ρ R) ∧
+      0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R) :
+    ∃ P : ℝ → Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν,
+      (∀ R, ‖P R‖ ≤ 1) ∧ (∀ u, Tendsto (fun R ↦ P R u) atTop (𝓝 u)) ∧
+      ∀ R (hcut : IsModulatedCutoff m R (ε R) (ρ R)), P R = modulatedCutoffOperator m ν hcut := by
+  classical
+  have heps : Tendsto ε atTop (𝓝 0) := by
+    have hh := hε.mul tendsto_inv_atTop_zero
+    apply (show Tendsto (fun R ↦ (ε R * R) * R⁻¹) atTop (𝓝 0) from by simpa using hh).congr'
+    filter_upwards [eventually_gt_atTop (0 : ℝ)] with R hR
+    field_simp
+  have hl : Tendsto (fun R ↦ R⁻¹ + ε R) atTop (𝓝 0) := by simpa using tendsto_inv_atTop_zero.add heps
+  have hu : Tendsto (fun R ↦ R - ε R) atTop atTop := by
+    apply tendsto_atTop.mpr
+    intro b
+    filter_upwards [heps.eventually (gt_mem_nhds (show (0 : ℝ) < 1 by norm_num)),
+      eventually_ge_atTop (b + 1)] with R he hR
+    linarith
+  have hrholim (x : G) : Tendsto (fun R ↦ ρ R x) atTop (𝓝 1) := by
+    have hx : 0 < ((m x).val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+    apply tendsto_const_nhds.congr'
+    filter_upwards [hρ, hl.eventually (gt_mem_nhds hx), hu.eventually_ge_atTop ((m x).val : ℝ)] with R hcut hleft hright
+    exact (hcut.1.eq_one ⟨hleft.le, hright⟩).symm
+  let σ (R : ℝ) : G → ℝ := if h : IsModulatedCutoff m R (ε R) (ρ R) then ρ R else 1
+  let P (R : ℝ) : Lp ℂ 2 ν →L[ℂ] Lp ℂ 2 ν :=
+    if h : IsModulatedCutoff m R (ε R) (ρ R) then modulatedCutoffOperator m ν h else 1
+  have hσ (R : ℝ) : Measurable (σ R) := by
+    dsimp only [σ]
+    split_ifs with h
+    · exact h.measurable
+    · exact measurable_const
+  have hσbound (R : ℝ) (x : G) : |σ R x| ≤ 1 := by
+    dsimp only [σ]
+    split_ifs with h
+    · exact h.abs_le_one x
+    · norm_num
+  have hσlim (x : G) : Tendsto (fun R ↦ σ R x) atTop (𝓝 1) := by
+    apply (hrholim x).congr'
+    filter_upwards [hρ] with R hR
+    simp [σ, hR.1]
+  have hPrep (R : ℝ) (u : Lp ℂ 2 ν) : (P R u : G → ℂ) =ᵐ[ν] fun x ↦ (σ R x : ℂ) * u x := by
+    by_cases h : IsModulatedCutoff m R (ε R) (ρ R)
+    · simpa only [P, σ, dite_eq_left h] using modulatedCutoffOperator_apply m ν h u
+    · simp only [P, σ, dite_eq_right h]
+      filter_upwards with x
+      simp
+  refine ⟨P, ?_, spectralTruncatedConvolution_trace_tendsto_multiplier G ν σ hσ hσbound hσlim P hPrep, ?_⟩
+  · intro R
+    dsimp only [P]
+    split_ifs with h
+    · exact (exists_lpCutoffMultiplier ν (ρ R) h.measurable h.abs_le_one).choose_spec.1
+    · exact ContinuousLinearMap.norm_id_le
+  · intro R hcut
+    exact dite_eq_left hcut
+
+/-- A uniformly bounded strongly null family kills a nuclear operator in trace norm. -/
+private theorem spectralTruncatedConvolution_trace_tendsto_null
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (Q : ℝ → H →L[ℂ] H) (hQ : ∀ x, Tendsto (fun R ↦ Q R x) atTop (𝓝 0))
+    (hbound : ∀ R, ‖Q R‖ ≤ 2) (T : nuclearEndomorphisms H) :
+    Tendsto (fun R ↦ traceNorm ⟨Q R * T.val, mul_mem_nuclearEndomorphisms_left (Q R) T⟩) atTop (𝓝 0) := by
+  let product (R : ℝ) (A : nuclearEndomorphisms H) : nuclearEndomorphisms H :=
+    ⟨Q R * A.val, mul_mem_nuclearEndomorphisms_left (Q R) A⟩
+  let : Norm (nuclearEndomorphisms H) := ⟨traceNorm⟩
+  have hcore := (traceNorm_normedSpaceCore (H := H)).toCore
+  have hnonneg (A : nuclearEndomorphisms H) : 0 ≤ traceNorm A := hcore.norm_nonneg A
+  refine Metric.tendsto_nhds.mpr fun ε hε ↦ ?_
+  obtain ⟨z, hz⟩ := exists_tensorToFiniteRank_traceNorm_sub_lt T (by positivity : 0 < ε / 4)
+  let F : nuclearEndomorphisms H :=
+    ⟨tensorToFiniteRank z, tensorToFiniteRank_mem_nuclearEndomorphisms z⟩
+  obtain ⟨_, hF⟩ := tendsto_traceNorm_mul_finiteRank Q hQ F.val (finiteDimensional_range_tensorToFiniteRank z)
+  have hF' : Tendsto (fun R ↦ traceNorm (product R F)) atTop (𝓝 0) := hF
+  filter_upwards [Metric.tendsto_nhds.mp hF' (ε / 2) (half_pos hε)] with R hR
+  have hsplit : product R T = product R (T - F) + product R F := by
+    apply Subtype.ext
+    simp [product, mul_sub]
+  have hle : traceNorm (product R (T - F)) ≤ 2 * traceNorm (T - F) :=
+    (traceNorm_mul_left_le (Q R) (T - F)).trans
+      (mul_le_mul_of_nonneg_right (hbound R) (hnonneg (T - F)))
+  have htriangle : traceNorm (product R T) ≤
+      traceNorm (product R (T - F)) + traceNorm (product R F) := by
+    rw [hsplit]
+    exact hcore.norm_triangle _ _
+  rw [Real.dist_eq, sub_zero, abs_of_nonneg (hnonneg (product R F))] at hR
+  rw [Real.dist_eq, sub_zero, abs_of_nonneg (hnonneg (product R T))]
+  change traceNorm (T - F) < ε / 4 at hz
+  linarith
+
+/-- Contractive strong approximation of the identity preserves nuclear traces. -/
+private theorem spectralTruncatedConvolution_trace_tendsto_strong
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (P : ℝ → H →L[ℂ] H) (hP : ∀ x, Tendsto (fun R ↦ P R x) atTop (𝓝 x))
+    (hbound : ∀ R, ‖P R‖ ≤ 1) (T : nuclearEndomorphisms H) :
+    Tendsto (fun R ↦ hilbertTrace ⟨P R * T.val, mul_mem_nuclearEndomorphisms_left (P R) T⟩)
+      atTop (𝓝 (hilbertTrace T)) := by
+  let Q : ℝ → H →L[ℂ] H := fun R ↦ P R - 1
+  have hQ : ∀ x, Tendsto (fun R ↦ Q R x) atTop (𝓝 0) := by
+    intro x
+    simpa [Q] using (hP x).sub (tendsto_const_nhds : Tendsto (fun _ : ℝ ↦ x) atTop (𝓝 x))
+  have hQbound (R : ℝ) : ‖Q R‖ ≤ 2 := by
+    have hid : ‖(1 : H →L[ℂ] H)‖ ≤ 1 := ContinuousLinearMap.norm_id_le
+    exact (norm_sub_le (P R) 1).trans (by linarith [hbound R])
+  let A (R : ℝ) : nuclearEndomorphisms H := ⟨Q R * T.val, mul_mem_nuclearEndomorphisms_left (Q R) T⟩
+  let B (R : ℝ) : nuclearEndomorphisms H := ⟨P R * T.val, mul_mem_nuclearEndomorphisms_left (P R) T⟩
+  have hn : Tendsto (fun R ↦ traceNorm (A R)) atTop (𝓝 0) :=
+    spectralTruncatedConvolution_trace_tendsto_null H Q hQ hQbound T
+  have hnorm : Tendsto (fun R ↦ ‖hilbertTrace (A R)‖) atTop (𝓝 0) :=
+    squeeze_zero (fun R ↦ norm_nonneg _) (fun R ↦ norm_hilbertTrace_le (A R)) hn
+  obtain ⟨L, hL⟩ := hilbertTrace_linear (H := H)
+  have heq (R : ℝ) : hilbertTrace (B R) - hilbertTrace T = hilbertTrace (A R) := by
+    have hAB : A R = B R - T := by apply Subtype.ext; simp [A, B, Q, sub_mul]
+    rw [hAB, ← hL, ← hL, ← hL, map_sub]
+  apply tendsto_iff_norm_sub_tendsto_zero.mpr
+  change Tendsto (fun R ↦ ‖hilbertTrace (B R) - hilbertTrace T‖) atTop (𝓝 0)
+  simpa only [heq] using hnorm
+
+/-- Strong cutoff convergence and cyclicity identify the limit with the quotient trace. -/
+private theorem spectralTruncatedConvolution_trace_tendsto_factored
+    (E F : Type*) [NormedAddCommGroup E] [InnerProductSpace ℂ E] [CompleteSpace E]
+    [NormedAddCommGroup F] [InnerProductSpace ℂ F] [CompleteSpace F]
+    [PolynormableSpace ℂ E] [PolynormableSpace ℂ F]
+    (J : E →L[ℂ] F) (hJ : Injective J) (Q : F →L[ℂ] E)
+    (hQJ : Q.comp J = ContinuousLinearMap.id ℂ E) (A : E →L[ℂ] E) (hA : IsNuclearOperator A)
+    (P : ℝ → F →L[ℂ] F) (hP : ∀ x, Tendsto (fun R ↦ P R x) atTop (𝓝 x))
+    (hbound : ∀ R, ‖P R‖ ≤ 1) :
+    ∃ hB : IsNuclearOperator (J.comp (A.comp Q)),
+      Tendsto (fun R ↦ hilbertTrace ⟨P R * (J.comp (A.comp Q)),
+        mul_mem_nuclearEndomorphisms_left (P R) ⟨_, hB⟩⟩) atTop (𝓝 (hilbertTrace ⟨A, hA⟩)) := by
+  have hAQ : IsNuclearOperator (A.comp Q) := by
+    simpa using isNuclearOperator_comp_comp hA Q (ContinuousLinearMap.id ℂ E) injective_id
+  have hrev : (A.comp Q).comp J = A := by
+    rw [ContinuousLinearMap.comp_assoc, hQJ, ContinuousLinearMap.comp_id]
+  have hn := isNuclearOperator_factor_comps J hJ (A.comp Q) hAQ
+  have ht : hilbertTrace ⟨J.comp (A.comp Q), hn.2⟩ = hilbertTrace ⟨A, hA⟩ := by
+    rw [hilbertTrace_eq_nuclearTrace, hilbertTrace_eq_nuclearTrace]
+    have ht := nuclearTrace_factor_comps (hilbert_approximationProperty (H := E))
+      (hilbert_approximationProperty (H := F)) J hJ (A.comp Q) hAQ
+    simpa only [hrev] using ht.symm
+  refine ⟨hn.2, ?_⟩
+  have hh := spectralTruncatedConvolution_trace_tendsto_strong F P hP hbound ⟨_, hn.2⟩
+  rw [ht] at hh
+  exact hh
+
 /-- Paper: Theorem 10.4.2.2, p. 460. As the cutoff radius tends to infinity
 with width times radius tending to zero, the trace of projection after
 convolution tends to the quotient convolution trace.
@@ -416,7 +622,132 @@ theorem spectralTruncatedConvolution_trace_tendsto (φ : BruhatCompactSupport C�
       (∀ᶠ R in atTop, ∃ hcut : IsModulatedCutoff m𝔽 R (ε R) (ρ R),
         let T := spectralTruncatedConvolution a hα hs hcut φ
         ∃ hT : IsNuclearOperator T, traces R = hilbertTrace (H := W₀) ⟨T, hT⟩) ∧
-      Tendsto traces atTop (𝓝 (hilbertTrace (H := H₀) ⟨Aₛ(φ), hquot⟩)) := by sorry
+      Tendsto traces atTop (𝓝 (hilbertTrace (H := H₀) ⟨Aₛ(φ), hquot⟩)) := by
+  have hfamily : ∃ P : ℝ → W₀ →L[ℂ] W₀,
+      (∀ R, ‖P R‖ ≤ 1) ∧ (∀ u, Tendsto (fun R ↦ P R u) atTop (𝓝 u)) ∧
+      ∀ R (hcut : IsModulatedCutoff m𝔽 R (ε R) (ρ R)), P R = M(hcut) := by
+    with_unfolding_all
+      exact spectralTruncatedConvolution_trace_tendsto_family C𝔽 m𝔽
+        ((μ𝔽).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (logNorm g))) ε ρ _hε _hρ
+  obtain ⟨P, hPbound, hPstrong, hPagree⟩ := hfamily
+  let J := (Θ₀).orthogonal.subtypeL.comp
+    (Θ₀).quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  have hJ : Injective J := Subtype.val_injective.comp (Θ₀).quotientEquivOrthogonal.injective
+  have hQJ : (Qₐ).comp J = ContinuousLinearMap.id ℂ H₀ := by
+    ext x
+    exact (Θ₀).quotientEquivOrthogonal.symm_apply_apply x
+  have hfactor : (Pspec).comp (A(φ)) = J.comp ((Aₛ(φ)).comp Qₐ) :=
+    spectralProjection_convolution_factor (F := F) a hα hs φ
+  clear_value J
+  have hlimit : ∃ hB : IsNuclearOperator (J.comp ((Aₛ(φ)).comp Qₐ)),
+      Tendsto (fun R ↦ hilbertTrace ⟨P R * (J.comp ((Aₛ(φ)).comp Qₐ)),
+        mul_mem_nuclearEndomorphisms_left (P R) ⟨_, hB⟩⟩)
+        atTop (𝓝 (hilbertTrace ⟨Aₛ(φ), hquot⟩)) := by
+    with_unfolding_all
+      exact spectralTruncatedConvolution_trace_tendsto_factored H₀ W₀ J hJ Qₐ hQJ (Aₛ(φ)) hquot P hPstrong hPbound
+  obtain ⟨hB, hlimit⟩ := hlimit
+  refine ⟨fun R ↦ hilbertTrace ⟨P R * (J.comp ((Aₛ(φ)).comp Qₐ)),
+    mul_mem_nuclearEndomorphisms_left (P R) ⟨_, hB⟩⟩, ?_, hlimit⟩
+  filter_upwards [_hρ] with R hR
+  refine ⟨hR.1, spectralTruncatedConvolution_nuclear (F := F) a hα hs hR.1 φ hquot, ?_⟩
+  apply congrArg (hilbertTrace (H := W₀))
+  apply Subtype.ext
+  change (P R).comp (J.comp ((Aₛ(φ)).comp Qₐ)) = _
+  exact (congrArg (fun Z : W₀ →L[ℂ] W₀ ↦ Z.comp (J.comp ((Aₛ(φ)).comp Qₐ))) (hPagree R hR.1)).trans
+    (congrArg (fun Z : W₀ →L[ℂ] W₀ ↦ (M(hR.1)).comp Z) hfactor.symm)
+
+/-- Expanding cutoff windows eventually contain each fixed module value. -/
+private theorem geometricTruncatedConvolution_trace_remainder_tendsto_cutoff
+    (F : Type*) [Field F] [NumberField F]
+    (ε : ℝ → ℝ) (ρ : ℝ → (IdeleClassGroup (𝓞 F) F) → ℝ)
+    (hε : Tendsto (fun R ↦ ε R * R) atTop (𝓝 0))
+    (hρ : ∀ᶠ R in atTop, IsModulatedCutoff (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) R (ε R) (ρ R) ∧
+      0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R) :
+    ∀ x, Tendsto (fun R ↦ ρ R x) atTop (𝓝 1) := by
+  have heps : Tendsto ε atTop (𝓝 0) := by
+    have hh := hε.mul tendsto_inv_atTop_zero
+    apply (show Tendsto (fun R ↦ (ε R * R) * R⁻¹) atTop (𝓝 0) from by simpa using hh).congr'
+    filter_upwards [eventually_gt_atTop (0 : ℝ)] with R hR
+    field_simp
+  have hl : Tendsto (fun R ↦ R⁻¹ + ε R) atTop (𝓝 0) := by simpa using tendsto_inv_atTop_zero.add heps
+  have hu : Tendsto (fun R ↦ R - ε R) atTop atTop := by
+    apply tendsto_atTop.mpr
+    intro b
+    filter_upwards [heps.eventually (gt_mem_nhds (show (0 : ℝ) < 1 by norm_num)),
+      eventually_ge_atTop (b + 1)] with R he hR
+    linarith
+  intro x
+  have hx : 0 < (((⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) x).val : ℝ) := NNReal.coe_pos.mpr (Units.zero_lt _)
+  apply tendsto_const_nhds.congr'
+  filter_upwards [hρ, hl.eventually (gt_mem_nhds hx), hu.eventually_ge_atTop (((⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) x).val : ℝ)] with R hcut hleft hright
+  exact (hcut.1.eq_one ⟨hleft.le, hright⟩).symm
+
+/-- The class measure splits as kernel Haar measure times positive-real Haar measure. -/
+private theorem geometricTruncatedConvolution_trace_remainder_tendsto_normProduct
+    (F : Type*) [Field F] [NumberField F]
+    (τ : ℝ≥0ˣ →ₜ* (IdeleClassGroup (𝓞 F) F)) (hτ : RightInverse τ (ideleClassNorm F)) :
+    (ideleClassTamagawaMeasure F) = ((normOneIdeleClassTamagawaMeasure F).prod positiveRealHaar).map
+      (fun p : (ideleClassNorm F).ker × ℝ≥0ˣ ↦ p.1.val * τ p.2) := by
+  let : BorelSpace ℝ≥0ˣ := borelSpace_units_of_continuousInv₀ _
+  let : SecondCountableTopology ℝ≥0ˣ := Units.isEmbedding_val₀.secondCountableTopology
+  have hc : IsCompact ((ideleClassNorm F).ker : Set (IdeleClassGroup (𝓞 F) F)) :=
+    (isProperMap_ideleClassNorm F).isCompact_preimage isCompact_singleton
+  let : LocallyCompactSpace (ideleClassNorm F).ker := hc.isClosed.locallyCompactSpace
+  let : CompactSpace (ideleClassNorm F).ker := isCompact_iff_compactSpace.mp hc
+  obtain ⟨_, _, hw, hν, hνreg, _, hweil⟩ :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec
+  let : (normOneIdeleClassTamagawaMeasure F).IsHaarMeasure := hν
+  have : SFinite positiveRealHaar := by unfold positiveRealHaar; infer_instance
+  have : IsFiniteMeasure (normOneIdeleClassTamagawaMeasure F) := inferInstance
+  have hprod := normProduct_of_isWeil (ideleClassNorm F) (isProperMap_ideleClassNorm F).continuous
+    τ τ.continuous hτ (ideleClassTamagawaMeasure F) hw.2.1 (normOneIdeleClassTamagawaMeasure F) hνreg hweil
+  let f : ℝ≥0ˣ × (ideleClassNorm F).ker → (IdeleClassGroup (𝓞 F) F) := fun p ↦ τ p.1 * p.2.val
+  have hf : Measurable f := ((τ.continuous.comp continuous_fst).mul
+    (continuous_subtype_val.comp continuous_snd)).measurable
+  have heq : (fun p : (ideleClassNorm F).ker × ℝ≥0ˣ ↦ p.1.val * τ p.2) = f ∘ Prod.swap := by
+    funext p
+    exact mul_comm _ _
+  rw [heq, ← Measure.map_map hf measurable_swap, Measure.prod_swap]
+  exact hprod.symm
+
+/-- The full cutoff convolution trace has its logarithmic main term. -/
+private theorem geometricTruncatedConvolution_trace_remainder_tendsto_total
+    (F : Type*) [Field F] [NumberField F] {α s : ℝ} (hα : 0 ≤ α) (hs : 0 ≤ s)
+    (φ : BruhatCompactSupport (IdeleClassGroup (𝓞 F) F)) (ε : ℝ → ℝ) (ρ : ℝ → (IdeleClassGroup (𝓞 F) F) → ℝ)
+    (hε : Tendsto (fun R ↦ ε R * R) atTop (𝓝 0))
+    (hρ : ∀ᶠ R in atTop, IsModulatedCutoff (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) R (ε R) (ρ R) ∧
+      0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R) :
+    ∃ traces : ℝ → ℂ,
+      (∀ᶠ R in atTop, ∃ hcut : IsModulatedCutoff (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) R (ε R) (ρ R),
+        ∃ hT : IsNuclearOperator (((modulatedCutoffOperator (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) ((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))) hcut).comp ((hardySobolevTestAction (ideleClassTamagawaMeasure F) (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) (-α) α s ((neg_nonpos.mpr hα).trans hα) hs φ))),
+          traces R = hilbertTrace (H := (CompactIntervalSobolev (ideleClassTamagawaMeasure F) (fun g : (IdeleClassGroup (𝓞 F) F) ↦ Real.log ((ideleClassNorm F g).val : ℝ)) (-α) α s)) ⟨((modulatedCutoffOperator (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) ((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))) hcut).comp ((hardySobolevTestAction (ideleClassTamagawaMeasure F) (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) (-α) α s ((neg_nonpos.mpr hα).trans hα) hs φ)), hT⟩) ∧
+      Tendsto (fun R ↦ traces R - ((2 * Real.log R * (normOneIdeleClassTamagawaMeasure F).real univ : ℝ) : ℂ) * φ.val 1)
+        atTop (𝓝 0) := by
+  let q : (AdeleRing (𝓞 F) F)ˣ →ₜ* (IdeleClassGroup (𝓞 F) F) := ⟨QuotientGroup.mk' _, continuous_quotient_mk'⟩
+  let τ : ℝ≥0ˣ →ₜ* (IdeleClassGroup (𝓞 F) F) := q.comp ⟨canonicalIdeleNormSection F, canonicalIdeleNormSection_continuous F⟩
+  have hτ : RightInverse τ (ideleClassNorm F) := canonicalIdeleNormSection_rightInverse F
+  let : (normOneIdeleClassTamagawaMeasure F).IsHaarMeasure :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec.2.2.2.1
+  have hμ := geometricTruncatedConvolution_trace_remainder_tendsto_normProduct F τ hτ
+  have hρlim := geometricTruncatedConvolution_trace_remainder_tendsto_cutoff F ε ρ hε hρ
+  have hφs : IsBruhatSmooth φ.val := (mem_bruhatSmoothSubmodule_iff _).mp φ.property.1
+  have hc := continuous_of_bruhatSmooth hφs
+  have hb := hc.bounded_above_of_compact_support (show HasCompactSupport φ.val from φ.property.2)
+  have hm : IsModulation (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) := ⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩
+  have hconv := hardySobolevConvolution_eq_testAction (ideleClassTamagawaMeasure F) (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) (-α) α s (((neg_nonpos.mpr hα).trans hα)) hs φ hc.aemeasurable hb
+  have hTotExists : ∃ traces : ℝ → ℂ,
+      (∀ᶠ R in atTop, ∃ hcut : IsModulatedCutoff (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) R (ε R) (ρ R),
+        ∃ hT : IsNuclearOperator (((modulatedCutoffOperator (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) ((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))) hcut).comp
+          (hardySobolevConvolution (ideleClassTamagawaMeasure F) (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) (-α) α s (((neg_nonpos.mpr hα).trans hα)) hs φ.val hc.aemeasurable φ.property.2 hb)),
+          traces R = hilbertTrace ⟨((modulatedCutoffOperator (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) ((ideleClassTamagawaMeasure F).withDensity fun g ↦ ENNReal.ofReal (intervalSobolevDensity (-α) α s (Real.log ((ideleClassNorm F g).val : ℝ))))) hcut).comp
+            (hardySobolevConvolution (ideleClassTamagawaMeasure F) (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) (-α) α s (((neg_nonpos.mpr hα).trans hα)) hs φ.val hc.aemeasurable φ.property.2 hb), hT⟩) ∧
+      Tendsto (fun R ↦ traces R - ((2 * Real.log R * (normOneIdeleClassTamagawaMeasure F).real univ : ℝ) : ℂ) * φ.val 1)
+        atTop (𝓝 0) := by
+    with_unfolding_all
+      exact truncatedHardySobolevConvolution_trace_tendsto
+        (ideleClassTamagawaMeasure F) (⟨ideleClassNorm F, (isProperMap_ideleClassNorm F).continuous⟩ : (IdeleClassGroup (𝓞 F) F) →ₜ* ℝ≥0ˣ) (-α) α s (((neg_nonpos.mpr hα).trans hα)) hs φ.val hc.aemeasurable φ.property.2 hb
+        hm hφs τ hτ (normOneIdeleClassTamagawaMeasure F) hμ ε ρ hε hρlim hρ
+  simpa only [hconv] using hTotExists
 
 /-- Paper: Remark 10.4.2.3, p. 460. Subtracting the geometric truncated
 trace from the logarithmic main term gives the quotient trace in the cutoff limit.
@@ -433,7 +764,62 @@ theorem geometricTruncatedConvolution_trace_remainder_tendsto (φ : BruhatCompac
         ∃ hT : IsNuclearOperator T, traces R = hilbertTrace (H := W₀) ⟨T, hT⟩) ∧
       Tendsto (fun R ↦
         ((2 * Real.log R * (normOneIdeleClassTamagawaMeasure F).real univ : ℝ) : ℂ) *
-          φ.val 1 - traces R) atTop (𝓝 (hilbertTrace (H := H₀) ⟨Aₛ(φ), hquot⟩)) := by sorry
+          φ.val 1 - traces R) atTop (𝓝 (hilbertTrace (H := H₀) ⟨Aₛ(φ), hquot⟩)) := by
+  have hTotAction : ∃ traces : ℝ → ℂ,
+      (∀ᶠ R in atTop, ∃ hcut : IsModulatedCutoff m𝔽 R (ε R) (ρ R),
+        ∃ hT : IsNuclearOperator ((M(hcut)).comp (A(φ))),
+          traces R = hilbertTrace (H := W₀) ⟨(M(hcut)).comp (A(φ)), hT⟩) ∧
+      Tendsto (fun R ↦ traces R - ((2 * Real.log R * (normOneIdeleClassTamagawaMeasure F).real univ : ℝ) : ℂ) * φ.val 1)
+        atTop (𝓝 0) := by
+    with_unfolding_all
+      exact geometricTruncatedConvolution_trace_remainder_tendsto_total (F := F) (α := α) (s := s) hα hs φ ε ρ _hε _hρ
+  obtain ⟨total, htotal, hlimtotal⟩ := hTotAction
+  have hSpecExists : ∃ traces : ℝ → ℂ,
+      (∀ᶠ R in atTop, ∃ hcut : IsModulatedCutoff m𝔽 R (ε R) (ρ R),
+        ∃ hT : IsNuclearOperator (spectralTruncatedConvolution a hα hs hcut φ),
+          traces R = hilbertTrace ⟨spectralTruncatedConvolution a hα hs hcut φ, hT⟩) ∧
+      Tendsto traces atTop (𝓝 (hilbertTrace ⟨Aₛ(φ), hquot⟩)) := by
+    with_unfolding_all
+      exact spectralTruncatedConvolution_trace_tendsto (F := F) a hα hs φ hquot ε ρ _hε _hρ
+  obtain ⟨spec, hspec, hlimspec⟩ := hSpecExists
+  refine ⟨fun R ↦ total R - spec R, ?_, ?_⟩
+  · with_unfolding_all
+      filter_upwards [htotal, hspec, _hρ] with R htotalR hspecR hcut
+      obtain ⟨hcutT, hT, ht⟩ := htotalR
+      obtain ⟨hcutS, hS, htS⟩ := hspecR
+      obtain ⟨hT', hG, hS', hsplit⟩ := truncatedConvolution_trace_split (F := F) a hα hs hcut.1 hcut.2 φ hquot
+      refine ⟨hcut.1, hG, ?_⟩
+      apply sub_eq_iff_eq_add.mpr
+      exact ht.trans (hsplit.trans (congrArg (fun z : ℂ ↦ _ + z) htS.symm))
+  · have heq : (fun R ↦
+        ((2 * Real.log R * (normOneIdeleClassTamagawaMeasure F).real univ : ℝ) : ℂ) * φ.val 1 - (total R - spec R)) =
+        (fun R ↦ spec R - (total R - ((2 * Real.log R * (normOneIdeleClassTamagawaMeasure F).real univ : ℝ) : ℂ) * φ.val 1)) := by
+      funext R
+      ring
+    have hh := hlimspec.sub hlimtotal
+    simp only [sub_zero] at hh
+    apply hh.congr'
+    exact Filter.Eventually.of_forall (fun R ↦ (congrFun heq R).symm)
+
+/-- Cyclicity transfers a nuclear trace across a continuous linear section. -/
+private theorem spectralProjection_convolution_trace_transfer
+    (E F : Type*) [NormedAddCommGroup E] [InnerProductSpace ℂ E] [CompleteSpace E]
+    [NormedAddCommGroup F] [InnerProductSpace ℂ F] [CompleteSpace F]
+    [PolynormableSpace ℂ E] [PolynormableSpace ℂ F]
+    (J : E →L[ℂ] F) (hJ : Injective J) (Q : F →L[ℂ] E)
+    (hQJ : Q.comp J = ContinuousLinearMap.id ℂ E) (A : E →L[ℂ] E) (hA : IsNuclearOperator A) :
+    ∃ hB : IsNuclearOperator (J.comp (A.comp Q)),
+      hilbertTrace ⟨J.comp (A.comp Q), hB⟩ = hilbertTrace ⟨A, hA⟩ := by
+  have hAQ : IsNuclearOperator (A.comp Q) := by
+    simpa using isNuclearOperator_comp_comp hA Q (ContinuousLinearMap.id ℂ E) injective_id
+  have hrev : (A.comp Q).comp J = A := by
+    rw [ContinuousLinearMap.comp_assoc, hQJ, ContinuousLinearMap.comp_id]
+  have hn := isNuclearOperator_factor_comps J hJ (A.comp Q) hAQ
+  refine ⟨hn.2, ?_⟩
+  rw [hilbertTrace_eq_nuclearTrace, hilbertTrace_eq_nuclearTrace]
+  have ht := nuclearTrace_factor_comps (hilbert_approximationProperty (H := E))
+    (hilbert_approximationProperty (H := F)) J hJ (A.comp Q) hAQ
+  simpa only [hrev] using ht.symm
 
 /-- Paper: Proposition 10.4.2.4, p. 460. For degree at least three the trace of
 untruncated spectral projection after convolution equals the quotient trace.
@@ -441,7 +827,25 @@ Both operators are nuclear. -/
 theorem spectralProjection_convolution_trace (_hs3 : 3 ≤ s) (φ : BruhatCompactSupport C𝔽) :
     ∃ (hT : IsNuclearOperator ((Pspec).comp (A(φ)))) (hquot : quotientNuclear(φ)),
       hilbertTrace (H := W₀) ⟨(Pspec).comp (A(φ)), hT⟩ =
-        hilbertTrace (H := H₀) ⟨Aₛ(φ), hquot⟩ := by sorry
+        hilbertTrace (H := H₀) ⟨Aₛ(φ), hquot⟩ := by
+  have hquot : quotientNuclear(φ) := spectralStripConvolution_nuclear (F := F) a hα (by linarith) φ
+  let J := (Θ₀).orthogonal.subtypeL.comp
+    (Θ₀).quotientEquivOrthogonal.toContinuousLinearEquiv.toContinuousLinearMap
+  have hJ : Injective J := Subtype.val_injective.comp (Θ₀).quotientEquivOrthogonal.injective
+  have hQJ : (Qₐ).comp J = ContinuousLinearMap.id ℂ H₀ := by
+    ext x
+    exact (Θ₀).quotientEquivOrthogonal.symm_apply_apply x
+  have hfactor : (Pspec).comp (A(φ)) = J.comp ((Aₛ(φ)).comp Qₐ) := spectralProjection_convolution_factor (F := F) a hα hs φ
+  clear_value J
+  have hresult : ∃ hB : IsNuclearOperator (J.comp ((Aₛ(φ)).comp Qₐ)),
+      hilbertTrace ⟨J.comp ((Aₛ(φ)).comp Qₐ), hB⟩ = hilbertTrace ⟨Aₛ(φ), hquot⟩ := by
+    with_unfolding_all exact spectralProjection_convolution_trace_transfer H₀ W₀ J hJ Qₐ hQJ (Aₛ(φ)) hquot
+  obtain ⟨hB, ht⟩ := hresult
+  have hT := spectralProjection_convolution_nuclear (F := F) a hα hs φ hquot
+  refine ⟨hT, hquot, ?_⟩
+  have heq : (⟨(Pspec).comp (A(φ)), hT⟩ : nuclearEndomorphisms W₀) =
+      ⟨J.comp ((Aₛ(φ)).comp Qₐ), hB⟩ := Subtype.ext hfactor
+  exact (congrArg hilbertTrace heq).trans ht
 
 local notation "closedSpan(" u ")" => (Submodule.span ℂ (Set.range u)).topologicalClosure
 

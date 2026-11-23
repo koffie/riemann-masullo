@@ -3,6 +3,8 @@ module
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
+import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.StrongBidual
+import Mathlib.Analysis.Calculus.FDeriv.Mul
 
 /-! # Third Structure Theorem: strong duals and eigendistributions
 
@@ -457,10 +459,48 @@ theorem sLocalEigendistributions_eq_span (c : QuasiCharacter Jₛ) :
     sLocalEigendistributions c =
       Submodule.span ℂ {sLocalNormalizedEigendistribution c} := by sorry
 
+/-- On a Montel space, pointwise holomorphy of a family in the complete strong dual
+implies strong holomorphy, since every bidual functional is an evaluation. -/
+private theorem sLocalNormalizedEigendistribution_holomorphic_pointwise
+    {E : Type*} [AddCommGroup E] [Module ℂ E] [UniformSpace E]
+    [IsUniformAddGroup E] [ContinuousSMul ℂ E] [PolynormableSpace ℂ E] [T2Space E]
+    [MontelSpace ℂ E] [CompleteSpace (StrongDual ℂ E)]
+    [PolynormableSpace ℂ (StrongDual ℂ E)]
+    (T : ℂ → StrongDual ℂ E)
+    (hT : ∀ x : E, DifferentiableOn ℂ (fun z ↦ T z x) univ) :
+    VectorHolomorphicOn T univ := by
+  have : @QuasiCompleteSpace ℂ (StrongDual ℂ E) _
+      (IsTopologicalAddGroup.rightUniformSpace _) _ _ := by
+    convert (inferInstance : QuasiCompleteSpace ℂ (StrongDual ℂ E)) using 1
+    exact IsUniformAddGroup.rightUniformSpace_eq
+  apply WeaklyHolomorphicOn.vectorHolomorphicOn isOpen_univ isConnected_univ
+  intro φ
+  obtain ⟨x, rfl⟩ := surjective_strongBidual_eval (E := E) φ
+  exact hT x
+
 /-- Paper: Theorem 5.5.1.2(1), p. 278.
 The normalized S-local distributions form a holomorphic family on each norm chart. -/
 theorem sLocalNormalizedEigendistribution_holomorphic (χ : PontryaginDual Jₛ) :
-    VectorHolomorphicOn (fun s ↦ sLocalNormalizedEigendistribution (chartₛ(χ) s)) univ := by sorry
+    VectorHolomorphicOn (fun s ↦ sLocalNormalizedEigendistribution (chartₛ(χ) s)) univ := by
+  let : UniformSpace ℬ(Aₛ) := IsTopologicalAddGroup.rightUniformSpace _
+  let : IsUniformAddGroup ℬ(Aₛ) := isUniformAddGroup_of_addCommGroup
+  let : T2Space ℬ(Aₛ) := (sAdeleSchwartz_nuclear.{_, 0} F S).1
+  let : PolynormableSpace ℂ ℬ(Aₛ) := (sAdeleSchwartz_nuclear.{_, 0} F S).2.1
+  let : MontelSpace ℂ ℬ(Aₛ) := (sAdeleSchwartz_montel F S).2
+  let : CompleteSpace D(ℬ(Aₛ)) := sAdeleSchwartz_strongDual_complete F S
+  let : PolynormableSpace ℂ D(ℬ(Aₛ)) := (sAdeleSchwartz_strongDual_nuclear.{_, 0} F S).2.1
+  apply sLocalNormalizedEigendistribution_holomorphic_pointwise
+  intro f
+  let M : ℂ := ↑(∏ v : S, unitMass(v.val))
+  have hM : M ≠ 0 := sLocalNormalizedEigendistribution_mass_ne_zero
+  have he : (fun z ↦ sLocalNormalizedEigendistribution (chartₛ(χ) z) f) =
+      (fun z ↦ M⁻¹ * sLocalNormalizedZFunction f (chartₛ(χ) z)) := by
+    funext z
+    have h := (existsUnique_sLocalNormalizedEigendistribution (chartₛ(χ) z)).exists.choose_spec f
+    change M * sLocalNormalizedEigendistribution (chartₛ(χ) z) f = _ at h
+    rw [← h, ← mul_assoc, inv_mul_cancel₀ hM, one_mul]
+  rw [he]
+  exact (sLocalNormalizedZFunction_entire f χ).differentiableOn.const_mul M⁻¹
 
 /-- Paper: Theorem 5.5.1.2(2), pp. 278–279.
 Each S-local eigendistribution has a unique continuous descent to the theta space.
