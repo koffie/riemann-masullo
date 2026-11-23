@@ -14,6 +14,11 @@ import auto_merge
 REPO_ID = 1
 BASE = "b" * 40          # main when the check ran
 MERGE_BASE = "a" * 40
+
+
+def main_commit(n):
+    """The n-th commit of main, for Main state runs; a later n is a descendant."""
+    return "d" + format(n, "039x")
 LEAN = "RiemannMasullo/AppA/Sec1.lean"
 OLD = "theorem t : True := by\n  sorry\n\nvariable (n : Nat)\n"
 NEW = "theorem t : True := by\n  trivial\n\nvariable (n : Nat)\n"
@@ -103,6 +108,9 @@ class FakeApi:
         if path.startswith("actions/runs?"):
             sha = re.search(r"head_sha=([0-9a-f]+)", path).group(1)
             return dict(workflow_runs=[r for r in self.runs.values() if r["head_sha"] == sha])
+        if m := re.fullmatch(r"compare/(d[0-9a-f]{39})\.\.\.(d[0-9a-f]{39})\?per_page=1", path):
+            older, newer = (int(x, 16) for x in m.groups())
+            return dict(status="ahead" if newer > older else "identical" if newer == older else "behind")
         if m := re.fullmatch(r"compare/([0-9a-f]{40}|main)\.\.\.([0-9a-f]{40})\?per_page=1", path):
             return dict(merge_base_commit=dict(sha=self.merge_bases.get(m.groups(), MERGE_BASE)))
         if m := re.fullmatch(r"compare/([0-9a-f]{40})\.\.\.main\?per_page=1", path):
@@ -113,8 +121,9 @@ class FakeApi:
             return dict(status="ahead", ahead_by=self.main_ahead or len(self.main_files), behind_by=0,
                         files=[dict(filename=f) for f in self.main_files])
         if path.startswith("actions/workflows/main_state.yml/runs?"):
-            assert "branch=main" in path and "status=completed" in path
+            assert "branch=main" in path and "status=" not in path
             return dict(workflow_runs=[dict(dict(status="completed", head_branch="main", event="push",
+                                                 head_sha=main_commit(r["id"]), run_attempt=1,
                                                  repository=dict(id=REPO_ID), head_repository=dict(id=REPO_ID)), **r)
                                        for r in self.main_state])
         if m := re.fullmatch(r"git/trees/([0-9a-f]{40})\?recursive=1", path):
@@ -330,6 +339,62 @@ class AutoMerge(unittest.TestCase):
             self.api.main_state = runs
             self.assertEqual(self.drain() == {}, stopped, runs)
 
+    def stopped(self, runs):
+        self.api = FakeApi()
+        self.api.pull_request(7, {LEAN: (OLD, NEW)})
+        self.api.main_state = runs
+        return self.drain() == {}
+
+    def test_a_failure_is_latched_until_a_success_at_or_after_its_commit(self):
+        failed = dict(id=5, conclusion="failure", created_at="2026-01-01T01:00:00Z")
+        # a success created later, but on an older commit (a re-dispatch of an old run), does not clear it
+        self.assertTrue(self.stopped([failed, dict(id=6, conclusion="success", head_sha=main_commit(4),
+                                                   created_at="2026-01-01T02:00:00Z")]))
+        # nor does a success on a newer commit created before the failure
+        self.assertTrue(self.stopped([failed, dict(id=6, conclusion="success", created_at="2026-01-01T00:30:00Z")]))
+        # nor a newer cancelled run
+        self.assertTrue(self.stopped([failed, dict(id=6, conclusion="cancelled", created_at="2026-01-01T02:00:00Z")]))
+        # a later success on the same commit or a newer one does
+        self.assertFalse(self.stopped([failed, dict(id=6, conclusion="success", head_sha=main_commit(5),
+                                                    created_at="2026-01-01T02:00:00Z")]))
+        self.assertFalse(self.stopped([failed, dict(id=6, conclusion="success", created_at="2026-01-01T02:00:00Z")]))
+        # an older failure stays latched behind a newer, cleared one
+        self.assertTrue(self.stopped([
+            dict(id=3, conclusion="failure", created_at="2026-01-01T00:00:00Z", display_title=auto_merge.FROM_SCRATCH),
+            failed, dict(id=6, conclusion="success", created_at="2026-01-01T02:00:00Z")]))
+
+    def test_an_incremental_success_does_not_clear_a_failure_from_scratch(self):
+        for scratch in (dict(event="schedule"), dict(event="workflow_dispatch", display_title=auto_merge.FROM_SCRATCH)):
+            failed = dict(dict(id=5, conclusion="failure", created_at="2026-01-01T01:00:00Z"), **scratch)
+            self.assertTrue(self.stopped([failed, dict(id=6, conclusion="success", created_at="2026-01-01T02:00:00Z")]))
+            self.assertFalse(self.stopped([failed, dict(dict(id=6, conclusion="success",
+                                                             created_at="2026-01-01T02:00:00Z"), **scratch)]))
+
+    def test_a_pending_re_run_stops_the_line(self):
+        runs = [dict(id=5, status="in_progress", conclusion=None, run_attempt=2, created_at="2026-01-01T01:00:00Z"),
+                dict(id=4, conclusion="success", created_at="2026-01-01T00:00:00Z")]
+        self.assertTrue(self.stopped(runs))
+        runs[0].update(run_attempt=1)        # a new run in progress is no reason to wait
+        self.assertFalse(self.stopped(runs))
+
+    def test_asked_again_before_every_merge(self):
+        self.api.pull_request(7, {LEAN: (OLD, NEW)})
+        self.api.pull_request(8, {"RiemannMasullo/AppB/Sec2.lean": (OLD, NEW)})
+        real = self.api.change
+        def change(what, path, method, body=None):
+            result = real(what, path, method, body)
+            if path == "pulls/7/merge":     # Main state fails while the drain is under way
+                self.api.main_state.append(dict(id=9, conclusion="failure", created_at="2026-01-01T05:00:00Z"))
+            return result
+        self.api.change = change
+        self.assertEqual(self.drain(), {7: "merged", 8: "left waiting: main's build is broken"})
+        self.assertFalse(self.api.did("PUT", r"pulls/8/merge"))
+
+    def test_a_comparison_without_a_file_list_is_not_safe(self):
+        why = auto_merge.Merger.moved(dict(status="ahead", ahead_by=1), {LEAN})
+        self.assertIn("did not list", why)
+        self.assertIsNone(auto_merge.Merger.moved(dict(status="ahead", ahead_by=1, files=[]), {LEAN}))
+
     def test_two_pull_requests_for_one_file_are_not_merged_on_one_check(self):
         self.api.pull_request(7, {LEAN: (OLD, NEW)})
         self.api.pull_request(8, {LEAN: (OLD, OLD.replace("sorry", "exact True.intro"))})
@@ -443,7 +508,7 @@ class Paths(unittest.TestCase):
     def test_what_matters_to_every_check(self):
         for path in ("lakefile.toml", "lean-toolchain", "lake-manifest.json", "scripts/ci/verdict.py",
                      ".github/workflows/pr_check.yml", "Main.lean", "Statements.lean", "RiemannMasullo/External/A.lean",
-                     ".gitattributes", "scripts/ci/base_state.py", "scripts/ci/main_statements.py"):
+                     ".gitattributes", "RiemannMasullo/.gitattributes", "scripts/ci/base_state.py", "scripts/ci/main_statements.py"):
             self.assertTrue(auto_merge.matters_to_everyone(path), path)
         for path in ("RiemannMasullo/AppA/Sec1.lean", "ERRATA.md", "paper/paper.pdf", "prompts/prover.md",
                      "RiemannMasullo/External/ATTRIBUTION.md", ".github/workflows/claims.yml",

@@ -97,19 +97,27 @@ queue and yours, as before. The workflows and `scripts/ci/` are your infrastruct
   in between shows only in `Main state`. That workflow builds `main` incrementally, once for
   however many merges came since its last run, and fails if the build, the lint, the
   `sorry`-in-definitions check or the command-keyword list fails, or if a declaration that its
-  previous saved build had is gone or has a different statement (names beginning `_private.`
-  excepted, new declarations allowed); unlike the check, it does not measure type synonyms.
-  While its newest run on `main` that finished with success or failure is a failure, Auto-merge
-  merges nothing; it starts again by itself once a run on `main` succeeds (a push, the nightly
-  build, `gh workflow run main_state.yml`, or a re-run of a failed run that was only unlucky).
-  A red `Main state` is the signal to revert or repair.
+  previous saved signatures had is gone or has a different statement (names beginning
+  `_private.` excepted, new declarations allowed; a malformed dump fails); unlike the check, it
+  does not measure type synonyms. While some run of it on `main` has failed and no run created
+  later has succeeded on that commit or a newer one, Auto-merge merges nothing, and it asks again
+  before every merge; a failure of a build from scratch (the nightly, or `full`) is cleared only
+  by another build from scratch. It starts again by itself once such a run succeeds (a push, the
+  nightly build, `gh workflow run main_state.yml --ref main [-f full=true]`, or a re-run of a
+  failed run that was only unlucky). A red `Main state` is the signal to revert or repair.
 - When you change or remove statements on `main` on purpose, or update the toolchain or Mathlib
-  (which can change many statement terms), `Main state` fails on the comparison and lists the
-  names in its summary, and nothing is merged automatically until you accept them: check the
-  list, then `gh workflow run main_state.yml -f accept_changed_statements=true`, and read the
-  list that run accepts too: it covers everything since the last saved build. Its dump is the
-  one later runs compare with. The same applies when no previous saved build is left to compare
-  with (saved builds are kept for a day).
+  (which can change many statement terms), `Main state` fails on the comparison, lists every
+  changed name in its summary, and prints the command that accepts exactly those:
+  `gh workflow run main_state.yml --ref main -f accept_baseline=<saved> -f accept_target=<built>
+  -f accept_names='<names>'` (with `-f full=true` when the failed run was from scratch). Check
+  the list against what you meant to change; if it names anything you did not, do not accept:
+  revert or repair that first. The acceptance applies only if that run compares the same saved
+  signatures with a build of the same commit (nothing is auto-merged meanwhile, so `main` stays
+  put unless you merge by hand), and only to the names given: anything else that changed still
+  fails and is listed. Every change, accepted or not, is in that run's summary before anything
+  is uploaded. Its dump is the one later runs compare with. The signatures are kept for two
+  weeks, apart from the build; when there are none to compare with, or they are malformed, a
+  build from scratch starts a new baseline (`-f full=true`, or wait for the nightly).
 - A change to `.github/` or `scripts/` is never merged automatically, and CI runs
   `scripts/ci/selftest.sh` on it. What the workflows defend against is written at the top of
   `scripts/ci/auto_merge.py`; read it before changing either workflow.

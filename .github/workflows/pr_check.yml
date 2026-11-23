@@ -183,3 +183,43 @@ jobs:
         run: |
           echo "See the summary of this run for the reasons."
           exit 1
+
+  # A run that published no verdict (the job ran out of time, or a step broke) would otherwise leave
+  # nothing for Auto-merge to act on, and the pull request would wait for a person. Publish `error`
+  # then: Auto-merge's scheduled runs check it again (MAX_ERROR_ATTEMPTS times).
+  unfinished:
+    name: Leave an unfinished check to be run again
+    needs: verdict
+    if: always() && needs.verdict.result != 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Did this attempt publish a verdict?
+        id: published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          started=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq .run_started_at)
+          ours=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq "[.artifacts[] | select((.name | startswith(\"verdict-\")) and .created_at >= \"$started\")] | length")
+          if [ "$ours" != 0 ]; then echo "a verdict was published"; exit 0; fi
+          mkdir verdict
+          python3 -c 'import json, os; json.dump(dict(schema=1, verdict="error", pr=int(os.environ["PR"]),
+            head_sha=os.environ["HEAD_SHA"], base_sha=os.environ["BASE_SHA"], notes=[],
+            reasons=["the check did not finish (out of time, or a step broke); it is run again"]),
+            open("verdict/verdict.json", "w"), indent=1)'
+          echo "missing=true" >>"$GITHUB_OUTPUT"
+      - name: Publish `error`
+        if: steps.published.outputs.missing == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verdict-error
+          path: verdict/verdict.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 3

@@ -39,11 +39,14 @@ commit ids and the GitHub API alone, this script
 The check is usually against the newest commit of main with a saved build, not main's tip
 (#6414), so nothing builds main's tip with the pull request before it is merged. Two things catch
 what the merges in between do to it, within one build of main: Main state fails when an existing
-statement has changed, and this script merges nothing while the line is stopped (`line_stopped`):
-while the newest Main state run on main that succeeded or failed is one that failed. Verdicts
-wait meanwhile and are looked at again on every run of this workflow (every 15 minutes); the
-line restarts once a Main state run of main succeeds, after a push to main, the nightly build, a
-manual run or a re-run of the failed one. A verdict artifact expires after three days.
+statement has changed, and this script merges nothing while the line is stopped (`line_stopped`,
+asked before the first and before every merge and every new check): while some Main state run on
+main failed and no run created after it has succeeded on that commit or a later one. A failure
+of a build from scratch is cleared only by a build from scratch, so that an incremental build
+cannot hide it; and while a run is being run again, the line waits for it. Verdicts wait
+meanwhile and are looked at again on every run of this workflow (every 15 minutes); the line
+restarts after a push to main, the nightly build, a manual run or a re-run of the failed one,
+once that succeeds. A verdict artifact expires after three days.
 
 One run handles everything that is waiting, one pull request at a time (the workflow allows
 only one run at once), so each merge is judged against a main that includes the previous one.
@@ -81,6 +84,11 @@ MAX_ERROR_ATTEMPTS = 3
 MAX_MERGES = 60           # per run of this script
 # Conclusions of a Main state run that say something about main; others (cancelled, skipped) do not.
 DECISIVE = ("success", "failure", "timed_out", "startup_failure")
+FROM_SCRATCH = "Main state, from scratch"     # the run name main_state.yml gives such a build
+
+
+class LineStopped(Exception):
+    """Main's build is broken: nothing more is merged or checked again in this run."""
 
 
 class ApiError(Exception):
@@ -159,6 +167,8 @@ class Merger:
         self.merged = 0
         self.scanner = plain_proof.Scanner()
         self.stopped = None  # why the line is stopped, if it is
+        self.repo_id = None
+        self.cleared = set() # ids of failed Main state runs a later success has cleared
         run_id = os.environ.get("GITHUB_RUN_ID", "")
         self.url = (f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{api.repo}/actions/runs/{run_id}"
                     if run_id.isdigit() else None)
@@ -238,27 +248,55 @@ class Merger:
         if ahead["status"] == "identical":
             return None
         # GitHub lists at most 300 files; with as many names, `stale` says it cannot tell.
-        names = [n for e in ahead.get("files") or [] for n in (e.get("filename"), e.get("previous_filename"))
+        if not isinstance(ahead.get("files"), list):
+            return "GitHub did not list the files main changed since the check"
+        names = [n for e in ahead["files"] for n in (e.get("filename"), e.get("previous_filename"))
                  if n is not None]
         return stale(ahead["ahead_by"], names, paths, MAX_BEHIND)
 
     def line_stopped(self, repo_id):
-        """Why nothing may be merged now, or None: the newest Main state run on main that succeeded
-        or failed (by creation, so a re-run that succeeds clears its own failure) is one that failed,
-        or there is none among the latest 100 finished runs. One API call."""
+        """Why nothing may be merged now, or None. Among the latest 100 Main state runs on main:
+        a run is being run again (its earlier attempt may have failed); or one failed and no run
+        created after it succeeded on the same commit or a later one (a build from scratch, if
+        the failed one was); or none has finished. One API call, and one per failure the first
+        time it is found cleared by a success on another commit."""
         runs = self.api.call(f"actions/workflows/{MAIN_WORKFLOW}/runs?"
-                             + query(branch=BRANCH, status="completed", per_page=100))["workflow_runs"]
-        decisive = [r for r in runs if r.get("conclusion") in DECISIVE and r.get("head_branch") == BRANCH
-                    and r.get("event") in ("push", "schedule", "workflow_dispatch")
-                    and (r.get("repository") or {}).get("id") == repo_id
-                    and (r.get("head_repository") or {}).get("id") == repo_id]
+                             + query(branch=BRANCH, per_page=100))["workflow_runs"]
+        ours = [r for r in runs if r.get("head_branch") == BRANCH and SHA.fullmatch(str(r.get("head_sha")))
+                and r.get("event") in ("push", "schedule", "workflow_dispatch")
+                and (r.get("repository") or {}).get("id") == repo_id
+                and (r.get("head_repository") or {}).get("id") == repo_id]
+        for run in ours:
+            if run.get("status") != "completed" and run.get("run_attempt", 1) > 1:
+                return f"a run of {MAIN_WORKFLOW} on main ({run.get('html_url') or run['id']}) is being run again"
+        decisive = [r for r in ours if r.get("status") == "completed" and r.get("conclusion") in DECISIVE]
         if not decisive:
             return f"no run of {MAIN_WORKFLOW} on main has finished lately"
-        newest = max(decisive, key=lambda r: (r.get("created_at") or "", r["id"]))
-        if newest["conclusion"] != "success":
-            return (f"the newest run of {MAIN_WORKFLOW} on main ({newest.get('html_url') or newest['id']}) "
-                    f"ended in {newest['conclusion']}")
+        def scratch(run):
+            return run.get("event") == "schedule" or run.get("display_title") == FROM_SCRATCH
+        when = lambda r: (r.get("created_at") or "", r["id"])
+        successes = sorted((r for r in decisive if r["conclusion"] == "success"), key=when, reverse=True)
+        for failed in sorted((r for r in decisive if r["conclusion"] != "success"), key=when, reverse=True):
+            if failed["id"] in self.cleared:
+                continue
+            for success in successes:
+                if when(success) <= when(failed) or (scratch(failed) and not scratch(success)):
+                    continue
+                if success["head_sha"] == failed["head_sha"] or self.api.call(
+                        f"compare/{failed['head_sha']}...{success['head_sha']}?per_page=1").get("status") == "ahead":
+                    self.cleared.add(failed["id"])
+                    break
+            else:
+                return (f"a run of {MAIN_WORKFLOW} on main ({failed.get('html_url') or failed['id']}) ended in "
+                        f"{failed['conclusion']}, and no later run on that commit or a newer one has succeeded"
+                        + (" from scratch" if scratch(failed) else ""))
         return None
+
+    def halt_if_stopped(self):
+        """Ask again before a merge or a new check, since Main state may have failed meanwhile."""
+        why = self.line_stopped(self.repo_id)
+        if why:
+            raise LineStopped(why)
 
     # -- acting -------------------------------------------------------------------------------
 
@@ -278,6 +316,7 @@ class Merger:
             print(f"  could not delete artifact {artifact['id']}: {problem}")
 
     def check_again(self, run, artifact, sha, why, limit=MAX_ATTEMPTS):
+        self.halt_if_stopped()
         if run.get("run_attempt", 1) >= limit:
             self.discard(artifact)
             self.status(sha, "error", f"Not merged automatically: {why}. Checked {limit} times; needs a person.")
@@ -380,6 +419,7 @@ class Merger:
         why = self.moved(ahead, set(paths))
         if why:
             return self.check_again(run, artifact, sha, why)
+        self.halt_if_stopped()
         result = self.merge(number, sha)
         if result is True:
             self.merged += 1
@@ -430,6 +470,7 @@ class Merger:
             return
         given = os.environ.get("GITHUB_REPOSITORY_ID", "")
         repo_id = int(given) if given.isdigit() else self.api.call("")["id"]
+        self.repo_id = repo_id
         stopped = self.line_stopped(repo_id)
         if stopped:
             self.stopped = stopped
@@ -446,6 +487,11 @@ class Merger:
                 break
             try:
                 outcome = self.handle(artifact, pr, repo_id)
+            except LineStopped as stopped:
+                self.stopped = str(stopped)
+                self.rows.append((pr["number"], run["head_sha"], "left waiting: main's build is broken"))
+                print(f"::warning::nothing more is merged while main's build is broken: {stopped}")
+                break
             except ApiError as problem:
                 outcome = f"GitHub API error, left for the next run ({problem})"
                 if problem.status in (401, 403, 429):

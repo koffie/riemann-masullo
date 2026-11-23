@@ -3,12 +3,13 @@
 
     scripts/ci/base_state.py --work DIR --base SHA --out DIR [--artifact ID]
     scripts/ci/base_state.py --choose --work DIR --main SHA --head SHA
+    scripts/ci/base_state.py --signatures --work DIR --base SHA --out DIR
 
 The first form unpacks the build directory of a `main-state` artifact into DIR/.lake/build and,
 when it is for exactly `--base`, writes its signatures to `--out`/signatures-SHA.txt. The artifact
 is `--artifact` if given (it must pass the same tests as below and be for `--base` or one of its
-ancestors), otherwise the one made for exactly `--base` or, failing that, the newest made for an
-ancestor of it. The build is unpacked next to DIR/.lake/build and moved into place only once it
+ancestors), otherwise the one for the newest ancestor of `--base` (itself included) by history,
+as the second form ranks them (`newest`), not the newest upload. The build is unpacked next to DIR/.lake/build and moved into place only once it
 is complete, so a failure leaves no partial build behind. Building main from scratch gives the
 same result; this only saves the time.
 
@@ -47,6 +48,13 @@ request can upload an artifact with any name, but its run belongs to its own bra
 fork, to another repository), and GitHub records that, not the pull request. The Actions cache
 is deliberately not used for this: a pull request can save a cache under any key, and later
 runs of the same pull request would restore it in preference to main's.
+
+The third form is for Main state's statement comparison (main_statements.py). It writes the
+signatures Main state last saved, for the newest ancestor of `--base` by history (`newest`
+again), to `--out`/previous-signatures.txt and their commit to `--out`/previous-signatures.sha,
+and nothing when there are none. They come from the small `main-signatures` artifact, kept for
+14 days (main_state.yml), not from the bulky `main-state` one, which is kept for
+a day: a baseline must outlive a day of failed builds.
 
 This file also holds what decides whether a change on main matters to a verdict, which
 auto_merge.py imports: being under scripts/ci/, a change to it puts every verdict out of date.
@@ -101,7 +109,7 @@ def matters_to_everyone(path):
     """Whether a change to this file on main can change the result of any pull request's check."""
     if path in NON_BUILD_FILES:
         return False
-    if path in BUILD_FILES or path.startswith(BUILD_DIRS):
+    if path in BUILD_FILES or path.startswith(BUILD_DIRS) or path.endswith("/.gitattributes"):
         return True
     return path.endswith(".lean") and not plain_proof.library_file(path)
 
@@ -122,11 +130,11 @@ def stale(behind, moved, ours, limit):
     return None
 
 
-def usable(artifact, repo_id):
-    """The commit a `main-state` artifact is for, if it may be used, or None."""
+def usable(artifact, repo_id, name="main-state"):
+    """The commit a `main-state` (or `name`) artifact is for, if it may be used, or None."""
     run = artifact.get("workflow_run") or {}
     sha = str(run.get("head_sha"))
-    if (artifact.get("name") != "main-state" or artifact.get("expired") or run.get("repository_id") != repo_id
+    if (artifact.get("name") != name or artifact.get("expired") or run.get("repository_id") != repo_id
             or run.get("head_repository_id") != repo_id or run.get("head_branch") != "main"
             or not SHA.fullmatch(sha) or artifact.get("size_in_bytes", MAX_BYTES + 1) > MAX_BYTES):
         return None
@@ -137,12 +145,12 @@ def api(repo, path):
     return json.loads(subprocess.run(["gh", "api", f"repos/{repo}/{path}"], check=True, capture_output=True).stdout)
 
 
-def saved_builds(repo, repo_id):
-    """[(artifact, commit)] of the usable `main-state` artifacts, newest first."""
-    listing = api(repo, "actions/artifacts?name=main-state&per_page=50")
+def saved_builds(repo, repo_id, name="main-state"):
+    """[(artifact, commit)] of the usable `main-state` (or `name`) artifacts, newest first."""
+    listing = api(repo, f"actions/artifacts?name={name}&per_page=50")
     found = []
     for artifact in sorted(listing["artifacts"], key=lambda a: a["created_at"], reverse=True):
-        sha = usable(artifact, repo_id)
+        sha = usable(artifact, repo_id, name)
         if sha:
             found.append((artifact, sha))
     return found
@@ -179,13 +187,21 @@ def usable_base(work, saved, main, head, now):
     return None
 
 
+def newest(work, saved, tip):
+    """The (artifact, commit) of [(artifact, commit)], newest upload first, whose commit is the
+    newest ancestor of `tip` (itself included) by history, the newest upload among several for it;
+    or None. A build of an older commit uploaded late does not displace it."""
+    best = None
+    for artifact, sha in saved:
+        if is_ancestor(work, sha, tip) and (best is None or (sha != best[1] and is_ancestor(work, best[1], sha))):
+            best = (artifact, sha)
+    return best
+
+
 def choose(work, main, head, saved, now=None):
     """(the commit to check `head` against, the saved build to start from or None, why), given
     [(artifact, commit)] of the saved builds, newest first."""
-    best = None
-    for artifact, sha in saved:
-        if is_ancestor(work, sha, main) and (best is None or (sha != best[1] and is_ancestor(work, best[1], sha))):
-            best = (artifact, sha)
+    best = newest(work, saved, main)
     if best is None:
         return main, None, "no saved build of main to check against: checking against main's tip"
     artifact, sha = best
@@ -207,11 +223,7 @@ def restore(work, base, out, repo, repo_id, pinned=None):
             raise SystemExit(f"artifact {pinned} is not a saved build of {base[:12]} or an ancestor of it")
         chosen = (artifact, sha)
     else:
-        chosen = None
-        for artifact, sha in sorted(saved_builds(repo, repo_id), key=lambda c: c[1] != base):   # an exact match first
-            if is_ancestor(work, sha, base):
-                chosen = (artifact, sha)
-                break
+        chosen = newest(work, saved_builds(repo, repo_id), base)
     if not chosen:
         print("no saved state of main to start from; main will be built here")
         return
@@ -249,6 +261,30 @@ def restore(work, base, out, repo, repo_id, pinned=None):
         print(f"starting from the saved build of main at {sha[:12]}, an ancestor of {base[:12]}")
 
 
+def previous_signatures(work, base, out, repo, repo_id):
+    """Write the signatures Main state last saved for an ancestor of `base` (see the module's
+    docstring); return their commit, or None."""
+    chosen = newest(work, saved_builds(repo, repo_id, "main-signatures"), base)
+    if not chosen:
+        print("no saved signatures of main to compare with")
+        return None
+    artifact, sha = chosen
+    archive = out / "main-signatures.zip"
+    with open(archive, "wb") as target:
+        subprocess.run(["gh", "api", f"repos/{repo}/actions/artifacts/{artifact['id']}/zip"],
+                       check=True, stdout=target)
+    with zipfile.ZipFile(archive) as bundle:
+        meta = json.loads(bundle.read("meta.json"))
+        if meta.get("sha") != sha:
+            raise SystemExit(f"artifact {artifact['id']} does not say it is for {sha[:12]}")
+        with bundle.open("signatures.txt") as source, open(out / "previous-signatures.txt", "wb") as target:
+            shutil.copyfileobj(source, target)
+    archive.unlink()
+    (out / "previous-signatures.sha").write_text(sha + "\n")
+    print(f"comparing with the signatures saved for main at {sha[:12]} (artifact {artifact['id']})")
+    return sha
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--work", required=True)
@@ -256,6 +292,7 @@ def main():
     parser.add_argument("--out")
     parser.add_argument("--artifact", type=int)
     parser.add_argument("--choose", action="store_true")
+    parser.add_argument("--signatures", action="store_true")
     parser.add_argument("--main")
     parser.add_argument("--head")
     args = parser.parse_args()
@@ -278,6 +315,9 @@ def main():
         raise SystemExit("--base (a full commit id) and --out are required")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    if args.signatures:
+        previous_signatures(work, args.base, out, repo, repo_id)
+        return 0
     restore(work, args.base, out, repo, repo_id, args.artifact)
     return 0
 

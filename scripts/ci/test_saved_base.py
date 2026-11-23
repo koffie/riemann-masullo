@@ -301,8 +301,10 @@ class Restore(Repo):
         self.listed = False
         out = self.dir / ".out"
         out.mkdir(exist_ok=True)
-        with mock.patch.object(base_state, "api", api), mock.patch.object(base_state.subprocess, "run", run):
+        with mock.patch.object(base_state, "api", api), mock.patch.object(base_state.subprocess, "run", run), \
+                contextlib.redirect_stdout(io.StringIO()) as printed:
             base_state.restore(self.dir, base, out, "o/r", self.REPO_ID, pinned)
+        self.printed = printed.getvalue()
         return out
 
     def test_the_pinned_build_is_used_without_listing_again(self):
@@ -335,6 +337,56 @@ class Restore(Repo):
         self.assertEqual((self.dir / ".lake/build/old").read_text(), "kept")
         self.assertFalse((self.dir / ".lake/build.unpacking").exists())
 
+    def test_unpinned_the_newest_by_history_not_the_newest_upload(self):
+        # second review, item 4: a build from scratch of an older commit uploaded late
+        middle = self.commit({B: PROOF_AFTER})
+        tip = self.commit({"README.md": "y\n"})
+        late = self.artifact(self.saved, 56, created_at="2026-01-02T00:00:00Z")
+        out = self.restore(tip, None, {55: self.artifact(middle), 56: late},
+                           {55: self.bundle(middle), 56: self.bundle(self.saved)})
+        self.assertIn(f"saved build of main at {middle[:12]}", self.printed)
+        self.assertFalse((out / f"signatures-{tip}.txt").exists())
+
+    def signatures(self, base, artifacts, zips):
+        real = subprocess.run
+        def run(cmd, *args, **kwargs):
+            if cmd[0] != "gh":
+                return real(cmd, *args, **kwargs)
+            ident = int(re.search(r"artifacts/(\d+)/zip", cmd[2]).group(1))
+            kwargs["stdout"].write(zips[ident])
+            return subprocess.CompletedProcess(cmd, 0)
+        def api(_repo, path):
+            self.assertIn("name=main-signatures", path)
+            return dict(artifacts=artifacts)
+        out = self.dir / ".sig"
+        out.mkdir(exist_ok=True)
+        with mock.patch.object(base_state, "api", api), mock.patch.object(base_state.subprocess, "run", run), \
+                contextlib.redirect_stdout(io.StringIO()):
+            return base_state.previous_signatures(self.dir, base, out, "o/r", self.REPO_ID), out
+
+    def signatures_zip(self, sha, text):
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, "w") as archive:
+            archive.writestr("meta.json", json.dumps(dict(sha=sha)))
+            archive.writestr("signatures.txt", text)
+        return data.getvalue()
+
+    def test_main_state_compares_with_the_newest_saved_signatures_by_history(self):
+        # second review, items 1 and 4: kept apart from the build, ranked as the chooser ranks
+        middle = self.commit({B: PROOF_AFTER})
+        tip = self.commit({"README.md": "y\n"})
+        artifacts = [dict(self.artifact(self.saved, 56, created_at="2026-01-02T00:00:00Z"), name="main-signatures"),
+                     dict(self.artifact(middle, 55), name="main-signatures"),
+                     self.artifact(tip, 57)]          # a `main-state` artifact: not a baseline
+        sha, out = self.signatures(tip, artifacts, {55: self.signatures_zip(middle, "theorem m 1\n"),
+                                                    56: self.signatures_zip(self.saved, "theorem s 1\n")})
+        self.assertEqual(sha, middle)
+        self.assertEqual((out / "previous-signatures.txt").read_text(), "theorem m 1\n")
+        self.assertEqual((out / "previous-signatures.sha").read_text().strip(), middle)
+        self.assertEqual(self.signatures(tip, [], {})[0], None)
+        with self.assertRaises(SystemExit):        # an artifact whose contents name another commit
+            self.signatures(tip, artifacts[1:2], {55: self.signatures_zip(self.saved, "theorem s 1\n")})
+
     def test_exact_build_brings_its_signatures(self):
         out = self.restore(self.saved, None, {55: self.artifact(self.saved)}, {55: self.bundle(self.saved)})
         self.assertTrue(self.listed)
@@ -343,18 +395,27 @@ class Restore(Repo):
 
 
 class MainStatements(unittest.TestCase):
-    """main_statements.py: Main state fails when an existing statement changed (review item for the owner)."""
+    """main_statements.py: Main state fails when an existing statement changed; acceptances are
+    bound to what was reviewed (second review, items 1, 2 and 5)."""
 
-    def run_on(self, old, new, *flags):
+    P, T = "1" * 40, "2" * 40
+
+    def run_on(self, old, new, *flags, previous=P, target=T):
         with tempfile.TemporaryDirectory() as tmp:
-            (Path(tmp) / "old").write_text(old)
             (Path(tmp) / "new").write_text(new)
+            if old is not None:
+                (Path(tmp) / "old").write_text(old)
+            ids = ["--target", target] + (["--previous-sha", previous] if previous else [])
             with mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ""}), \
                     contextlib.redirect_stdout(io.StringIO()) as printed:
-                status = main_statements.main([*flags, str(Path(tmp) / "old"), str(Path(tmp) / "new")])
+                status = main_statements.main([*ids, *flags, str(Path(tmp) / "old"), str(Path(tmp) / "new")])
         return status, printed.getvalue()
 
+    def accept(self, names, baseline=P, target=T):
+        return ["--accept-baseline", baseline, "--accept-target", target, "--accept-names", names]
+
     OLD = "theorem a 1\ndef b 2 3\ntheorem _private.X.0.c 4\n"
+    CHANGED = "theorem a 9\ndef b 2 4\ntheorem _private.X.0.c 4\n"
 
     def test_additions_and_proofs_are_fine(self):
         self.assertEqual(self.run_on(self.OLD, self.OLD + "theorem d 5\ndef e 6 7\n")[0], 0)
@@ -362,22 +423,53 @@ class MainStatements(unittest.TestCase):
     def test_a_changed_or_removed_statement_fails(self):
         status, printed = self.run_on(self.OLD, "theorem a 9\n" + self.OLD.split("\n", 1)[1])
         self.assertEqual(status, 1)
-        self.assertIn("Changed since the previous saved build: a", printed)
+        self.assertIn("- `a` changed", printed)
         status, printed = self.run_on(self.OLD, "theorem a 1\ntheorem _private.X.0.c 4\n")
         self.assertEqual(status, 1)
-        self.assertIn("Removed since the previous saved build: b", printed)
+        self.assertIn("- `b` removed", printed)
+        self.assertIn(f"-f accept_baseline={self.P} -f accept_target={self.T} -f accept_names=b", printed)
 
     def test_private_definitions_are_exempt_as_in_the_check(self):
         self.assertEqual(self.run_on(self.OLD, "theorem a 1\ndef b 2 3\n")[0], 0)
 
-    def test_nothing_to_compare_with_fails(self):
-        self.assertEqual(self.run_on("", self.OLD)[0], 1)
+    def test_nothing_to_compare_with_fails_unless_built_from_scratch(self):
+        for old, previous in ((None, None), (None, self.P), ("", self.P), ("\n", self.P)):
+            self.assertEqual(self.run_on(old, self.OLD, previous=previous)[0], 1)
+            status, printed = self.run_on(old, self.OLD, "--from-scratch", previous=previous)
+            self.assertEqual(status, 0)
+            self.assertIn("start a new baseline", printed)
 
-    def test_accepted(self):
-        status, printed = self.run_on(self.OLD, "theorem a 9\n", "--accept")
+    def test_a_malformed_dump_is_never_compared(self):
+        for old in ("theorem a 1\ngarbage\n", "theorem a 1\ntheorem b\n", "garbage\n"):
+            status, printed = self.run_on(old, self.OLD)
+            self.assertEqual(status, 1, old)
+            self.assertIn("malformed", printed)
+        # a new dump that is malformed or empty fails even from scratch: it would be the next baseline
+        for new in ("theorem a 1\ngarbage\n", ""):
+            self.assertEqual(self.run_on(self.OLD, new, "--from-scratch")[0], 1)
+            self.assertEqual(self.run_on(None, new, "--from-scratch", previous=None)[0], 1)
+
+    def test_only_the_reviewed_names_at_the_reviewed_commits_are_accepted(self):
+        status, printed = self.run_on(self.OLD, self.CHANGED, *self.accept("a, b"))
         self.assertEqual(status, 0)
-        self.assertIn("Accepted", printed)
-        self.assertEqual(self.run_on("", self.OLD, "--accept")[0], 0)
+        self.assertIn("- `a` changed (accepted)", printed)
+        # a change not on the list still fails, and is shown
+        status, printed = self.run_on(self.OLD, self.CHANGED, *self.accept("a"))
+        self.assertEqual(status, 1)
+        self.assertIn("Not accepted: b", printed)
+        # another baseline or another target: nothing is accepted
+        for baseline, target in ((self.T, self.T), (self.P, self.P), ("", self.T)):
+            status, printed = self.run_on(self.OLD, self.CHANGED, *self.accept("a b", baseline, target))
+            self.assertEqual(status, 1, (baseline, target))
+            self.assertIn("does not apply", printed)
+        # names listed that did not change are reported, not a reason to fail
+        status, printed = self.run_on(self.OLD, self.CHANGED, *self.accept("a b z"))
+        self.assertEqual(status, 0)
+        self.assertIn("Listed but not changed: z", printed)
+
+    def test_a_from_scratch_failure_asks_for_a_from_scratch_acceptance(self):
+        printed = self.run_on(self.OLD, self.CHANGED, "--from-scratch")[1]
+        self.assertIn("main_state.yml --ref main -f full=true -f accept_baseline=", printed)
 
 
 class Workflow(unittest.TestCase):
@@ -393,6 +485,26 @@ class Workflow(unittest.TestCase):
         tip = self.text[self.text.index("id: tip"):self.text.index("name: Publish the verdict")]
         self.assertIn('--base "$MAIN_SHA" --head "$HEAD_SHA"', tip)
         self.assertIn("rm -rf work/.lake/build", tip)
+
+    def test_a_run_that_publishes_no_verdict_leaves_an_error_to_retry(self):
+        # second review, item 9: a job out of time publishes nothing itself
+        job = self.text[self.text.index("  unfinished:"):]
+        self.assertIn("needs: verdict", job)
+        self.assertIn("if: always() && needs.verdict.result != 'success'", job)
+        self.assertIn("name: verdict-error", job)
+        self.assertIn('.created_at >= \\"$started\\"', job)       # only this attempt's verdicts count
+
+
+class MainStateWorkflow(unittest.TestCase):
+    text = (Path(__file__).resolve().parent.parent.parent / ".github/workflows/main_state.yml").read_text()
+
+    def test_signatures_are_kept_apart_for_two_weeks(self):
+        upload = self.text[self.text.index("name: main-signatures"):]
+        self.assertIn("retention-days: 14", upload)
+        self.assertLess(self.text.index("main_statements.py"), self.text.index("uses: actions/upload-artifact"))
+
+    def test_the_run_name_tells_a_build_from_scratch(self):
+        self.assertIn(f"&& '{auto_merge.FROM_SCRATCH}' ||", self.text)
 
 
 class Report(unittest.TestCase):
