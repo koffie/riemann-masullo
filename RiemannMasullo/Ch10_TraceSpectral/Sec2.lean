@@ -1,7 +1,6 @@
 module
 
 public import RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec3a_part2
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec1
 import all RiemannMasullo.Ch09_HardySobolev.Sec2

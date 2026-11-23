@@ -4,8 +4,8 @@ public import Mathlib.NumberTheory.PrimeCounting
 public import RiemannMasullo.Ch11_ShellStructure.Sec2b
 
 import all RiemannMasullo.AppA_AlgebraicNT.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch11_ShellStructure.Sec1a
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch11_ShellStructure.Sec1a
 
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec5
 

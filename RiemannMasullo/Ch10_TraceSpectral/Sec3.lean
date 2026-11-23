@@ -4,7 +4,7 @@ public import RiemannMasullo.Ch10_TraceSpectral.Sec2
 public import RiemannMasullo.AppC_LCTVS.Sec3a_part2
 public import RiemannMasullo.Ch09_HardySobolev.Sec3
 public import Mathlib.Analysis.InnerProductSpace.ProdL2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
 

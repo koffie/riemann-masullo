@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch12_TraceGeometric.Sec1a
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 
 /-!

@@ -9,8 +9,7 @@ public import Mathlib.Topology.Algebra.Module.ContinuousLinearMap.Quotient
 public import Mathlib.Topology.Algebra.Module.Spaces.WeakBilin
 public import Mathlib.Topology.Algebra.Module.Spaces.WeakDual
 public import Mathlib.Topology.Compactness.Compact
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch10_TraceSpectral.Sec3
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.AppC_LCTVS.Sec3a
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
 

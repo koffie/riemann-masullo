@@ -5,7 +5,6 @@ public import RiemannMasullo.Ch11_ShellStructure.Sec2b
 public import RiemannMasullo.AppB_AnalyticNT.Sec4b
 public import RiemannMasullo.Ch06_LocalGlobal.Sec1
 import all RiemannMasullo.AppB_AnalyticNT.Sec4b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # S-local trace calculation
 

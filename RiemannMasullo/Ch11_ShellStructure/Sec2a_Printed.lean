@@ -2,7 +2,7 @@ module
 
 public import RiemannMasullo.Ch11_ShellStructure.Sec2a
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec3a
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # §11.2.0 assertions that are false as printed -/
 

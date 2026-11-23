@@ -4,7 +4,7 @@ public import RiemannMasullo.Ch11_ShellStructure.Sec2a
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec4
 import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
 
 /-! # Sobolev Paley–Wiener levels and orbital nuclearity
 

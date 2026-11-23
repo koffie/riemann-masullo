@@ -3,7 +3,7 @@ module
 public import RiemannMasullo.Ch10_TraceSpectral.Sec2
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.Logic.Equiv.Nat
 

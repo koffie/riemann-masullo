@@ -1,7 +1,7 @@
 module
 
 public import RiemannMasullo.Ch11_ShellStructure.Sec2b
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 /-! # §11.2.1–11.2.2 assertions that are false as printed -/
 
