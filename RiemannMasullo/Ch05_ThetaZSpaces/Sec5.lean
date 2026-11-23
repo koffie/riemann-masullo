@@ -914,12 +914,72 @@ theorem globalThetaPolarValues_snd_translate (g : C𝔽) (x : Θ) :
     globalThetaPolarValues_snd_translate_rep g x
   with_reducible_and_instances exact h
 
+/-- An invariant surjection to two scalars stays surjective on the fixed subspace,
+by dividing the compact average by its nonzero Haar mass. -/
+private theorem globalThetaPolarValues_surjective_on_trivial_isotype_aux
+    {G E : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+    [CompactSpace G] [T2Space G] [MeasurableSpace G] [BorelSpace G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] [IsTopologicalAddGroup E]
+    [T2Space E] [ContinuousSMul ℂ E] [LocallyConvexSpace ℝ E]
+    (μ : MeasureTheory.Measure G) [μ.IsHaarMeasure] (ρ : G →* (E →L[ℂ] E))
+    (A : E →L[ℂ] E) (hA : IsPettisIsotypicAverageOn μ univ ρ 1 A)
+    (P : E →L[ℂ] ℂ × ℂ) (hs : Surjective P) (hi : ∀ g x, P (ρ g x) = P x) :
+    Surjective (fun x : actionIsotype ρ 1 ↦ P x.val) := by
+  have hm : (μ.real univ : ℂ) ≠ 0 := by
+    exact_mod_cast (MeasureTheory.measureReal_univ_pos (μ := μ)).ne'
+  have hP (x : E) : P (A x) = (μ.real univ : ℂ) • P x := by
+    apply Prod.ext
+    · have h := compactActionAverage_dual_apply μ ρ 1 A hA x
+        ((ContinuousLinearMap.fst ℂ ℂ ℂ).comp P)
+      simpa only [ContinuousLinearMap.comp_apply, ContinuousLinearMap.coe_fst',
+        PontryaginDual.one_apply, Circle.coe_one, star_one, one_mul, hi,
+        MeasureTheory.integral_const, Complex.real_smul, Prod.smul_fst, smul_eq_mul] using h
+    · have h := compactActionAverage_dual_apply μ ρ 1 A hA x
+        ((ContinuousLinearMap.snd ℂ ℂ ℂ).comp P)
+      simpa only [ContinuousLinearMap.comp_apply, ContinuousLinearMap.coe_snd',
+        PontryaginDual.one_apply, Circle.coe_one, star_one, one_mul, hi,
+        MeasureTheory.integral_const, Complex.real_smul, Prod.smul_snd, smul_eq_mul] using h
+  intro y
+  obtain ⟨x, hx⟩ := hs ((μ.real univ : ℂ)⁻¹ • y)
+  refine ⟨⟨A x, compactActionAverage_mem_isotype μ ρ 1 A hA x⟩, ?_⟩
+  change P (A x) = y
+  rw [hP, hx, smul_smul, mul_inv_cancel₀ hm, one_smul]
+
 /-- Paper: Lemma 5.5.2.1, p. 280.
 On the trivial norm-one isotype the two polar values can be prescribed independently.
 Deviation: This records the range needed in (6.3.2.5)–(6.3.2.6) on p. 304. -/
 theorem globalThetaPolarValues_surjective_on_trivial_isotype :
     Surjective (fun x : actionIsotype ((ρ𝔽).comp (m𝔽).ker.subtype) 1 ↦
-      globalThetaPolarValues (F := F) x.val) := by sorry
+      globalThetaPolarValues (F := F) x.val) := by
+  let : MeasurableSpace C𝔽 := borel _
+  let : BorelSpace C𝔽 := ⟨rfl⟩
+  let : T2Space (m𝔽).ker := (ideleClassGroup_finiteness F).2.2.1
+  let : CompactSpace (m𝔽).ker := (ideleClassGroup_finiteness F).2.1
+  let μ := normOneIdeleClassTamagawaMeasure F
+  let : μ.IsHaarMeasure :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec.2.2.2.1
+  let : T2Space Θ := globalAdelicThetaSpace_t2_of_isClosed (F := F) adelicTheta_ker_isClosed
+  let : PolynormableSpace ℂ Θ := globalAdelicThetaSpace_polynormable (F := F)
+  let : Module ℝ Θ := Module.restrictScalars ℝ ℂ _
+  let : IsScalarTower ℝ ℂ Θ := IsScalarTower.restrictScalars ℝ ℂ _
+  let : LocallyConvexSpace ℝ Θ := (PolynormableSpace.withSeminorms ℂ Θ).toLocallyConvexSpace
+  let A := (existsUnique_globalThetaIsotypicAverage (F := F) 1).exists.choose
+  have hA := (existsUnique_globalThetaIsotypicAverage (F := F) 1).exists.choose_spec
+  have hs : Surjective (globalThetaPolarValues (F := F)) := by
+    intro y
+    obtain ⟨f, hf⟩ := adelePolarValues_surjective (F := F) y
+    exact ⟨(K𝔽).mkQL f, hf⟩
+  have hi (g : (m𝔽).ker) (x : Θ) :
+      globalThetaPolarValues (F := F) (ρ𝔽 g.val x) = globalThetaPolarValues (F := F) x := by
+    apply Prod.ext
+    · exact globalThetaPolarValues_fst_translate g.val x
+    · rw [globalThetaPolarValues_snd_translate]
+      have hg : m𝔽 g.val = 1 := g.property
+      simp [hg]
+  with_reducible_and_instances
+    exact globalThetaPolarValues_surjective_on_trivial_isotype_aux μ
+      ((ρ𝔽).comp (m𝔽).ker.subtype) A hA (globalThetaPolarValues (F := F)) hs (by
+        simpa only [MonoidHom.comp_apply, Subgroup.subtype_apply] using hi)
 
 /-- The vanishing criterion on norm-one isotypes, for any action and pair of functionals with
 the weights of Lemma 5.5.2.1 and the range on the trivial isotype. -/

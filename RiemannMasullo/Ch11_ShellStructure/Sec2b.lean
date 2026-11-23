@@ -4,7 +4,9 @@ public import RiemannMasullo.Ch11_ShellStructure.Sec2a
 public import RiemannMasullo.Ch10_TraceSpectral.Sec4a
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec4
 import all RiemannMasullo.Ch10_TraceSpectral.Sec1
-import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
+import all RiemannMasullo.AppC_LCTVS.Sec3a_part2
+import RiemannMasullo.Ch09_HardySobolev.Sec3
 
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec1b
 
@@ -293,13 +295,201 @@ theorem absolutePWCondensation_apply_of_mem (a : ℝ) (ω : PontryaginDual C₁)
 local notation "PicTrivial" => Subsingleton (CommRing.Pic ((S : Set V).integer F))
 local notation "Pgeom(" a ", " ω ")" => onIsotype(ω, ambientGeom(a))
 
+/-- Monotone closed levels inside `I`, whose closed union is `K ∩ I`, have compressed projection
+limit when the projection onto `K` preserves `I`. -/
+private theorem absolutePWProjection_tendsto_limit
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (I K : Submodule ℂ H) [CompleteSpace I] [CompleteSpace K]
+    (levels : ℝ → Submodule ℂ I) [∀ i, CompleteSpace (levels i)] (hmono : Monotone levels)
+    (hK : ∀ u : I, K.starProjection (u : H) ∈ I)
+    (hle : ∀ i, levels i ≤ K.comap I.subtype)
+    (hdense : K.comap I.subtype ≤ (⨆ i, levels i).topologicalClosure) (u : I) :
+    Tendsto (fun i ↦ (levels i).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u))) := by
+  have hKc : IsClosed (K : Set H) := (completeSpace_coe_iff_isComplete.mp ‹CompleteSpace K›).isClosed
+  have hclosed : IsClosed (K.comap I.subtype : Set I) := hKc.preimage continuous_subtype_val
+  have hsub : (⨆ i, levels i).topologicalClosure ≤ K.comap I.subtype :=
+    Submodule.topologicalClosure_minimal _ (iSup_le hle) hclosed
+  haveI : CompleteSpace ((⨆ i, levels i).topologicalClosure) :=
+    (Submodule.isClosed_topologicalClosure _).completeSpace_coe
+  have h := Submodule.starProjection_tendsto_closure_iSup levels hmono u
+  let v : I := ⟨K.starProjection (u : H), hK u⟩
+  have hvm : v ∈ (⨆ i, levels i).topologicalClosure :=
+    hdense (Submodule.mem_comap.mpr (K.starProjection_apply_mem (u : H)))
+  have hvo : ∀ w ∈ (⨆ i, levels i).topologicalClosure, inner ℂ ((u : I) - v) w = 0 := by
+    intro w hw
+    rw [Submodule.coe_inner, Submodule.coe_sub]
+    exact Submodule.inner_left_of_mem_orthogonal (Submodule.mem_comap.mp (hsub hw))
+      (K.sub_starProjection_mem_orthogonal (u : H))
+  have hp : (⨆ i, levels i).topologicalClosure.starProjection u =
+      I.orthogonalProjectionOnto (K.starProjection u) := by
+    rw [show K.starProjection (u : H) = (v : H) from rfl,
+      I.orthogonalProjectionOnto_mem_subspace_eq_self]
+    exact Submodule.eq_starProjection_of_mem_of_inner_eq_zero hvm hvo
+  rw [hp] at h
+  exact h
+
+/-- The global absolute levels increase with the box size. -/
+private theorem absolutePWProjection_tendsto_mono (a : ℝ) (ω : PontryaginDual C₁) {Λ Λ' : ℝ}
+    (h : Λ ≤ Λ') :
+    globalAbsolutePWSobolev (F := F) (S := S) hs a ω Λ ≤
+      globalAbsolutePWSobolev (F := F) (S := S) hs a ω Λ' := by
+  have hbox : sLocalPWBox S Λ ⊆ sLocalPWBox S Λ' := fun _ hx ↦
+    ⟨fun w ↦ (hx.1 w).trans h, fun v ↦ (hx.2 v).trans h⟩
+  have htests : sLocalPWTests (S := S) (T := S) le_rfl (sLocalPWBox S Λ) ≤
+      sLocalPWTests (S := S) (T := S) le_rfl (sLocalPWBox S Λ') :=
+    Submodule.map_mono (Submodule.span_mono fun _ hf ↦ ⟨hf.1, hf.2.trans (Set.preimage_mono hbox)⟩)
+  apply Submodule.topologicalClosure_mono (Submodule.span_mono ?_)
+  rintro _ ⟨f, rfl⟩
+  exact ⟨⟨f.val, htests f.2⟩, rfl⟩
+
+/-- An orthogonal projection commutes with an invertible contraction whose inverse is a
+contraction, when both preserve the subspace. -/
+private theorem absolutePWProjection_tendsto_commute
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H]
+    (K : Submodule ℂ H) [K.HasOrthogonalProjection] (U W : H →L[ℂ] H)
+    (hWU : ∀ x, W (U x) = x) (hUW : ∀ x, U (W x) = x)
+    (hU : ∀ x, ‖U x‖ ≤ ‖x‖) (hW : ∀ x, ‖W x‖ ≤ ‖x‖)
+    (hUK : ∀ x ∈ K, U x ∈ K) (hWK : ∀ x ∈ K, W x ∈ K) (x : H) :
+    K.starProjection (U x) = U (K.starProjection x) := by
+  have hiso (y : H) : ‖U y‖ = ‖y‖ := by
+    refine le_antisymm (hU y) ?_
+    have h := hW (U y)
+    rwa [hWU] at h
+  let L : H →ₗᵢ[ℂ] H := { toLinearMap := U.toLinearMap, norm_map' := hiso }
+  apply Submodule.eq_starProjection_of_mem_of_inner_eq_zero (hUK _ (K.starProjection_apply_mem x))
+  intro w hw
+  have h2 : L (x - K.starProjection x) = U x - U (K.starProjection x) := map_sub U _ _
+  have h3 : L (W w) = w := hUW w
+  rw [← h2, ← h3, L.inner_map_map]
+  exact Submodule.inner_left_of_mem_orthogonal (hWK w hw) (K.sub_starProjection_mem_orthogonal x)
+
+/-- A closed subspace preserved by a unitary group action is preserved by its orthogonal
+projection, so the projection preserves every isotype of the action. -/
+private theorem absolutePWProjection_tendsto_isotype
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (G : Type*) [CommGroup G] [TopologicalSpace G] (ρ : G →* (H →L[ℂ] H))
+    (K : Submodule ℂ H) [CompleteSpace K]
+    (hK : ∀ g x, x ∈ K → ρ g x ∈ K)
+    (hU : ∀ g x, ‖ρ g x‖ ≤ ‖x‖) (ω : PontryaginDual G) (u : actionIsotype ρ ω) :
+    K.starProjection (u : H) ∈ actionIsotype ρ ω := by
+  have hinv (g : G) (x : H) : ρ g⁻¹ (ρ g x) = x := by
+    show (ρ g⁻¹ * ρ g) x = x
+    rw [← map_mul, inv_mul_cancel, map_one]
+    rfl
+  have hinv' (g : G) (x : H) : ρ g (ρ g⁻¹ x) = x := by
+    show (ρ g * ρ g⁻¹) x = x
+    rw [← map_mul, mul_inv_cancel, map_one]
+    rfl
+  rw [mem_actionIsotype]
+  intro g
+  have hu : ρ g (u : H) = (ω g : ℂ) • (u : H) := (mem_actionIsotype ρ ω (u : H)).mp u.property g
+  have hc := absolutePWProjection_tendsto_commute H K (ρ g) (ρ g⁻¹) (hinv g) (hinv' g)
+    (hU g) (hU g⁻¹) (hK g) (hK g⁻¹) u
+  change ρ g (K.starProjection (u : H)) = (ω g : ℂ) • K.starProjection (u : H)
+  rw [← hc, hu, map_smul]
+
+/-- Translation by a norm-one idele class has operator norm at most one. -/
+private theorem absolutePWProjection_tendsto_norm (g : C₁) (x : GeoW) :
+    ‖hardySobolevTranslation μ𝔽 m𝔽 (-(0 : ℝ)) 0 s hGeo hs (g : C𝔽) x‖ ≤ ‖x‖ := by
+  have h1 : ideleClassNorm F (g : C𝔽) = 1 := MonoidHom.mem_ker.mp g.property
+  have hlog : Real.log ((((m𝔽) (g : C𝔽)).val : ℝ)) = 0 := by
+    rw [show (m𝔽) (g : C𝔽) = 1 from h1]
+    simp
+  have hb := norm_hardySobolevTranslation_le μ𝔽 m𝔽 (-(0 : ℝ)) 0 s hGeo hs (g : C𝔽)
+  simp only [hlog, neg_zero, zero_mul, mul_zero, Real.exp_zero, max_self, abs_zero,
+    add_zero, Real.one_rpow, one_mul] at hb
+  exact ((hardySobolevTranslation μ𝔽 m𝔽 (-(0 : ℝ)) 0 s hGeo hs (g : C𝔽)).le_of_opNorm_le hb x).trans_eq
+    (one_mul _)
+
+/-- The ambient translation preserves the weighted theta subspace. -/
+private theorem absolutePWProjection_tendsto_action (a : ℝ) (g : C𝔽) (x : GeoW)
+    (hx : x ∈ globalThetaSobolev F a hGeo hs) :
+    hardySobolevTranslation μ𝔽 m𝔽 (-(0 : ℝ)) 0 s hGeo hs g x ∈ globalThetaSobolev F a hGeo hs := by
+  obtain ⟨ρ, hρ, -, -⟩ := exists_globalThetaSobolevAction (F := F) a hGeo hs
+  have h := (ρ g ⟨x, hx⟩).property
+  rw [hρ] at h
+  exact h
+
+/-- The geometric projection maps the chosen isotype into itself, because norm-one
+translations are unitary and preserve the weighted theta subspace. -/
+private theorem absolutePWProjection_tendsto_preservesIsotype (a : ℝ) (ω : PontryaginDual C₁)
+    (u : GeoIsotype(ω)) :
+    ((ambientGeom(a)).comp (GeoIsotype(ω)).subtypeL) u ∈ GeoIsotype(ω) := by
+  let τ := hardySobolevTranslation μ𝔽 m𝔽 (-(0 : ℝ)) 0 s hGeo hs
+  let ρ := τ.comp (ideleClassNorm F).ker.subtype
+  let K : Submodule ℂ GeoW := globalThetaSobolev F a hGeo hs
+  haveI : CompleteSpace K := (Submodule.isClosed_topologicalClosure _).completeSpace_coe
+  have hK (g : C₁) (x : GeoW) (hx : x ∈ K) : ρ g x ∈ K :=
+    absolutePWProjection_tendsto_action (F := F) hs a g x hx
+  have hmem := absolutePWProjection_tendsto_isotype GeoW C₁ ρ K hK
+    (fun g x ↦ absolutePWProjection_tendsto_norm (F := F) hs g x) ω u
+  with_unfolding_all exact hmem
+
+/-- A polar-free homogeneous theta function agrees in the weighted space with the image of
+its class under the inclusion of §10.1. -/
+private theorem absolutePWProjection_tendsto_theta (a : ℝ) (ω : PontryaginDual C₁) (f : Zₛ) :
+    ∃ u : GeoW, u ∈ globalThetaSobolev F a hGeo hs ∧
+      (u : C𝔽 → ℂ) =ᵐ[μ𝔽] globalWeightedTheta(a, ω, f) := by
+  let f₀ : adelePolarSubspace F := ⟨sAdeleSchwartzToGlobal F S f.val,
+    sAdeleSchwartzToGlobal_mem_polarSubspace f⟩
+  let x : globalPolarFreeThetaSubmodule (F := F) ω :=
+    ⟨Submodule.Quotient.mk f₀.val, ⟨f₀.val, f₀.property, rfl⟩⟩
+  obtain ⟨j, -, -, hj⟩ := exists_globalHomogeneousThetaSobolevInclusion
+    (F := F) (a := a) hGeo hs ω
+  have he := (hj f₀ x rfl).2
+  exact ⟨(j x).val.val, (j x).val.property, he⟩
+
+/-- The global absolute levels lie in the weighted theta subspace. -/
+private theorem absolutePWProjection_tendsto_le_theta (a : ℝ) (ω : PontryaginDual C₁) (Λ : ℝ) :
+    globalAbsolutePWSobolev (F := F) (S := S) hs a ω Λ ≤
+      (globalThetaSobolev F a hGeo hs : Submodule ℂ GeoW) := by
+  refine Submodule.topologicalClosure_minimal _ ?_ (Submodule.isClosed_topologicalClosure _)
+  rw [Submodule.span_le]
+  rintro _ ⟨f, rfl⟩
+  obtain ⟨u, hu, he⟩ := absolutePWProjection_tendsto_theta (F := F) (S := S) hs a ω f.val
+  have heq : globalPWThetaSobolevMap (F := F) (S := S) (s := s) a ω f.val = u := by
+    apply Lp.ext
+    exact (withDensity_absolutelyContinuous _ _).ae_le
+      ((globalPWThetaSobolevMap_apply (F := F) (S := S) (s := s) a ω f.val).trans he.symm)
+  change globalPWThetaSobolevMap (F := F) (S := S) (s := s) a ω f.val ∈
+    (globalThetaSobolev F a hGeo hs : Submodule ℂ GeoW)
+  rw [heq]
+  exact hu
+
+/-- Paper: Theorem 11.2.1.2(1) and Proposition 7.3.2.2(1), pp. 352, 488.
+Every vector of the isotype lying in the weighted theta subspace is a limit of vectors
+of the absolute levels.
+Deviation: Use X = Λ and the direct integer-indicator insertion. The printed density of
+Proposition 7.3.2.2(1) uses unit insertion and is refuted (ERRATA F123). -/
+theorem globalThetaSobolev_isotype_le_closure_absLevel (a : ℝ) (ω : PontryaginDual C₁)
+    (_hω : NormOneCharacterUnramifiedOutside ω S) (_hPic : PicTrivial) :
+    (globalThetaSobolev F a hGeo hs : Submodule ℂ GeoW).comap (GeoIsotype(ω)).subtype ≤
+      (⨆ Λ : ℝ, absLevel(a, ω, Λ)).topologicalClosure := by sorry
+
 /-- Paper: Theorem 11.2.1.2(1), p. 488.
 The absolute projections converge strongly to the isotypic geometric projection.
 Deviation: The support assumption on the test function is used in part (2). -/
 theorem absolutePWProjection_tendsto (a : ℝ) (ω : PontryaginDual C₁)
     (_hω : NormOneCharacterUnramifiedOutside ω S) (_hPic : PicTrivial) (u : GeoIsotype(ω)) :
-    Tendsto (fun Λ ↦ absolutePWProjection (F := F) (S := S) hs a ω Λ u) atTop (𝓝 (Pgeom(a, ω) u)) :=
-  by sorry
+    Tendsto (fun Λ ↦ absolutePWProjection (F := F) (S := S) hs a ω Λ u) atTop (𝓝 (Pgeom(a, ω) u)) := by
+  let I : Submodule ℂ GeoW := GeoIsotype(ω)
+  let K : Submodule ℂ GeoW := globalThetaSobolev F a hGeo hs
+  let levels (Λ : ℝ) : Submodule ℂ I := absLevel(a, ω, Λ)
+  haveI : CompleteSpace I := (instClosedSpectralIsotypeSec2 (F := F) hGeo hs ω).completeSpace_coe
+  haveI : CompleteSpace K := (Submodule.isClosed_topologicalClosure _).completeSpace_coe
+  haveI : ∀ Λ, CompleteSpace (levels Λ) := fun Λ ↦
+    (show IsClosed (levels Λ : Set I) from
+      (Submodule.isClosed_topologicalClosure _).preimage continuous_subtype_val).completeSpace_coe
+  have hmono : Monotone levels := fun _ _ h ↦
+    Submodule.comap_mono (absolutePWProjection_tendsto_mono (F := F) (S := S) hs a ω h)
+  have hK (v : I) : K.starProjection (v : GeoW) ∈ I :=
+    absolutePWProjection_tendsto_preservesIsotype (F := F) hs a ω v
+  have hle (Λ : ℝ) : levels Λ ≤ K.comap I.subtype := fun _ hw ↦
+    absolutePWProjection_tendsto_le_theta (F := F) (S := S) hs a ω Λ hw
+  have hdense : K.comap I.subtype ≤ (⨆ Λ, levels Λ).topologicalClosure :=
+    globalThetaSobolev_isotype_le_closure_absLevel (F := F) (S := S) hs a ω _hω _hPic
+  with_unfolding_all exact absolutePWProjection_tendsto_limit GeoW I K levels hmono hK hle hdense u
 
 variable {R ε : ℝ} {ρ : IdeleClassGroup (𝓞 F) F → ℝ}
 
@@ -313,6 +503,162 @@ local notation "productTraceClass(" T ", " P ")" =>
 -- trace class of Mρ A Q. Cutoff convolution Mρ A is already trace class
 -- by §9.3.3 (a larger smooth cutoff can be chosen to cover tsupport ρ).
 
+/-- Every cutoff is absorbed by a larger cutoff satisfying the inner-band condition. -/
+private theorem exists_nuclear_geometricPWRestriction_cover
+    (G : Type*) [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] [SecondCountableTopology G] [MeasurableSpace G] [BorelSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) (R ε : ℝ) (ρ : G → ℝ) (hρ : IsModulatedCutoff m R ε ρ) :
+    ∃ (L d : ℝ) (χ : G → ℝ), IsModulatedCutoff m L d χ ∧
+      (0 < L⁻¹ + d ∧ L⁻¹ + d < L - d) ∧ ∀ x, ρ x * χ x = ρ x := by
+  let L := R + 2
+  let d := L⁻¹ / 4
+  have hL : 2 < L := by dsimp [L]; linarith [hρ.radius_pos]
+  have hLp : 0 < L := by linarith
+  have hd : 0 < d := by dsimp [d]; positivity
+  have hdlt : d < L⁻¹ := by dsimp [d]; nlinarith [inv_pos.mpr hLp]
+  have hinv : L⁻¹ < 1 := inv_lt_one_of_one_lt₀ (by linarith)
+  have hdsmall : d < 1 / 2 := by dsimp [d]; linarith
+  have hplateau : 1 < L - d := by linarith
+  have hprod : 1 ≤ (L⁻¹ + d) * (L - d) := by
+    have hh := mul_nonneg hd.le (show 0 ≤ L - L⁻¹ - d by linarith)
+    nlinarith [inv_mul_cancel₀ hLp.ne']
+  let B : ContDiffBump (0 : ℝ) :=
+    ⟨Real.log (L - d), Real.log L, Real.log_pos hplateau,
+      Real.log_lt_log (by linarith) (by linarith)⟩
+  let r (x : G) : ℝ := (m x).val
+  have hr : Continuous r := NNReal.continuous_coe.comp (Units.continuous_val.comp m.continuous)
+  have hpos (x : G) : 0 < r x := NNReal.coe_pos.mpr (Units.zero_lt _)
+  let χ (x : G) := B (Real.log (r x))
+  have h1 : χ 1 = 1 := by
+    apply B.one_of_mem_closedBall
+    simp [r, B.rIn_pos.le]
+  have hcut : IsModulatedCutoff m L d χ := by
+    refine ⟨hLp, hd, by linarith, by linarith, fun _ ↦ B.nonneg,
+      fun x ↦ (abs_of_nonneg (B.nonneg (x := Real.log (r x)))) ▸ B.le_one,
+      ?_, ?_, ?_, ?_, ?_⟩
+    · exact IsGreatest.csSup_eq ⟨⟨1, h1⟩, forall_mem_range.mpr fun _ ↦ B.le_one⟩
+    · refine ⟨fun t ↦ B (Real.log t), ∅, fun _ ↦ rfl, by simp, ?_, by simp⟩
+      simp only [Finset.coe_empty, sdiff_empty]
+      exact B.contDiff.comp_contDiffOn (fun x hx ↦ (Real.contDiffAt_log.mpr (mem_Ioi.mp hx).ne').contDiffWithinAt)
+    · intro x
+      change B (Real.log ((m x).val : ℝ)) = B (Real.log ((m x⁻¹).val : ℝ))
+      rw [map_inv, Units.val_inv_eq_inv_val, NNReal.coe_inv, Real.log_inv, B.neg]
+    · apply closure_minimal _ (isClosed_Icc.preimage hr)
+      intro x hx
+      have hmem : Real.log (r x) ∈ support B := hx
+      rw [B.support_eq, Metric.mem_ball, Real.dist_eq, sub_zero] at hmem
+      obtain ⟨hl, hu⟩ := abs_lt.mp hmem
+      change L⁻¹ ≤ r x ∧ r x ≤ L
+      rw [← Real.log_le_log_iff (inv_pos.mpr hLp) (hpos x), Real.log_inv,
+        ← Real.log_le_log_iff (hpos x) hLp]
+      exact ⟨hl.le, hu.le⟩
+    · intro x hx
+      apply B.one_of_mem_closedBall
+      rw [Metric.mem_closedBall, Real.dist_eq, sub_zero, abs_le]
+      change -Real.log (L - d) ≤ _ ∧ _ ≤ Real.log (L - d)
+      rw [← Real.log_inv, Real.log_le_log_iff (inv_pos.mpr (by linarith)) (hpos x),
+        Real.log_le_log_iff (hpos x) (by linarith)]
+      change L⁻¹ + d ≤ r x ∧ r x ≤ L - d at hx
+      exact ⟨((inv_le_iff_one_le_mul₀ (by linarith : 0 < L - d)).mpr hprod).trans hx.1, hx.2⟩
+  refine ⟨L, d, χ, hcut, ⟨by positivity, by linarith⟩, ?_⟩
+  intro x
+  by_cases hx : ρ x = 0
+  · simp [hx]
+  have hband := hρ.support_subset (subset_tsupport ρ (mem_support.mpr hx))
+  have hR : R ≤ L - d := by dsimp [L] at *; linarith
+  have hχ : χ x = 1 := by
+    apply B.one_of_mem_closedBall
+    rw [Metric.mem_closedBall, Real.dist_eq, sub_zero, abs_le]
+    change -Real.log (L - d) ≤ _ ∧ _ ≤ Real.log (L - d)
+    rw [← Real.log_inv, Real.log_le_log_iff (inv_pos.mpr (by linarith)) (hpos x),
+      Real.log_le_log_iff (hpos x) (by linarith)]
+    exact ⟨(inv_anti₀ hρ.radius_pos hR).trans hband.1, hband.2.trans hR⟩
+  rw [hχ, mul_one]
+/-- Pointwise absorption of cutoff symbols gives absorption of their L² multipliers. -/
+private theorem exists_nuclear_geometricPWRestriction_absorb
+    (G : Type*) [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] [SecondCountableTopology G] [MeasurableSpace G] [BorelSpace G]
+    (m : G →ₜ* ℝ≥0ˣ) (ν : Measure G) (R ε L d : ℝ) (ρ χ : G → ℝ)
+    (hρ : IsModulatedCutoff m R ε ρ) (hχ : IsModulatedCutoff m L d χ)
+    (hprod : ∀ x, ρ x * χ x = ρ x) :
+    (modulatedCutoffOperator m ν hρ).comp (modulatedCutoffOperator m ν hχ) =
+      modulatedCutoffOperator m ν hρ := by
+  apply ContinuousLinearMap.ext
+  intro u
+  apply Lp.ext
+  filter_upwards [modulatedCutoffOperator_apply m ν hρ (modulatedCutoffOperator m ν hχ u),
+    modulatedCutoffOperator_apply m ν hχ u, modulatedCutoffOperator_apply m ν hρ u] with x hx hx' hy
+  change modulatedCutoffOperator m ν hρ (modulatedCutoffOperator m ν hχ u) x = modulatedCutoffOperator m ν hρ u x
+  rw [hx, hx', hy, ← mul_assoc, ← Complex.ofReal_mul, hprod]
+/-- An admissible cutoff followed by Hardy–Sobolev convolution is nuclear. -/
+private theorem exists_nuclear_geometricPWRestriction_admissible
+    (G : Type*) [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G]
+    [LocallyCompactSpace G] [SecondCountableTopology G] [MeasurableSpace G] [BorelSpace G]
+    (μ : Measure G) [μ.IsHaarMeasure] (m : G →ₜ* ℝ≥0ˣ) (hm : IsModulation m) (hms : Surjective m)
+    (a b s : ℝ) (hab : a ≤ b) (hs : 0 ≤ s) (φ : BruhatCompactSupport G)
+    (L d : ℝ) (χ : G → ℝ) (hχ : IsModulatedCutoff m L d χ)
+    (hband : 0 < L⁻¹ + d ∧ L⁻¹ + d < L - d) :
+    IsNuclearOperator ((modulatedCutoffOperator m
+      (μ.withDensity (fun x ↦ ENNReal.ofReal (intervalSobolevDensity a b s (Real.log ((m x).val : ℝ))))) hχ).comp
+      (hardySobolevTestAction μ m a b s hab hs φ)) := by
+  have hφs : IsBruhatSmooth φ.val := (mem_bruhatSmoothSubmodule_iff _).mp φ.property.1
+  have hc := continuous_of_bruhatSmooth hφs
+  have hb := hc.bounded_above_of_compact_support (show HasCompactSupport φ.val from φ.property.2)
+  obtain ⟨hbig, _, _⟩ := truncatedHardySobolevConvolution_trace μ m a b s hab hs φ.val
+    hc.aemeasurable φ.property.2 hb hm hms hφs hχ hband
+  have hconv := hardySobolevConvolution_eq_testAction μ m a b s hab hs φ hc.aemeasurable hb
+  exact (congrArg (fun U ↦ IsNuclearOperator ((modulatedCutoffOperator m
+      (μ.withDensity (fun x ↦ ENNReal.ofReal (intervalSobolevDensity a b s (Real.log ((m x).val : ℝ))))) hχ).comp U)) hconv).mp hbig
+
+/-- Bounded precomposition and postcomposition preserve nuclearity between Hilbert spaces. -/
+private theorem exists_nuclear_geometricPWRestriction_compress
+    (H J : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    [NormedAddCommGroup J] [InnerProductSpace ℂ J] [CompleteSpace J]
+    (A : H →L[ℂ] H) (hA : IsNuclearOperator A) (S : J →L[ℂ] H) (R : H →L[ℂ] J) :
+    IsNuclearOperator (R.comp (A.comp S)) := by
+  obtain ⟨c, φ, y, hc, hφ, hy, hsum⟩ := (isNuclearOperator_iff_isBanachNuclear A).mp hA
+  let pre := (ContinuousLinearMap.compL ℂ J H ℂ).flip S
+  apply (isNuclearOperator_iff_isBanachNuclear _).mpr
+  refine ⟨c, (fun n ↦ (φ n).comp S), R ∘ y, hc, ?_, ?_, ?_⟩
+  · exact (pre.continuous.tendsto' 0 0 (map_zero pre)).comp hφ
+  · exact (R.continuous.tendsto' 0 0 (map_zero R)).comp hy
+  · intro x
+    simpa only [map_smul, Function.comp_apply, ContinuousLinearMap.comp_apply] using R.hasSum (hsum (S x))
+/-- A vector fixed by a compressed orthogonal projector is fixed by the ambient projector. -/
+private theorem exists_nuclear_geometricPWRestriction_fixed
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (I K : Submodule ℂ H) [CompleteSpace I] [CompleteSpace K] (u : I)
+    (hu : I.orthogonalProjectionOnto (K.starProjection (u : H)) = u) :
+    K.starProjection (u : H) = u := by
+  have hi := congrArg (fun v : I ↦ RCLike.re (inner ℂ v u)) hu
+  rw [Submodule.inner_orthogonalProjectionOnto_eq_of_mem_right,
+    K.re_inner_starProjection_eq_normSq] at hi
+  have hnorm : ‖K.starProjection (u : H)‖ = ‖(u : H)‖ := by
+    have hs : ‖K.starProjection (u : H)‖ ^ 2 = ‖(u : H)‖ ^ 2 := by
+      simpa only [Submodule.starProjection_apply, Submodule.norm_coe, inner_self_eq_norm_sq_to_K, ← RCLike.ofReal_pow, RCLike.ofReal_re] using hi
+    nlinarith [norm_nonneg (K.starProjection (u : H)), norm_nonneg (u : H)]
+  exact K.starProjection_eq_self_iff.mpr ((K.mem_iff_norm_starProjection (u : H)).mpr hnorm)
+/-- The two cutoff composition orders agree on inputs fixed by the compressed geometric projector. -/
+private theorem exists_nuclear_geometricPWRestriction_agree
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (I K : Submodule ℂ H) [CompleteSpace I] [CompleteSpace K]
+    (M A : H →L[ℂ] H)
+    (hAK : K.starProjection.comp (A.comp K.starProjection) = A.comp K.starProjection)
+    (P : I →L[ℂ] I)
+    (hP : (I.orthogonalProjectionOnto.comp (K.starProjection.comp I.subtypeL)) * P = P) :
+    (I.orthogonalProjectionOnto.comp (M.comp (A.comp (K.starProjection.comp I.subtypeL)))) * P =
+      (I.orthogonalProjectionOnto.comp (M.comp (K.starProjection.comp (A.comp I.subtypeL)))) * P := by
+  apply ContinuousLinearMap.ext
+  intro u
+  have hfix := congrArg (fun U : I →L[ℂ] I ↦ U u) hP
+  have hp : K.starProjection (P u : H) = P u := exists_nuclear_geometricPWRestriction_fixed H I K (P u) hfix
+  have ha := congrArg (fun U : H →L[ℂ] H ↦ U (P u)) hAK
+  change K.starProjection (A (K.starProjection (P u : H))) = A (K.starProjection (P u : H)) at ha
+  rw [hp] at ha
+  change I.orthogonalProjectionOnto (M (A (K.starProjection (P u : H)))) = I.orthogonalProjectionOnto (M (K.starProjection (A (P u : H))))
+  rw [hp, ha]
+
+
 /-- Paper: Theorems 11.2.1.2(2) and 11.2.1.4(2), pp. 488–489.
 The cutoff geometric restriction is trace class on the chosen isotype.
 It agrees with cutoff geometric convolution after any map into theta.
@@ -322,10 +668,180 @@ theorem exists_nuclear_geometricPWRestriction (a : ℝ) (ω : PontryaginDual C�
     ∃ T : nuclearEndomorphisms GeoIsotype(ω),
       T.val = onIsotype(ω, geometricRestriction (F := F) a h₀ hs hρ φ) ∧
       ∀ P : GeoIsotype(ω) →L[ℂ] GeoIsotype(ω), Pgeom(a, ω) * P = P →
-        T.val * P = cutoffConv(a, ω, hρ, φ) * P := by sorry
+        T.val * P = cutoffConv(a, ω, hρ, φ) * P := by
+  have hcover : ∃ (L d : ℝ) (χ : C𝔽 → ℝ), IsModulatedCutoff m𝔽 L d χ ∧
+      (0 < L⁻¹ + d ∧ L⁻¹ + d < L - d) ∧ ∀ x, ρ x * χ x = ρ x := by
+    with_unfolding_all exact exists_nuclear_geometricPWRestriction_cover C𝔽 m𝔽 R ε ρ hρ
+  obtain ⟨L, d, χ, hχ, hband, hprod⟩ := hcover
+  let H := GeoW
+  let I : Submodule ℂ H := GeoIsotype(ω)
+  let K : Submodule ℂ H := globalThetaSobolev F a hGeo hs
+  let M : H →L[ℂ] H := by with_unfolding_all exact modulatedCutoffOperator m𝔽 globalWMeasure hρ
+  let A : H →L[ℂ] H := by with_unfolding_all exact geoAction(φ)
+  letI : CompleteSpace I := by with_unfolding_all exact (instClosedSpectralIsotypeSec2 (F := F) hGeo hs ω).completeSpace_coe
+  let N : H →L[ℂ] H := by with_unfolding_all exact modulatedCutoffOperator m𝔽 globalWMeasure hχ
+  have hn : IsNuclearOperator (N.comp A) := by
+    with_unfolding_all
+      exact exists_nuclear_geometricPWRestriction_admissible C𝔽 μ𝔽 m𝔽
+        ⟨isProperMap_ideleClassNorm F, ideleClassNorm_ne_one (F := F)⟩
+        (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.2.2.2.1 (-(0 : ℝ)) 0 s hGeo hs φ L d χ hχ hband
+  have habsorb : M.comp N = M := exists_nuclear_geometricPWRestriction_absorb C𝔽 m𝔽 globalWMeasure R ε L d ρ χ hρ hχ hprod
+  have hsmall : IsNuclearOperator (M.comp A) := by
+    have hh := mul_mem_nuclearEndomorphisms_left M (⟨N.comp A, hn⟩ : nuclearEndomorphisms H)
+    change IsNuclearOperator (M.comp (N.comp A)) at hh
+    rwa [← ContinuousLinearMap.comp_assoc, habsorb] at hh
+  let U : H →L[ℂ] H := M.comp (A.comp K.starProjection)
+  have hU : IsNuclearOperator U := mul_mem_nuclearEndomorphisms_right K.starProjection
+    (⟨M.comp A, hsmall⟩ : nuclearEndomorphisms H)
+  have hnI := exists_nuclear_geometricPWRestriction_compress H I U hU I.subtypeL I.orthogonalProjectionOnto
+  let T : nuclearEndomorphisms I := ⟨I.orthogonalProjectionOnto.comp (U.comp I.subtypeL), hnI⟩
+  refine ⟨T, ?_, ?_⟩
+  · with_unfolding_all rfl
+  · intro P hP
+    have hAK : K.starProjection.comp (A.comp K.starProjection) = A.comp K.starProjection := by
+      with_unfolding_all exact geometricProjection_convolution_geometricProjection (F := F) a h₀ hs φ
+    with_unfolding_all exact exists_nuclear_geometricPWRestriction_agree H I K M A hAK P hP
 
 local notation "nuclearRestriction(" a ", " ω ", " hρ ", " φ ")" =>
   (exists_nuclear_geometricPWRestriction (F := F) hs a ω φ hρ).choose
+
+/-- Uniformly bounded self-adjoint strongly null families kill nuclear operators on the right in trace norm. -/
+private theorem absolutePWCondensation_traceNorm_tendsto_null
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (Q : ℝ → H →L[ℂ] H) (hQ : ∀ x, Tendsto (fun i ↦ Q i x) atTop (𝓝 0))
+    (hQa : ∀ i, (Q i).adjoint = Q i) (hQc : ∀ i x, ‖Q i x‖ ≤ 2 * ‖x‖)
+    (T : nuclearEndomorphisms H) :
+    Tendsto (fun i ↦ traceNorm ⟨T.val * Q i, mul_mem_nuclearEndomorphisms_right (Q i) T⟩)
+      atTop (𝓝 0) := by
+  obtain ⟨c, φ, y, hc, hφ, hy, hT⟩ := (isNuclearOperator_iff_isBanachNuclear T.val).mp T.property
+  let u (n : ℕ) := (InnerProductSpace.toDual ℂ H).symm (φ n)
+  have hu (n : ℕ) : ‖u n‖ = ‖φ n‖ := (InnerProductSpace.toDual ℂ H).symm.norm_map _
+  let cost (i : ℝ) (n : ℕ) := ‖c n‖ * (‖Q i (u n)‖ * ‖y n‖)
+  let bound (n : ℕ) := 2 * (‖c n‖ * (‖φ n‖ * ‖y n‖))
+  have hcost_nonneg (i : ℝ) (n : ℕ) : 0 ≤ cost i n := by dsimp [cost]; positivity
+  have hbound (i : ℝ) (n : ℕ) : ‖cost i n‖ ≤ bound n := by
+    rw [Real.norm_of_nonneg (hcost_nonneg i n)]
+    have hh := mul_le_mul_of_nonneg_left
+      (mul_le_mul_of_nonneg_right ((hQc i (u n)).trans_eq (congrArg (2 * ·) (hu n))) (norm_nonneg (y n)))
+      (norm_nonneg (c n))
+    dsimp only [cost, bound]
+    nlinarith
+  have hs : Summable bound := by
+    obtain ⟨C, hC, hφC⟩ := (Metric.isBounded_range_of_tendsto φ hφ).exists_pos_norm_le
+    obtain ⟨D, _, hyD⟩ := (Metric.isBounded_range_of_tendsto y hy).exists_pos_norm_le
+    apply Summable.mul_left 2
+    refine (hc.mul_right (C * D)).of_norm_bounded fun n ↦ ?_
+    rw [Real.norm_of_nonneg (by positivity)]
+    exact mul_le_mul_of_nonneg_left
+      (mul_le_mul (hφC _ (mem_range_self n)) (hyD _ (mem_range_self n))
+        (norm_nonneg _) hC.le) (norm_nonneg _)
+  have hlim : Tendsto (fun i ↦ ∑' n, cost i n) atTop (𝓝 0) := by
+    have hterm (n : ℕ) : Tendsto (fun i ↦ cost i n) atTop (𝓝 0) := by
+      simpa [cost] using ((hQ (u n)).norm.mul_const ‖y n‖).const_mul ‖c n‖
+    simpa only [tsum_zero] using
+      tendsto_tsum_of_dominated_convergence hs hterm (Eventually.of_forall hbound)
+  let : Norm (nuclearEndomorphisms H) := ⟨traceNorm⟩
+  refine squeeze_zero (fun _ ↦ (traceNorm_normedSpaceCore (H := H)).toCore.norm_nonneg _)
+    ?_ hlim
+  intro i
+  let ψ (n : ℕ) : StrongDual ℂ H := c n • innerSL ℂ (Q i (u n))
+  have hψ (n : ℕ) : ‖ψ n‖ * ‖y n‖ = cost i n := by
+    simp only [ψ, cost, norm_smul, innerSL_apply_norm, mul_assoc]
+  simp_rw [← hψ]
+  refine traceNorm_le_of_rankOne_series _ ψ y
+    ((hs.of_norm_bounded (hbound i)).congr fun n ↦ (hψ n).symm) fun x ↦ ?_
+  have heval (n : ℕ) : ψ n x = c n * φ n (Q i x) := by
+    have hinner := (Q i).adjoint_inner_left x (u n)
+    rw [hQa] at hinner
+    simp only [ψ, smul_apply, smul_eq_mul, innerSL_apply_apply, hinner, u, InnerProductSpace.toDual_symm_apply]
+  simpa [heval, mul_apply_eq_comp] using hT (Q i x)
+/-- A compressed ambient projection preserves the compressing subspace if it is a strong limit of orthogonal projections. -/
+private theorem absolutePWCondensation_traceNorm_tendsto_preserves
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (I K : Submodule ℂ H) [CompleteSpace I] [CompleteSpace K]
+    (levels : ℝ → Submodule ℂ I) [∀ i, CompleteSpace (levels i)]
+    (hlim : ∀ u : I, Tendsto (fun i ↦ (levels i).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u)))) (u : I) :
+    K.starProjection u ∈ I := by
+  let w := K.starProjection (u : H)
+  let z := I.orthogonalProjectionOnto w
+  have hiC : Tendsto (fun i ↦ inner ℂ ((levels i).starProjection u) u) atTop (𝓝 (inner ℂ z u)) :=
+    (hlim u).inner tendsto_const_nhds
+  have hi := (RCLike.continuous_re.tendsto _).comp hiC
+  have heq (i : ℝ) : RCLike.re (inner ℂ ((levels i).starProjection u) u) = ‖(levels i).starProjection u‖ ^ 2 := by
+    with_unfolding_all simpa only [Submodule.starProjection_apply, Submodule.norm_coe] using (levels i).re_inner_starProjection_eq_normSq u
+  have hn : Tendsto (fun i ↦ RCLike.re (inner ℂ ((levels i).starProjection u) u)) atTop (𝓝 (‖z‖ ^ 2)) := by
+    simpa only [heq] using (hlim u).norm.pow 2
+  have hz : RCLike.re (inner ℂ z u) = ‖z‖ ^ 2 := tendsto_nhds_unique hi hn
+  have hw : RCLike.re (inner ℂ w (u : H)) = ‖w‖ ^ 2 := by
+    with_unfolding_all simpa only [w, Submodule.starProjection_apply, Submodule.norm_coe] using K.re_inner_starProjection_eq_normSq (u : H)
+  have hnorm : ‖I.starProjection w‖ = ‖w‖ := by
+    have hh : RCLike.re (inner ℂ z u) = RCLike.re (inner ℂ w (u : H)) := by
+      rw [show z = I.orthogonalProjectionOnto w from rfl, Submodule.inner_orthogonalProjectionOnto_eq_of_mem_right]
+    have hsq : ‖I.starProjection w‖ ^ 2 = ‖w‖ ^ 2 := by
+      change ‖z‖ ^ 2 = ‖w‖ ^ 2
+      linarith
+    nlinarith [norm_nonneg (I.starProjection w), norm_nonneg w]
+  exact (I.mem_iff_norm_starProjection w).mpr hnorm
+/-- Strong convergence of orthogonal projections preserves a right-supported nuclear operator in trace norm. -/
+private theorem absolutePWCondensation_traceNorm_tendsto_projection
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (levels : ℝ → Submodule ℂ H) [∀ i, CompleteSpace (levels i)] (R : H →L[ℂ] H)
+    (hlim : ∀ u, Tendsto (fun i ↦ (levels i).starProjection u) atTop (𝓝 (R u)))
+    (T : nuclearEndomorphisms H) (hTR : T.val * R = T.val) :
+    Tendsto (fun i ↦ traceNorm
+      (⟨T.val * (levels i).starProjection, mul_mem_nuclearEndomorphisms_right (levels i).starProjection T⟩ - T))
+      atTop (𝓝 0) := by
+  have hRa : R.adjoint = R := by
+    apply ContinuousLinearMap.ext
+    intro x
+    apply ext_inner_right ℂ
+    intro y
+    rw [ContinuousLinearMap.adjoint_inner_left]
+    have hl : Tendsto (fun i ↦ inner ℂ x ((levels i).starProjection y)) atTop (𝓝 (inner ℂ x (R y))) := tendsto_const_nhds.inner (hlim y)
+    have hr : Tendsto (fun i ↦ inner ℂ ((levels i).starProjection x) y) atTop (𝓝 (inner ℂ (R x) y)) := (hlim x).inner tendsto_const_nhds
+    have heq : (fun i ↦ inner ℂ x ((levels i).starProjection y)) = (fun i ↦ inner ℂ ((levels i).starProjection x) y) := by
+      funext i
+      exact (Submodule.inner_starProjection_left_eq_right (levels i) x y).symm
+    rw [heq] at hl
+    exact tendsto_nhds_unique hl hr
+  have hR (x : H) : ‖R x‖ ≤ ‖x‖ :=
+    le_of_tendsto' ((hlim x).norm) (fun i ↦ (levels i).norm_starProjection_apply_le x)
+  let Q (i : ℝ) := (levels i).starProjection - R
+  have hQ (x : H) : Tendsto (fun i ↦ Q i x) atTop (𝓝 0) := by
+    simpa [Q] using (hlim x).sub (tendsto_const_nhds : Tendsto (fun _ : ℝ ↦ R x) atTop (𝓝 (R x)))
+  have hQa (i : ℝ) : (Q i).adjoint = Q i := by
+    simp only [Q, map_sub, (isSelfAdjoint_starProjection (levels i)).adjoint_eq, hRa]
+  have hQc (i : ℝ) (x : H) : ‖Q i x‖ ≤ 2 * ‖x‖ := by
+    exact (norm_sub_le ((levels i).starProjection x) (R x)).trans (by linarith [(levels i).norm_starProjection_apply_le x, hR x])
+  have hh := absolutePWCondensation_traceNorm_tendsto_null H Q hQ hQa hQc T
+  apply hh.congr'
+  filter_upwards with i
+  apply congrArg traceNorm
+  apply Subtype.ext
+  change T.val * ((levels i).starProjection - R) = T.val * (levels i).starProjection - T.val
+  rw [mul_sub, hTR]
+/-- The right-compressed nuclear operator is recovered by strongly convergent compressed projections. -/
+private theorem absolutePWCondensation_traceNorm_tendsto_compressed
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (I K : Submodule ℂ H) [CompleteSpace I] [CompleteSpace K]
+    (A : H →L[ℂ] H) (levels : ℝ → Submodule ℂ I) [∀ i, CompleteSpace (levels i)]
+    (hlim : ∀ u : I, Tendsto (fun i ↦ (levels i).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u))))
+    (T : nuclearEndomorphisms I)
+    (hTval : T.val = I.orthogonalProjectionOnto.comp (A.comp (K.starProjection.comp I.subtypeL))) :
+    Tendsto (fun i ↦ traceNorm
+      (⟨T.val * (levels i).starProjection, mul_mem_nuclearEndomorphisms_right (levels i).starProjection T⟩ - T))
+      atTop (𝓝 0) := by
+  let R : I →L[ℂ] I := I.orthogonalProjectionOnto.comp (K.starProjection.comp I.subtypeL)
+  apply absolutePWCondensation_traceNorm_tendsto_projection I levels R hlim T
+  rw [hTval]
+  apply ContinuousLinearMap.ext
+  intro u
+  change I.orthogonalProjectionOnto (A (K.starProjection (I.starProjection (K.starProjection (u : H))))) = I.orthogonalProjectionOnto (A (K.starProjection (u : H)))
+  rw [I.starProjection_eq_self_iff.mpr (absolutePWCondensation_traceNorm_tendsto_preserves H I K levels hlim u),
+    K.starProjection_eq_self_iff.mpr (K.starProjection_apply_mem (u : H))]
+
 
 /-- Paper: Theorem 11.2.1.2(2) and (11.2.1.4), p. 488.
 Right multiplication of cutoff geometric convolution by the absolute projections
@@ -339,7 +855,23 @@ theorem absolutePWCondensation_traceNorm_tendsto (a : ℝ) (ω : PontryaginDual 
     let T := nuclearRestriction(a, ω, hρ, φ)
     Tendsto (fun Λ ↦ traceNorm
       (productTraceClass(T, absolutePWProjection (F := F) (S := S) hs a ω Λ) -
-        T)) atTop (𝓝 0) := by sorry
+        T)) atTop (𝓝 0) := by
+  intro T
+  let I : Submodule ℂ GeoW := GeoIsotype(ω)
+  let K : Submodule ℂ GeoW := globalThetaSobolev F a hGeo hs
+  let levels (Λ : ℝ) : Submodule ℂ I := (globalAbsolutePWSobolev (F := F) (S := S) hs a ω Λ).comap I.subtype
+  letI : CompleteSpace I := (instClosedSpectralIsotypeSec2 (F := F) hGeo hs ω).completeSpace_coe
+  letI : ∀ Λ, CompleteSpace (levels Λ) := fun Λ ↦
+    (show IsClosed (levels Λ : Set I) from (Submodule.isClosed_topologicalClosure _).preimage continuous_subtype_val).completeSpace_coe
+  have hlim (u : I) : Tendsto (fun Λ ↦ (levels Λ).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u))) := by
+    with_unfolding_all exact absolutePWProjection_tendsto (F := F) (S := S) hs a ω _hω _hPic u
+  have hTval : T.val = I.orthogonalProjectionOnto.comp
+      (((modulatedCutoffOperator m𝔽 globalWMeasure hρ).comp (geoAction(φ))).comp (K.starProjection.comp I.subtypeL)) := by
+    with_unfolding_all exact (exists_nuclear_geometricPWRestriction (F := F) hs a ω φ hρ).choose_spec.1
+  with_unfolding_all
+    exact absolutePWCondensation_traceNorm_tendsto_compressed GeoW I K
+      ((modulatedCutoffOperator m𝔽 globalWMeasure hρ).comp (geoAction(φ))) levels hlim T hTval
 
 /-- Paper: Theorem 11.2.1.2(2) and (11.2.1.5), p. 488.
 The traces of the cutoff absolute condensations converge to the trace of the
@@ -443,13 +975,150 @@ theorem invariantPWCondensation_apply_of_mem (a : ℝ) (ω : PontryaginDual C₁
   have h := invariantPWProjection_apply_of_mem (F := F) (S := S) hs a ω Λ u _hu
   simp only [invariantPWCondensation, ContinuousLinearMap.comp_apply, h]
 
+/-- Projections onto levels squeezed between convergent levels and the target range converge. -/
+private theorem invariantPWProjection_tendsto_squeeze
+    (H : Type*) [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (I K : Submodule ℂ H) [CompleteSpace I] [CompleteSpace K]
+    (A B : ℝ → Submodule ℂ I) [∀ i, CompleteSpace (A i)] [∀ i, CompleteSpace (B i)]
+    (hlim : ∀ u : I, Tendsto (fun i ↦ (A i).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u))))
+    (g : ℝ → ℝ) (hg : Tendsto g atTop atTop) (hAB : ∀ᶠ i in atTop, A (g i) ≤ B i)
+    (hBK : ∀ (i : ℝ) (w : I), w ∈ B i → (w : H) ∈ K) (u : I) :
+    Tendsto (fun i ↦ (B i).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u))) := by
+  have horth (i : ℝ) (w : I) (hw : w ∈ B i) :
+      inner ℂ (I.orthogonalProjectionOnto (K.starProjection (u : H)) - u) w = 0 := by
+    have h1 : inner ℂ (I.orthogonalProjectionOnto (K.starProjection (u : H))) w =
+        inner ℂ (u : H) (w : H) := by
+      rw [Submodule.inner_orthogonalProjectionOnto_eq_of_mem_right,
+        Submodule.inner_starProjection_left_eq_right, K.starProjection_eq_self_iff.mpr (hBK i w hw)]
+    rw [inner_sub_left, h1, Submodule.coe_inner, sub_self]
+  have hle (i : ℝ) (hi : A (g i) ≤ B i) :
+      ‖(B i).starProjection u - I.orthogonalProjectionOnto (K.starProjection (u : H))‖ ≤
+        ‖(A (g i)).starProjection u - I.orthogonalProjectionOnto (K.starProjection (u : H))‖ := by
+    have hb : (B i).starProjection u ∈ B i := (B i).starProjection_apply_mem u
+    have ha : (A (g i)).starProjection u ∈ B i := hi ((A (g i)).starProjection_apply_mem u)
+    have hw : (B i).starProjection u - (A (g i)).starProjection u ∈ B i := (B i).sub_mem hb ha
+    have h0 : inner ℂ (I.orthogonalProjectionOnto (K.starProjection (u : H)) - (B i).starProjection u)
+        ((B i).starProjection u - (A (g i)).starProjection u) = 0 := by
+      rw [show I.orthogonalProjectionOnto (K.starProjection (u : H)) - (B i).starProjection u =
+          (I.orthogonalProjectionOnto (K.starProjection (u : H)) - u) + (u - (B i).starProjection u)
+          by abel, inner_add_left, horth i _ hw,
+        Submodule.starProjection_inner_eq_zero (K := B i) u _ hw, add_zero]
+    have hp := norm_add_sq_eq_norm_sq_add_norm_sq_of_inner_eq_zero _ _ h0
+    rw [show I.orthogonalProjectionOnto (K.starProjection (u : H)) - (B i).starProjection u +
+        ((B i).starProjection u - (A (g i)).starProjection u) =
+        I.orthogonalProjectionOnto (K.starProjection (u : H)) - (A (g i)).starProjection u
+        by abel] at hp
+    rw [norm_sub_rev ((B i).starProjection u), norm_sub_rev ((A (g i)).starProjection u)]
+    nlinarith [norm_nonneg (I.orthogonalProjectionOnto (K.starProjection (u : H)) - (A (g i)).starProjection u),
+      norm_nonneg (I.orthogonalProjectionOnto (K.starProjection (u : H)) - (B i).starProjection u),
+      norm_nonneg ((B i).starProjection u - (A (g i)).starProjection u)]
+  rw [tendsto_iff_norm_sub_tendsto_zero]
+  refine squeeze_zero' (Eventually.of_forall fun _ ↦ norm_nonneg _) ?_
+    (tendsto_iff_norm_sub_tendsto_zero.mp ((hlim u).comp hg))
+  filter_upwards [hAB] with i hi using hle i hi
+
+/-- Raising the level to the reciprocal of the place count tends to infinity and stays below it. -/
+private theorem invariantPWProjection_tendsto_root (c : ℕ) :
+    let g : ℝ → ℝ := fun Λ ↦ Λ ^ (1 / ((c : ℝ) + 1))
+    Tendsto g atTop atTop ∧ ∀ᶠ Λ in atTop, 0 < g Λ ∧ g Λ ^ c ≤ Λ := by
+  intro g
+  let d : ℝ := (c : ℝ) + 1
+  have hd : 0 < d := by positivity
+  refine ⟨tendsto_rpow_atTop (one_div_pos.mpr hd), ?_⟩
+  filter_upwards [eventually_ge_atTop (1 : ℝ)] with Λ hΛ
+  have hg : 0 < g Λ := Real.rpow_pos_of_pos (by linarith : (0 : ℝ) < Λ) _
+  refine ⟨hg, ?_⟩
+  rw [← Real.rpow_natCast, ← Real.rpow_mul (by linarith)]
+  calc Λ ^ (1 / d * c) ≤ Λ ^ (1 : ℝ) :=
+        Real.rpow_le_rpow_of_exponent_le hΛ (by
+          rw [div_mul_eq_mul_div, one_mul, div_le_one hd]
+          exact le_add_of_nonneg_right zero_le_one)
+    _ = Λ := Real.rpow_one Λ
+
+/-- A box of size Λ lies in every product region of size at least Λ to the number of places. -/
+private theorem invariantPWProjection_tendsto_abs_le (a : ℝ) (ω : PontryaginDual C₁) {Λ Y : ℝ}
+    (hΛ : 0 < Λ) (hY : Λ ^ (Fintype.card (InfinitePlace F) + S.card) ≤ Y) :
+    globalAbsolutePWSobolev (F := F) (S := S) hs a ω Λ ≤
+      globalInvariantPWSobolev (F := F) (S := S) hs a ω Y := by
+  have hbox : sLocalPWBox S Λ ⊆ sLocalPWProductRegion S Y := by
+    intro x hx
+    have ha : (∏ w : InfinitePlace F, ‖x.1 w‖ ^ w.mult) ≤ Λ ^ Fintype.card (InfinitePlace F) := by
+      simpa only [Finset.prod_const, Finset.card_univ] using
+        (Finset.prod_le_prod₀ (s := Finset.univ) (g := fun _ : InfinitePlace F ↦ Λ)
+          (fun w _ ↦ pow_nonneg (norm_nonneg (x.1 w)) w.mult) (fun w _ ↦ hx.1 w))
+    have hf : (∏ v : S, ‖x.2 v‖) ≤ Λ ^ S.card := by
+      simpa only [Finset.prod_const, Finset.card_univ, Fintype.card_coe] using
+        (Finset.prod_le_prod₀ (s := Finset.univ) (g := fun _ : S ↦ Λ)
+          (fun v _ ↦ norm_nonneg (x.2 v)) (fun v _ ↦ hx.2 v))
+    change _ * _ ≤ Y
+    refine le_trans ?_ hY
+    rw [pow_add]
+    exact mul_le_mul ha hf (Finset.prod_nonneg fun v _ ↦ norm_nonneg (x.2 v))
+      (pow_nonneg hΛ.le _)
+  have htests : sLocalPWTests (S := S) (T := S) le_rfl (sLocalPWBox S Λ) ≤
+      sLocalPWTests (S := S) (T := S) le_rfl (sLocalPWProductRegion S Y) :=
+    Submodule.map_mono (Submodule.span_mono fun _ hf ↦ ⟨hf.1, hf.2.trans (Set.preimage_mono hbox)⟩)
+  refine Submodule.topologicalClosure_mono (Submodule.span_mono ?_)
+  rintro _ ⟨f, rfl⟩
+  exact ⟨⟨f.val, htests f.property⟩, rfl⟩
+
+/-- The global invariant levels lie in the weighted theta subspace. -/
+private theorem invariantPWProjection_tendsto_le_theta (a : ℝ) (ω : PontryaginDual C₁) (Λ : ℝ) :
+    globalInvariantPWSobolev (F := F) (S := S) hs a ω Λ ≤
+      (globalThetaSobolev F a hGeo hs : Submodule ℂ GeoW) := by
+  refine Submodule.topologicalClosure_minimal _ ?_ (Submodule.isClosed_topologicalClosure _)
+  rw [Submodule.span_le]
+  rintro _ ⟨f, rfl⟩
+  let f₀ : adelePolarSubspace F := ⟨sAdeleSchwartzToGlobal F S f.val.val,
+    sAdeleSchwartzToGlobal_mem_polarSubspace f.val⟩
+  let x : globalPolarFreeThetaSubmodule (F := F) ω :=
+    ⟨Submodule.Quotient.mk f₀.val, ⟨f₀.val, f₀.property, rfl⟩⟩
+  obtain ⟨j, -, -, hj⟩ := exists_globalHomogeneousThetaSobolevInclusion
+    (F := F) (a := a) hGeo hs ω
+  have he := (hj f₀ x rfl).2
+  have heq : globalPWThetaSobolevMap (F := F) (S := S) (s := s) a ω f.val = (j x).val.val := by
+    apply Lp.ext
+    exact (withDensity_absolutelyContinuous _ _).ae_le
+      ((globalPWThetaSobolevMap_apply (F := F) (S := S) (s := s) a ω f.val).trans he.symm)
+  change globalPWThetaSobolevMap (F := F) (S := S) (s := s) a ω f.val ∈
+    (globalThetaSobolev F a hGeo hs : Submodule ℂ GeoW)
+  rw [heq]
+  exact (j x).val.property
+
 /-- Paper: Theorem 11.2.1.4(1), p. 489.
 The invariant projections converge strongly to the isotypic geometric projection.
 Deviation: The support assumption on the test function is used in part (2). -/
 theorem invariantPWProjection_tendsto (a : ℝ) (ω : PontryaginDual C₁)
     (_hω : NormOneCharacterUnramifiedOutside ω S) (_hPic : PicTrivial) (u : GeoIsotype(ω)) :
-    Tendsto (fun Λ ↦ invariantPWProjection (F := F) (S := S) hs a ω Λ u) atTop (𝓝 (Pgeom(a, ω) u)) :=
-  by sorry
+    Tendsto (fun Λ ↦ invariantPWProjection (F := F) (S := S) hs a ω Λ u) atTop (𝓝 (Pgeom(a, ω) u)) := by
+  let c : ℕ := Fintype.card (InfinitePlace F) + S.card
+  let g : ℝ → ℝ := fun Λ ↦ Λ ^ (1 / ((c : ℝ) + 1))
+  let I : Submodule ℂ GeoW := GeoIsotype(ω)
+  let K : Submodule ℂ GeoW := globalThetaSobolev F a hGeo hs
+  let A (Λ : ℝ) : Submodule ℂ I := absLevel(a, ω, Λ)
+  let B (Λ : ℝ) : Submodule ℂ I := invLevel(a, ω, Λ)
+  letI : CompleteSpace I := (instClosedSpectralIsotypeSec2 (F := F) hGeo hs ω).completeSpace_coe
+  letI : ∀ Λ, CompleteSpace (A Λ) := fun Λ ↦
+    (show IsClosed (A Λ : Set I) from
+      (Submodule.isClosed_topologicalClosure _).preimage continuous_subtype_val).completeSpace_coe
+  letI : ∀ Λ, CompleteSpace (B Λ) := fun Λ ↦
+    (show IsClosed (B Λ : Set I) from
+      (Submodule.isClosed_topologicalClosure _).preimage continuous_subtype_val).completeSpace_coe
+  have hpow : ∀ᶠ Λ in atTop, 0 < g Λ ∧ g Λ ^ c ≤ Λ := (invariantPWProjection_tendsto_root c).2
+  have hAB : ∀ᶠ Λ in atTop, A (g Λ) ≤ B Λ := by
+    filter_upwards [hpow] with Λ hΛ
+    exact Submodule.comap_mono
+      (invariantPWProjection_tendsto_abs_le (F := F) (S := S) hs a ω hΛ.1 hΛ.2)
+  have hBK (Λ : ℝ) (w : I) (hw : w ∈ B Λ) : (w : GeoW) ∈ K :=
+    invariantPWProjection_tendsto_le_theta (F := F) (S := S) hs a ω Λ hw
+  have hlim (v : I) : Tendsto (fun Λ ↦ (A Λ).starProjection v) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection v))) := by
+    with_unfolding_all exact absolutePWProjection_tendsto (F := F) (S := S) hs a ω _hω _hPic v
+  with_unfolding_all
+    exact invariantPWProjection_tendsto_squeeze GeoW I K A B hlim g
+      (invariantPWProjection_tendsto_root c).1 hAB hBK u
 
 /-- Paper: Theorem 11.2.1.4(2) and (11.2.1.9), p. 489.
 Right multiplication of cutoff geometric convolution by the invariant projections
@@ -463,7 +1132,23 @@ theorem invariantPWCondensation_traceNorm_tendsto (a : ℝ) (ω : PontryaginDual
     let T := nuclearRestriction(a, ω, hρ, φ)
     Tendsto (fun Λ ↦ traceNorm
       (productTraceClass(T, invariantPWProjection (F := F) (S := S) hs a ω Λ) -
-        T)) atTop (𝓝 0) := by sorry
+        T)) atTop (𝓝 0) := by
+  intro T
+  let I : Submodule ℂ GeoW := GeoIsotype(ω)
+  let K : Submodule ℂ GeoW := globalThetaSobolev F a hGeo hs
+  let levels (Λ : ℝ) : Submodule ℂ I := (globalInvariantPWSobolev (F := F) (S := S) hs a ω Λ).comap I.subtype
+  letI : CompleteSpace I := (instClosedSpectralIsotypeSec2 (F := F) hGeo hs ω).completeSpace_coe
+  letI : ∀ Λ, CompleteSpace (levels Λ) := fun Λ ↦
+    (show IsClosed (levels Λ : Set I) from (Submodule.isClosed_topologicalClosure _).preimage continuous_subtype_val).completeSpace_coe
+  have hlim (u : I) : Tendsto (fun Λ ↦ (levels Λ).starProjection u) atTop
+      (𝓝 (I.orthogonalProjectionOnto (K.starProjection u))) := by
+    with_unfolding_all exact invariantPWProjection_tendsto (F := F) (S := S) hs a ω _hω _hPic u
+  have hTval : T.val = I.orthogonalProjectionOnto.comp
+      (((modulatedCutoffOperator m𝔽 globalWMeasure hρ).comp (geoAction(φ))).comp (K.starProjection.comp I.subtypeL)) := by
+    with_unfolding_all exact (exists_nuclear_geometricPWRestriction (F := F) hs a ω φ hρ).choose_spec.1
+  with_unfolding_all
+    exact absolutePWCondensation_traceNorm_tendsto_compressed GeoW I K
+      ((modulatedCutoffOperator m𝔽 globalWMeasure hρ).comp (geoAction(φ))) levels hlim T hTval
 
 /-- Paper: Theorem 11.2.1.4(2) and (11.2.1.10), p. 489.
 The traces of the cutoff invariant condensations converge to the trace of the

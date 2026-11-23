@@ -52,3 +52,41 @@ retained proof bodies are as upstream.
 
 - Update the module docstring to describe the vendored compactness result and omit the
   reference to the unvendored Vitali module.
+
+## Runge approximation: `Analysis/Complex/Runge/Approximation.lean` and its import closure
+
+The 97 files listed after the Montel excerpt in `SOURCE_MAP.json` are whole upstream files at
+the same commit. Each receives only the changes described at the top of this document:
+
+- the notice after the upstream header;
+- the module prefix `TauCeti.` in imports becomes `RiemannMasullo.External.TauCeti.`;
+- every `namespace TauCeti`, `namespace TauCeti.Real`, `end …` and `open TauCeti` command, every
+  qualified reference `TauCeti.x` in proofs and statements, and every such reference in
+  docstrings and comments, uses `RiemannMasullo.External.TauCeti` in place of `TauCeti`. Upstream
+  file paths `TauCeti/…` in docstrings are unchanged, and lines lengthened by the rename are not
+  rewrapped.
+
+- Port to Lean v4.36.0 and this project's Mathlib (`fc4f59e5`): in the 22 files below, the
+  edits of upstream commit
+  [`e0e414ce57`](https://github.com/TauCetiProject/TauCeti/commit/e0e414ce57522ba17560057ad0d7f2edab91bf0c)
+  (Tau Ceti #44275, "bump Mathlib to v4.37.0-rc1 and replace numeric projections") are undone.
+  That commit is the only upstream change to these files between its parent
+  [`aa3cfad`](https://github.com/TauCetiProject/TauCeti/tree/aa3cfad1274c06cff25f2b58848498b3c3f68d0f)
+  and the pinned commit, so their text is upstream's at `aa3cfad`, which upstream builds with
+  Lean v4.36.0 and Mathlib `fc4f59e5`. Its edits use names that this Mathlib does not have yet
+  (`continuous_subtypeVal`, `ContinuousLinearEquiv.ofContinuousLinearMap`, `exp_natCast_mul`, …).
+  The files: `Analysis/Calculus/BumpFunction/Cutoff.lean`, `Analysis/Calculus/ContDiff/Bounds.lean`,
+  `Analysis/Calculus/SecondDerivative.lean`, `Analysis/Complex/HolomorphicFunctions/Basic.lean`,
+  `Analysis/Complex/PolynomialHull/Basic.lean`, `Analysis/Complex/Runge/Hull.lean`,
+  `Analysis/Complex/Runge/SimpleFraction.lean`, `Analysis/SpecialFunctions/Exp/Bounds.lean`,
+  `Geometry/Manifold/Connected.lean`, `LinearAlgebra/Complex/Module.lean`,
+  `MeasureTheory/Function/Lp/Norm.lean`, `MeasureTheory/Function/LpSeminorm/AddMeasure.lean`,
+  `MeasureTheory/MeasurableSpace/Metric.lean`, `MeasureTheory/Measure/OpenPos.lean`,
+  `Topology/Algebra/Module/Equiv/SMul.lean`, `Topology/Compactness/Compact.lean`,
+  `Topology/ConnectedComponents.lean`, `Topology/FilledHull.lean`, `Topology/Homotopy/Path.lean`,
+  `Topology/MetricSpace/Holder.lean`, `Topology/PathComponent.lean`, `Topology/UnitInterval.lean`.
+  Their `upstream_sha256` in `SOURCE_MAP.json` is that of the pinned commit.
+
+Apart from that port, no declaration name (within its namespace), statement, proof or option is
+changed, and nothing is omitted.
+Declarations that upstream puts in Mathlib namespaces or in `_root_` keep them.
