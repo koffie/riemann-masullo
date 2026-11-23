@@ -749,12 +749,16 @@ private theorem eq_of_agree_rightHalf {U V : ℂ → ℂ} (hU : MeromorphicNFOn 
 local notation "globalRightHalf" => relativeRightHalfPlane m𝔽 (isProperMap_ideleClassNorm F)
   (ideleClassNorm_ne_one (F := F)) 1
 
-private theorem globalTwist_mem_rightHalf (χ : PontryaginDual C𝔽) {s : ℂ} (hs : 1 < s.re) :
+/-- For `1 < re s`, the twist of a unitary character by the `s`-th power of the idele class norm
+lies in the right half-plane of convergence `re > 1` of the global zeta integral. -/
+theorem globalTwist_mem_rightHalf (χ : PontryaginDual C𝔽) {s : ℂ} (hs : 1 < s.re) :
     ideleClassNormTwist χ s ∈ globalRightHalf := by
   change 1 < quasiCharacterAbscissa _ _ _ _
   rwa [quasiCharacterAbscissa_ideleClassNormTwist]
 
-private theorem globalZ_eq_zero_of_theta_eq_zero (f : ℬ𝔽) (hf : adelicTheta f = 0) (c : X𝔽) :
+/-- A Schwartz-Bruhat function whose adelic theta series vanishes has zero global Z-function at
+every quasi-character of the idele class group. -/
+theorem globalZ_eq_zero_of_theta_eq_zero (f : ℬ𝔽) (hf : adelicTheta f = 0) (c : X𝔽) :
     globalIdelicZFunction f c = 0 := by
   obtain ⟨χ, s, rfl⟩ := exists_ideleClassNormTwist c
   refine congrFun (eq_of_agree_rightHalf (globalIdelicZFunction_meromorphic f χ)
