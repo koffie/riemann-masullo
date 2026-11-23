@@ -79,9 +79,9 @@ Apache-2.0).
     interface: an import added or removed, a public declaration added or restated, a proof that
     makes a public theorem free of `sorry`, or a new equation lemma `f.eq_1`. Changing a proof
     that was already complete, a `private` helper or a docstring leaves it unchanged, but
-    `import all` makes every edit cascade. One added import rebuilt 58 modules instead of 5 (#6263), and
-    one proof edit under `import all` rebuilt 76 (#5960). The plan for the existing `import all`
-    lines is #5966.
+    `import all` makes every edit cascade. One added import rebuilt 58 modules instead of 5
+    (#6263), and one proof edit under `import all` rebuilt 76 (#5960). The plan for the existing
+    `import all` lines is #5966.
 - **Start the docstring of every declaration taken from the paper with `Paper:`.**
   - Write `Paper: <item>, p. <page>.` (for example `Paper: Proposition 2.1.3.4, p. 63.`), then
     what the Lean says in plain words.
