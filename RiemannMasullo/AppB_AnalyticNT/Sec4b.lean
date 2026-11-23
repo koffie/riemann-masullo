@@ -8,6 +8,7 @@ public import RiemannMasullo.AppB_AnalyticNT.Sec4a
 public import RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import RiemannMasullo.ForMathlib.Analysis.Fourier.Log
+import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.WeightedIntegral
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1c
 public import RiemannMasullo.AppD_SchwartzBruhat.Sec2a
@@ -1964,12 +1965,247 @@ theorem finiteConnesPrincipalValue_one_of_apply_zero (v : Primes(F))
   rw [hT, hK, mul_div, neg_mul_neg]
   exact mul_div_cancel_left₀ _ (Complex.ofReal_ne_zero.mpr hV)
 
+/-- The elementary Schwartz space of a real vector group is the usual Schwartz space. -/
+private theorem exists_infiniteConnesPrincipalValue_elementaryEquiv (d : ℕ) :
+    ∃ e : 𝓢(EuclideanSpace ℝ (Fin d), ℂ) ≃L[ℂ] ElementarySchwartz d 0 0 PUnit,
+      ∀ f x, e f x = f x.1 := by
+  let E := EuclideanSpace ℝ (Fin d)
+  let X := 𝓢(E, ℂ)
+  let Y := ElementarySchwartz d 0 0 PUnit
+  let L : X →ₗ[ℂ] Y :=
+    { toFun := fun f ↦ ⟨fun x ↦ f x.1, (elementarySchwartzSubmodule_real_iff _).mpr ⟨f, rfl⟩⟩
+      map_add' := fun _ _ ↦ rfl
+      map_smul' := fun _ _ ↦ rfl }
+  have hL (f : X) (x : ElementaryLieGroup d 0 0 PUnit) : L f x = f x.1 := rfl
+  have hbij : Bijective L := by
+    constructor
+    · intro f g h
+      ext x
+      exact congrArg (fun s : Y ↦ s (x, 0, 0, 0)) h
+    · intro g
+      let f (x : E) := g (x, 0, 0, 0)
+      have heq : (fun x : ElementaryLieGroup d 0 0 PUnit ↦ f x.1) = g.val := by
+        funext x
+        exact congrArg g (Prod.ext rfl (Subsingleton.elim _ _))
+      have hmem := (elementarySchwartzSubmodule_real_iff f).mp (heq ▸ g.property)
+      obtain ⟨s, hs⟩ := hmem
+      refine ⟨s, Subtype.ext ?_⟩
+      change (fun x : ElementaryLieGroup d 0 0 PUnit ↦ s x.1) = g.val
+      rw [← heq]
+      exact congrArg (fun u : E → ℂ ↦ fun x : ElementaryLieGroup d 0 0 PUnit ↦ u x.1) hs
+  have hX : IsFrechetTVS X := euclideanSchwartz_frechet d
+  have : BarrelledSpace ℂ X := isFrechetTVS_barrelled hX
+  have hc : Continuous L := by
+    apply continuous_toElementarySchwartz_of_eval
+    intro g
+    exact ⟨(BoundedContinuousFunction.evalCLM ℂ g.1).comp
+      (SchwartzMap.toBoundedContinuousFunctionCLM ℂ E ℂ), fun _ ↦ rfl⟩
+  obtain ⟨hTX, -, hMX, hCX⟩ := hX
+  obtain ⟨hTY, -, hMY, hCY⟩ := elementarySchwartz_isFrechet (m := d) (n := 0) (r := 0) (F := PUnit)
+  let : UniformSpace X := IsTopologicalAddGroup.rightUniformSpace X
+  let : UniformSpace Y := IsTopologicalAddGroup.rightUniformSpace Y
+  have : IsUniformAddGroup X := isUniformAddGroup_of_addCommGroup
+  have : IsUniformAddGroup Y := isUniformAddGroup_of_addCommGroup
+  have : CompleteSpace X := hCX
+  have : CompleteSpace Y := hCY
+  have : (uniformity Y).IsCountablyGenerated := by
+    rw [uniformity_eq_comap_nhds_zero Y]
+    infer_instance
+  have : BaireSpace Y := BaireSpace.of_completelyPseudoMetrizable
+  let A : X →L[ℂ] Y := ⟨L, hc⟩
+  have hopen : IsOpenMap A := by
+    apply isOpenMap_of_not_isMeagre_range A
+    change ¬ IsMeagre (range L)
+    rw [hbij.surjective.range_eq]
+    exact not_isMeagre_of_isOpen isOpen_univ univ_nonempty
+  let e := LinearEquiv.ofBijective L hbij
+  refine ⟨{ e with continuous_toFun := hc, continuous_invFun := ?_ }, hL⟩
+  exact e.toEquiv.continuous_symm_iff.mpr hopen
+
+/-- A real vector coordinate gives a largest structural pair, with whole open subgroup,
+presented by the real vector group. -/
+private theorem exists_infiniteConnesPrincipalValue_presentation {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] {d : ℕ}
+    (c : G ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin d))) :
+    ∃ a : BruhatStructuralPair G, (∀ b, b ≤ a) ∧ ∃ (hm : ∀ x : G, x ∈ a.val.1)
+        (w : a.quotient ≃ₜ* Multiplicative (ElementaryLieGroup d 0 0 PUnit)),
+        ∀ x : G, (w (QuotientGroup.mk ⟨x, hm x⟩)).toAdd.1 = (c x).toAdd := by
+  have : ConnectedSpace (Multiplicative (EuclideanSpace ℝ (Fin d))) :=
+    inferInstanceAs (ConnectedSpace (EuclideanSpace ℝ (Fin d)))
+  have : ConnectedSpace G := c.symm.surjective.connectedSpace c.symm.continuous
+  let chart : EuclideanSpace ℝ (Fin d) ≃ₜ G := c.symm.toHomeomorph
+  have hgood : IsBruhatGoodSubgroup (⊥ : Subgroup G) :=
+    isBruhatGoodSubgroup_bot_iff.mpr ⟨d, ⟨chart.chartedSpace⟩⟩
+  let H : Subgroup G := ⊤
+  let i : G ≃ₜ* H :=
+    ⟨Subgroup.topEquiv.symm, continuous_id.subtype_mk _, continuous_subtype_val⟩
+  have htop : IsOpen (H : Set G) := isOpen_univ
+  let : ConnectedSpace H := i.surjective.connectedSpace i.continuous
+  let : LocallyCompactSpace H := htop.isOpenEmbedding_subtypeVal.locallyCompactSpace
+  have hgen : IsCompactlyGeneratedGroup H := by
+    obtain ⟨U, hUc, hU⟩ := exists_compact_mem_nhds (1 : H)
+    have hOpen : IsOpen (Subgroup.closure U : Set H) :=
+      Subgroup.isOpen_of_mem_nhds _ (mem_of_superset hU Subgroup.subset_closure)
+    exact ⟨U, hU, hUc, SetLike.coe_injective
+      ((OpenSubgroup.isClopen ⟨Subgroup.closure U, hOpen⟩).eq_univ ⟨1, Subgroup.one_mem _⟩)⟩
+  let a : BruhatStructuralPair G := ⟨(H, OrderDual.toDual ⊥), htop, hgen, hgood, bot_le⟩
+  have hmem (x : G) : x ∈ a.val.1 := Subgroup.mem_top x
+  let p := (QuotientGroup.mk' _ : H →* a.quotient).comp i.toMulEquiv.toMonoidHom
+  have hp : IsOpenQuotientMap p :=
+    QuotientGroup.isOpenQuotientMap_mk.comp i.toHomeomorph.isOpenQuotientMap
+  have hinj : Injective p := (MonoidHom.ker_eq_bot_iff p).mp (le_antisymm (fun x hx ↦ by
+    change (QuotientGroup.mk (i x) : a.quotient) = 1 at hx
+    exact (a.quotient_mk_eq_one (i x)).mp hx) bot_le)
+  let q := (MulEquiv.ofBijective p ⟨hinj, hp.surjective⟩).toContinuousMulEquiv
+    (fun _ ↦ hp.isQuotientMap.isOpen_preimage)
+  let : Unique ((Fin 0 → AddCircle (1 : ℝ)) × (Fin 0 → ℤ) × PUnit) := uniqueOfSubsingleton 0
+  let w : Multiplicative (ElementaryLieGroup d 0 0 PUnit) ≃ₜ*
+      Multiplicative (EuclideanSpace ℝ (Fin d)) :=
+    ContinuousMulEquiv.mk' (Homeomorph.prodUnique _ _) (fun _ _ ↦ rfl)
+  have ha (b : BruhatStructuralPair G) : b ≤ a := by
+    change b.val.1 ≤ ⊤ ∧ (⊥ : Subgroup G) ≤ OrderDual.ofDual b.val.2
+    exact ⟨le_top, bot_le⟩
+  refine ⟨a, ha, hmem, q.symm.trans (c.trans w.symm), fun x ↦ ?_⟩
+  change (w (w.symm (c (q.symm (q x))))).toAdd = _
+  rw [q.symm_apply_apply, w.apply_symm_apply]
+
+/-- In real vector coordinates, the Schwartz–Bruhat space carries the usual Schwartz
+topology. -/
+private theorem exists_infiniteConnesPrincipalValue_coordinate {G : Type*} [CommGroup G]
+    [TopologicalSpace G] [IsTopologicalGroup G] [T2Space G] [LocallyCompactSpace G] {d : ℕ}
+    (c : G ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin d))) :
+    ∃ e : 𝓢(EuclideanSpace ℝ (Fin d), ℂ) ≃L[ℂ] SchwartzBruhat G,
+      ∀ f x, e f x = f (c x).toAdd := by
+  have : SecondCountableTopology (Multiplicative (EuclideanSpace ℝ (Fin d))) :=
+    inferInstanceAs (SecondCountableTopology (EuclideanSpace ℝ (Fin d)))
+  have : SecondCountableTopology G := c.toHomeomorph.isEmbedding.secondCountableTopology
+  refine (exists_infiniteConnesPrincipalValue_presentation c).elim fun a hp ↦ ?_
+  refine hp.2.elim fun hm hm' ↦ hm'.elim fun w hw ↦ ?_
+  have ha := hp.1
+  let e : ElementaryLCAPresentation a.quotient := ⟨d, 0, 0, PUnit, w⟩
+  let J : SchwartzBruhatStage e →ₗ[ℂ] SchwartzBruhat G := schwartzBruhatStageInclusion a e
+  have hJ : Topology.IsEmbedding J := schwartzBruhatStage_isEmbedding a e
+  have hs : Surjective J := schwartzBruhat_maxStage_surjective a ha e
+  let A := LinearEquiv.ofBijective J ⟨hJ.injective, hs⟩
+  let B := ContinuousLinearEquiv.ofIsHomeomorph A
+    (isHomeomorph_iff_isEmbedding_surjective.mpr ⟨hJ, hs⟩)
+  refine (exists_infiniteConnesPrincipalValue_elementaryEquiv d).elim fun T hT ↦ ?_
+  refine ⟨T.trans B, fun f x ↦ ?_⟩
+  change (show SchwartzBruhat G from schwartzBruhatStageInclusion a e (T f)) x = _
+  rw [schwartzBruhatStageInclusion_apply, schwartzBruhatStageRealization_apply,
+    dite_eq_left (hm x), hT]
+  exact congrArg f (hw x)
+
+/-- If, in a model of the completion, the logarithmic Fourier integrand is a weight of
+polynomial growth times a Schwartz function depending continuously on the test, then
+its integral is a continuous linear functional. -/
+private theorem exists_infiniteConnesPrincipalValue_ofModel (w : InfinitePlace F)
+    {V : Type*} [NormedAddCommGroup V] [NormedSpace ℝ V] [MeasurableSpace V] [BorelSpace V]
+    [SecondCountableTopology V] (m : V ≃ᵐ w.Completion) (μ : Measure V)
+    (hμ : ν∞(w) = μ.map m) (Q : 𝒮ₐ(w.Completion) →L[ℂ] 𝓢(V, ℂ)) (L : V → ℂ)
+    (hL : AEStronglyMeasurable L μ) (k : ℕ)
+    (hk : Integrable (fun t ↦ ‖L t‖ / (1 + ‖t‖) ^ k) μ)
+    (hK : ∀ (f : 𝒮ₐ(w.Completion)) (t : V),
+      logFourierIntegrand(ν∞(w), ψ∞(w), J∞(w), addTest(f)) (m t) = L t * Q f t) :
+    ∃ T : StrongDual ℂ (𝒮ₐ(w.Completion)), ∀ f : 𝒮ₐ(w.Completion),
+      let K : w.Completion → ℂ := logFourierIntegrand(ν∞(w), ψ∞(w), J∞(w), addTest(f))
+      Integrable K ν∞(w) ∧ T f = -(∫ y, K y ∂ν∞(w)) := by
+  obtain ⟨Λ, hΛ⟩ := SchwartzMap.exists_strongDual_integral_mul μ L hL k hk
+  refine ⟨-(Λ.comp Q), fun f ↦ ?_⟩
+  intro K
+  have hKm : K ∘ m = fun t ↦ L t * Q f t := funext (hK f)
+  rw [hμ, integrable_map_equiv, integral_map_equiv]
+  refine ⟨hKm ▸ (hΛ (Q f)).1, ?_⟩
+  change -(Λ (Q f)) = -(∫ t, (K ∘ m) t ∂μ)
+  rw [hKm, (hΛ (Q f)).2]
+
 /-- Paper: Definition B.4.4.1(1), p. 619. The archimedean Fourier pairing
 defines a continuous linear functional on additive tests. -/
 theorem exists_infiniteConnesPrincipalValue (w : InfinitePlace F) :
     ∃ T : StrongDual ℂ (𝒮ₐ(w.Completion)), ∀ f : 𝒮ₐ(w.Completion),
       let K : w.Completion → ℂ := logFourierIntegrand(ν∞(w), ψ∞(w), J∞(w), addTest(f))
-      Integrable K ν∞(w) ∧ T f = -(∫ y, K y ∂ν∞(w)) := by sorry
+      Integrable K ν∞(w) ∧ T f = -(∫ y, K y ∂ν∞(w)) := by
+  let : BorelSpace w.Completion := ⟨rfl⟩
+  by_cases hw : w.IsReal
+  · let e := InfinitePlace.Completion.ringEquivRealOfIsReal hw
+    let j := InfinitePlace.Completion.isometryEquivRealOfIsReal hw
+    let m := j.symm.toHomeomorph.toMeasurableEquiv
+    have hμ : ν∞(w) = (volume : Measure ℝ).map m := dite_eq_left hw
+    have hem (t : ℝ) : e (m t) = t := e.apply_symm_apply t
+    have hnorm (t : ℝ) : ‖m t‖ = ‖t‖ := by
+      change ‖j.symm t‖ = ‖t‖
+      rw [← dist_zero_right, ← dist_zero_right t, ← j.symm.dist_eq t 0,
+        show j.symm 0 = 0 from map_zero e.symm]
+    let c : Multiplicative w.Completion ≃ₜ* Multiplicative ℝ :=
+      { toMulEquiv := e.toAddEquiv.toMultiplicative
+        continuous_toFun := j.continuous
+        continuous_invFun := j.symm.continuous }
+    obtain ⟨E, hE⟩ := schwartzBruhat_realCoordinate_equiv c
+    have hP (f : 𝒮ₐ(w.Completion)) : addTest(f) = fun x ↦ E.symm f (e x) := by
+      funext x
+      conv_lhs => rw [← E.apply_symm_apply f]
+      exact hE _ _
+    refine exists_infiniteConnesPrincipalValue_ofModel w m volume hμ
+      ((SchwartzMap.fourierTransformCLM ℂ).comp E.symm.toContinuousLinearMap)
+      (fun t ↦ (Real.log ‖t‖ : ℂ))
+      (Complex.measurable_ofReal.comp measurable_norm.log).aestronglyMeasurable 3 ?_
+      fun f t ↦ ?_
+    · have h := integrable_abs_log_norm_div_one_add_norm_pow (volume : Measure ℝ)
+        (by simp)
+      simp only [Module.finrank_self] at h
+      simpa only [Complex.norm_real, Real.norm_eq_abs] using h
+    · change (Real.log (‖m t‖ ^ w.mult) : ℂ) * tamagawaFourier ν∞(w) ψ∞(w) addTest(f) (m t) = _
+      rw [hw.mult_eq_one, pow_one, hnorm, hP f, realModelFourier w hw, hem]
+      rfl
+  · have hc : w.IsComplex := InfinitePlace.not_isReal_iff_isComplex.mp hw
+    let e := InfinitePlace.Completion.ringEquivComplexOfIsComplex hc
+    let j := InfinitePlace.Completion.isometryEquivComplexOfIsComplex hc
+    let m := j.symm.toHomeomorph.toMeasurableEquiv
+    have hμ : ν∞(w) = (2 • (volume : Measure ℂ)).map m := dite_eq_right hw
+    have hem (t : ℂ) : e (m t) = t := e.apply_symm_apply t
+    have hnorm (t : ℂ) : ‖m t‖ = ‖t‖ := by
+      change ‖j.symm t‖ = ‖t‖
+      rw [← dist_zero_right, ← dist_zero_right t, ← j.symm.dist_eq t 0,
+        show j.symm 0 = 0 from map_zero e.symm]
+    let LE : ℂ ≃L[ℝ] EuclideanSpace ℝ (Fin 2) :=
+      (LinearEquiv.ofFinrankEq ℂ (EuclideanSpace ℝ (Fin 2)) (by simp)).toContinuousLinearEquiv
+    let c₀ : w.Completion ≃ₜ EuclideanSpace ℝ (Fin 2) := j.toHomeomorph.trans LE.toHomeomorph
+    let c : Multiplicative w.Completion ≃ₜ* Multiplicative (EuclideanSpace ℝ (Fin 2)) :=
+      ContinuousMulEquiv.mk' c₀ (fun x y ↦ by
+        change LE (e (x.toAdd + y.toAdd)) = LE (e x.toAdd) + LE (e y.toAdd)
+        rw [map_add, map_add])
+    obtain ⟨E, hE⟩ := exists_infiniteConnesPrincipalValue_coordinate c
+    let P : 𝒮ₐ(w.Completion) →L[ℂ] 𝓢(ℂ, ℂ) :=
+      (SchwartzMap.compCLMOfContinuousLinearEquiv ℂ LE).comp E.symm.toContinuousLinearMap
+    have hP (f : 𝒮ₐ(w.Completion)) : addTest(f) = fun x ↦ P f (e x) := by
+      funext x
+      conv_lhs => rw [← E.apply_symm_apply f]
+      exact hE _ _
+    let A : ℂ ≃L[ℝ] ℂ := Complex.conjCLE.trans
+      (LinearEquiv.smulOfNeZero ℝ ℂ (2 : ℝ) two_ne_zero).toContinuousLinearEquiv
+    have hA (z : ℂ) : A z = (2 : ℝ) • star z := rfl
+    refine exists_infiniteConnesPrincipalValue_ofModel w m (2 • volume) hμ
+      ((SchwartzMap.compCLMOfContinuousLinearEquiv ℂ A).comp
+        ((SchwartzMap.fourierTransformCLM ℂ).comp P))
+      (fun t ↦ (Real.log (‖t‖ ^ 2) : ℂ) * 2)
+      ((Complex.measurable_ofReal.comp (measurable_norm.pow_const 2).log).mul_const
+        _).aestronglyMeasurable 4 ?_ fun f t ↦ ?_
+    · have h := integrable_abs_log_norm_div_one_add_norm_pow (volume : Measure ℂ)
+        (by simp)
+      simp only [Complex.finrank_real_complex] at h
+      have h' : Integrable (fun t : ℂ ↦ ‖(Real.log (‖t‖ ^ 2) : ℂ) * 2‖ / (1 + ‖t‖) ^ 4)
+          volume := by
+        refine (h.const_mul 4).congr (ae_of_all _ fun t ↦ ?_)
+        simp only [norm_mul, Complex.norm_real, Real.norm_eq_abs, Real.log_pow]
+        norm_num [abs_mul]
+        ring
+      rw [two_smul]
+      exact h'.add_measure h'
+    · change (Real.log (‖m t‖ ^ w.mult) : ℂ) * tamagawaFourier ν∞(w) ψ∞(w) addTest(f) (m t) = _
+      rw [hc.mult_eq_two, hnorm, hP f, complexModelFourier w hc, hem]
+      change _ = _ * FourierTransform.fourier (P f : ℂ → ℂ) (A t)
+      rw [hA]
+      ring
 
 /-- Paper: Definition B.4.4.1(1), p. 619. Connes's archimedean additive
 principal value is minus the Fourier transform of the logarithm distribution. -/
