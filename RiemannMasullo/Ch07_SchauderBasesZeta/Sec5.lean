@@ -1,8 +1,8 @@
 module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec4
-import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec2
-import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec4
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec2
+import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec4
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
 import Mathlib.Topology.Algebra.Module.Equiv.Submodule
 
