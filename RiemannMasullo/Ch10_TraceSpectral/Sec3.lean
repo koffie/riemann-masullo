@@ -1426,6 +1426,24 @@ theorem spectralStripConvolution_nuclear {α s : ℝ} (hα : 0 ≤ α) (hs : 1 <
     r e he x Λ hb hj 1 le_rfl
   exact (mem_traceClassOperators_iff_isNuclearOperator _).mp hA
 
+-- TODO(paper-gap): (10.3.2.2), p. 454 asks for continuity of the strip convolution action in
+-- trace norm. The printed proof of Theorem 10.3.2.1 replaces the scalar series (10.3.2.6) by
+-- (10.3.2.7) and shows the latter converges for p > 1; but the constants C_{N,I,s}(phi) of
+-- (10.3.2.11) carry the derivatives of the test itself, so this is an estimate at a fixed test
+-- and yields no seminorm bound uniform in the test. The per-zero bounds (10.3.1.19)-(10.3.1.22),
+-- which the proof says carry over, rest on the single biorthogonality constant C of (10.3.1.18),
+-- which is Printed.spectralLineJet_uniformBiorthogonalBound, refuted in Sec3_Printed.lean. On the
+-- strip N_{I,s} is unbounded for alpha > 0 (as the proof of 10.3.2.1 notes), so the jets of one
+-- character grow with s and alpha as well. What is missing is a bound on the number of strip
+-- zeros of L(s, chi w) with |Im s| <= T in the number of jet orders used, together with a
+-- trace-norm estimate uniform in the test. A reduction of this statement to that single
+-- seminorm estimate is blocked at elaboration: the linear lift into
+-- nuclearEndomorphisms (Q a (hStrip hα) (hs₀ hs)) cannot be built by the anonymous constructor
+-- of LinearMap (here LinearMap extends AddHom and MulActionHom, so the field literal
+-- { toFun := ..., map_add' := ..., map_smul' := ... } is rejected by the parser), and building
+-- it from an abstract function via AddHom exhausts the heartbeat budget in isDefEq and whnf on
+-- that quotient type; see #5398.
+
 /-- Paper: Theorem 10.3.2.1(2) and (10.3.2.2), p. 454. The convolution
 action lifts to a linear map into the trace class, continuous at zero in trace norm. -/
 theorem spectralStripConvolution_traceNorm_continuous {α s : ℝ} (hα : 0 ≤ α) (hs : 1 < s) :

@@ -1642,20 +1642,131 @@ theorem introTrace_logDeriv_extension_of_limit (τ : ℝ≥0ˣ →ₜ* C𝔽)
 -- continuation argument. The corrected cutoff identity does not itself bound
 -- the separate terms or provide the holomorphic limit of their sum.
 
+open Classical in
+/-- Paper: §1.4.5, pp. 29–30. For any approximating family the combined
+archimedean and spectral terms converge locally uniformly on `Re z > max a 1`
+to the regularized shifted logarithmic derivative: the fixed-cutoff trace
+identity writes the combined sum as the polar moments minus the prime-power
+sum, and both of those converge there. -/
+private theorem introTrace_combined_limit_extension_overlap (τ : ℝ≥0ˣ →ₜ* C𝔽)
+    (_hτ : RightInverse τ (ideleClassNorm F)) (χ : U𝔽) (_hχ : ∀ t, χ (τ t) = 1)
+    {a : ℝ} (_ha : 0 < a) (h ρ : ℕ → ℝ → ℝ) (_hA : IsIntroTraceApproximation h ρ) :
+    TendstoLocallyUniformlyOn
+      (fun n z ↦ archSum(χ, approx(h, ρ, n, z)) +
+        introTraceSpectralSum χ approx(h, ρ, n, z) a)
+      (fun z ↦ logDeriv finiteL(χ) (z + 1 / 2) +
+        if χ = 1 then 1 / (z + 1 / 2) + 1 / (z - 1 / 2) else 0) atTop right(max a 1) := by
+  have hone : (1 : ℝ) ≤ max a 1 := le_max_right a 1
+  have hpos : ∀ z ∈ right(max a 1), (1 : ℝ) / 2 < z.re := by
+    intro z hz
+    have h1 : (1 : ℝ) < z.re := hone.trans_lt hz
+    linarith
+  have hsub₁ : right(max a 1) ⊆ right(((1 / 2 : ℂ)).re) := fun z hz ↦ by
+    have := hpos z hz
+    show (1 / 2 : ℂ).re < z.re
+    norm_num
+    linarith
+  have hsub₂ : right(max a 1) ⊆ right(((-1 / 2 : ℂ)).re) := fun z hz ↦ by
+    have := hpos z hz
+    show (-1 / 2 : ℂ).re < z.re
+    norm_num
+    linarith
+  have hsub₀ : right(max a 1) ⊆ right(1 / 2) := by
+    intro z hz
+    have h1 : (1 : ℝ) < z.re := hone.trans_lt hz
+    show (1 / 2 : ℝ) < z.re
+    linarith
+  let P : ℕ → ℂ → ℂ := fun n z ↦ if χ = 1 then
+    introTraceMellin approx(h, ρ, n, z) (1 / 2) +
+      introTraceMellin approx(h, ρ, n, z) (-1 / 2) else 0
+  have hM₁ : TendstoLocallyUniformlyOn (fun n z ↦ introTraceMellin approx(h, ρ, n, z) (1 / 2))
+      (fun z ↦ 1 / (z - 1 / 2)) atTop right(max a 1) :=
+    ((introTraceApprox_mellin_tendsto h ρ _hA (1 / 2)).mono hsub₁).congr_right
+      fun z hz ↦ (introTracePower_mellin z (1 / 2) (hsub₁ hz)).2
+  have hM₂ : TendstoLocallyUniformlyOn (fun n z ↦ introTraceMellin approx(h, ρ, n, z) (-1 / 2))
+      (fun z ↦ 1 / (z + 1 / 2)) atTop right(max a 1) :=
+    ((introTraceApprox_mellin_tendsto h ρ _hA (-1 / 2)).mono hsub₂).congr_right fun z hz ↦ by
+      have hp := (introTracePower_mellin z (-1 / 2) (hsub₂ hz)).2
+      show introTraceMellin (introTracePower z) (-1 / 2) = 1 / (z + 1 / 2)
+      rw [hp]
+      congr 1
+      ring
+  have hzero : TendstoLocallyUniformlyOn (fun (_ : ℕ) (_ : ℂ) ↦ (0 : ℂ)) (fun _ ↦ 0)
+      atTop right(max a 1) := by
+    intro u hu x _
+    exact ⟨univ, univ_mem, Eventually.of_forall fun _ _ _ ↦ refl_mem_uniformity hu⟩
+  have hP : TendstoLocallyUniformlyOn P
+      (fun z ↦ if χ = 1 then 1 / (z + 1 / 2) + 1 / (z - 1 / 2) else 0) atTop
+      right(max a 1) := by
+    by_cases htriv : χ = 1
+    · subst htriv
+      have hsum := hM₁.add hM₂
+      refine (hsum.congr (fun n ↦ ?_)).congr_right (fun z _ ↦ ?_)
+      · intro z _
+        simp [P, Pi.add_apply]
+      · simp [Pi.add_apply, add_comm]
+    · refine (hzero.congr (fun n ↦ ?_)).congr_right (fun z _ ↦ ?_)
+      · intro z _
+        simp [P, htriv]
+      · simp [htriv]
+  have hpr := (introTraceApprox_primeSum_tendsto χ h ρ _hA).mono hsub₀
+  have hcomb := hP.sub hpr
+  have harch : ∀ n z, archSum(χ, approx(h, ρ, n, z)) +
+      introTraceSpectralSum χ approx(h, ρ, n, z) a = P n z - primeSum(χ, approx(h, ρ, n, z)) := by
+    intro n z
+    obtain ⟨φ, hφ⟩ := introTraceApprox_exists_bruhat χ h ρ _hA n z
+    have hz : approx(h, ρ, n, z) 1 = 0 :=
+      image_eq_zero_of_notMem_tsupport (fun hu ↦ lt_irrefl _ (introTraceApprox_support h ρ _hA n z hu))
+    have hsum := (introTrace_characterTrace τ _hτ χ _hχ _ hz φ hφ a _ha).2.2.tsum_eq
+    change introTraceSpectralSum χ approx(h, ρ, n, z) a =
+      P n z - archSum(χ, approx(h, ρ, n, z)) - primeSum(χ, approx(h, ρ, n, z)) at hsum
+    rw [hsum]
+    ring
+  refine (hcomb.congr (fun n ↦ ?_)).congr_right (fun z _ ↦ ?_)
+  · intro z _
+    exact (harch n z).symm
+  · show (if χ = 1 then 1 / (z + 1 / 2) + 1 / (z - 1 / 2) else 0) -
+      -logDeriv finiteL(χ) (z + 1 / 2) = logDeriv finiteL(χ) (z + 1 / 2) +
+        if χ = 1 then 1 / (z + 1 / 2) + 1 / (z - 1 / 2) else 0
+    rw [sub_neg_eq_add, add_comm]
+
+open Classical in
+/-- Paper: §1.4.5, p. 30. The extension the paper asserts without proof: the
+germ of the regularized shifted logarithmic derivative extends holomorphically
+from the overlap `Re z > max a 1` to the whole chart `Re z > a`. Away from the
+trivial character this says that the finite Hecke L-function has no zero with
+`Re s > 1 / 2 + a`, which is the content of the paper's continuation step. At
+the trivial character's `z = 1 / 2` it says only that the two poles cancel as
+a germ: the value of the raw expression at that point depends on the total
+values Lean assigns to `logDeriv` at the pole of `finiteL 1` at one and to
+`1/0`, so the extension is stated as a function agreeing on the overlap rather
+than as `AnalyticOnNhd` of the raw expression itself. -/
+private theorem introTrace_combined_limit_extension_analytic (χ : U𝔽) {a : ℝ} (_ha : 0 < a) :
+    ∃ H : ℂ → ℂ, AnalyticOnNhd ℂ H right(a) ∧
+      EqOn H (fun z ↦ logDeriv finiteL(χ) (z + 1 / 2) +
+        if χ = 1 then 1 / (z + 1 / 2) + 1 / (z - 1 / 2) else 0) right(max a 1) := by sorry
+
 /-- Paper: §1.4.5, pp. 29–30. In each normalized chart a holomorphic function
 on the right of the window agrees on the common half-plane with the limit of
 the combined archimedean and spectral terms for a cofinal family of tests.
 Gap: The separate limits on p. 29 diverge for the trivial rational character.
 The paper gives no extension of the combined value across the overlap.
 Deviation: Only the restriction of the extension to the overlap must be a
-cutoff limit. One cofinal family for each chart and width suffices. -/
+cutoff limit. One cofinal family for each chart and width suffices.
+Split: the overlap limit is `introTrace_combined_limit_extension_overlap`, and
+the extension across the overlap is `introTrace_combined_limit_extension_analytic`. -/
 theorem introTrace_combined_limit_extension (τ : ℝ≥0ˣ →ₜ* C𝔽)
     (_hτ : RightInverse τ (ideleClassNorm F)) (χ : U𝔽) (_hχ : ∀ t, χ (τ t) = 1)
     (a : ℝ) (_ha : 0 < a) :
     ∃ (h ρ : ℕ → ℝ → ℝ) (H : ℂ → ℂ), IsIntroTraceApproximation h ρ ∧
       AnalyticOnNhd ℂ H right(a) ∧ TendstoLocallyUniformlyOn
         (fun n z ↦ archSum(χ, approx(h, ρ, n, z)) + introTraceSpectralSum χ approx(h, ρ, n, z) a)
-        H atTop right(max a 1) := by sorry
+        H atTop right(max a 1) := by
+  obtain ⟨h, ρ, hA⟩ := exists_introTraceApproximation
+  obtain ⟨H, hH, hEq⟩ := introTrace_combined_limit_extension_analytic χ _ha
+  refine ⟨h, ρ, H, hA, hH, ?_⟩
+  exact (introTrace_combined_limit_extension_overlap τ _hτ χ _hχ _ha h ρ hA).congr_right
+    fun z hz ↦ (hEq hz).symm
 
 open Classical in
 /-- Paper: §1.4.5, p. 30. Continuation from every positive half-width gives
