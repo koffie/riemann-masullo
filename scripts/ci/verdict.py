@@ -22,12 +22,13 @@ checkout of main at SHA `--base` with its dependencies already fetched, and this
 from a checkout of main too (it may be the same one). The pull request must already be in DIR's
 object store (`git fetch origin pull/N/head`); it is never checked out as a whole.
 
-`--main` is main's tip, when `--base` is an older commit of main: the newest one with a saved
-build, chosen by `base_state.py --choose` (#6414). The pull request's changes are then the
-difference between its head and its merge base with main's tip, and they are applied to
-`--base`; a pull request that has merged main since `--base` is judged on its own changes all
-the same. That is sound only if main has not changed the pull request's files since `--base`,
-which `--choose` ensures and this script checks again.
+`--main` is main's tip when `--base` is an older commit of main, the newest with a saved build,
+chosen by `base_state.py --choose` (#6414). This script then requires what makes the check the
+same as one against the tip apart from what main merged in between: `--base` is an ancestor of
+`--main`, and the pull request's merge base with `--main` is an ancestor of `--base`, so that
+the pull request's changes and the ordinary merge into `--base` are measured from the same
+commit as they would be against the tip. Otherwise the verdict is `error`, and the workflow
+checks against the tip.
 
 Order of work, and why:
   1. The list of changed files is read from git. Anything that is not an ordinary Lean file
@@ -131,10 +132,14 @@ class Check:
             raise Stop("error", ["the work tree is not at the base commit"])
         if self.git("status", "--porcelain", "--untracked-files=no").stdout.strip():
             raise Stop("error", ["the work tree has local changes"])
-        if self.main != self.base and self.git("merge-base", "--is-ancestor", self.base, self.main,
-                                               check=False).returncode:
-            raise Stop("error", ["the base is not an ancestor of main's tip"])
-        found = self.git("merge-base", self.main, self.head, check=False)
+        if self.main != self.base:
+            if self.git("merge-base", "--is-ancestor", self.base, self.main, check=False).returncode:
+                raise Stop("error", ["the base is not an ancestor of main's tip"])
+            fork = self.git("merge-base", self.main, self.head, check=False).stdout.strip()
+            if not fork or self.git("merge-base", "--is-ancestor", fork, self.base, check=False).returncode:
+                raise Stop("error", ["the pull request contains commits of main newer than the base, so it "
+                                     "must be checked against main's tip"])
+        found = self.git("merge-base", self.base, self.head, check=False)
         if found.returncode:
             raise Stop("fail", ["the pull request shares no history with main"])
         self.merge_base = found.stdout.strip()
@@ -148,14 +153,6 @@ class Check:
         if not entries:
             raise Stop("read", ["the pull request changes no file"])
         self.files = [e["path"] for e in entries]
-        if self.git("merge-base", "--is-ancestor", self.merge_base, self.base, check=False).returncode:
-            # The pull request has merged main since the base; its own changes are applied to the
-            # base, which is right only if the base has the versions of its files that it started from.
-            for e in entries:
-                ours = self.git("rev-parse", "--verify", "-q", f"{self.base}:{e['path']}", check=False).stdout.strip()
-                if (ours or "0" * 40) != e["old"]:
-                    raise Stop("error", [f"main changed {e['path']} between the base and the commit the pull "
-                                         "request last merged; it must be checked against main's tip"])
         outside = [e["path"] for e in entries if not (
             plain_proof.library_file(e["path"])
             and e["status"] in ("A", "M", "D")
@@ -196,7 +193,7 @@ class Check:
         # would hold back, whatever is added there later. It reads the diff; it runs nothing.
         review = TOOLS / "scripts/proof_review.sh"
         if review.is_file():
-            done = subprocess.run(["bash", str(review), self.merge_base, self.head], cwd=self.work, text=True,
+            done = subprocess.run(["bash", str(review), self.base, self.head], cwd=self.work, text=True,
                                   stdin=subprocess.DEVNULL, capture_output=True)
             if done.returncode:
                 raise Stop("error", ["scripts/proof_review.sh could not read the diff"], done.stderr)
@@ -295,11 +292,12 @@ class Check:
             raise Stop("error", ["the signature dump of main failed"], out)
         return dump, log, sizes
 
-    def merge(self, candidate):
-        """Put the tree of the merge (see `decide`) into the work tree."""
-        merged = self.git("read-tree", "-m", "-u", "HEAD", candidate, check=False)
+    def merge(self, entries):
+        merged = self.git("merge", "--no-commit", "--no-ff", self.head, check=False)
         if merged.returncode:
-            raise Stop("error", ["could not put the merged tree into the work tree"], merged.stdout + merged.stderr)
+            self.git("merge", "--abort", check=False)
+            raise Stop("fail", ["it does not merge cleanly into main: merge main into the branch "
+                                "and resolve the conflicts"], merged.stdout + merged.stderr)
         touched = self.git("diff", "--name-only", "-z", "--no-renames", self.base).stdout.split("\0")
         strays = [p for p in touched if p and p not in self.files]
         if strays:
@@ -368,6 +366,17 @@ def compare(base, head):
     return changed, removed, added, bad
 
 
+def statement_changes(base, head):
+    """(changed, removed, private, added, malformed) between two dumps (see `compare`): a private
+    definition cannot be mentioned by a public statement of a `module` file, so names beginning
+    `_private.` that changed or went are listed apart, as `private`, and not as changed or removed."""
+    changed, removed, added, bad = compare(base, head)
+    private = sorted(n for n in changed + removed if n.startswith("_private."))
+    changed = [n for n in changed if not n.startswith("_private.")]
+    removed = [n for n in removed if not n.startswith("_private.")]
+    return changed, removed, private, added, bad
+
+
 def sorry_counts(log):
     counts = {}
     for path in SORRY_WARNING.findall(log):
@@ -384,8 +393,7 @@ def decide(check, supplied_base):
     held = check.held_back(entries)
     check.lint_text(entries)
     # A conflict is reported before the long build of main, when git can tell without a work tree.
-    probe = check.git("merge-tree", "--write-tree", "--no-messages", "--merge-base", check.merge_base,
-                      check.base, check.head, check=False)
+    probe = check.git("merge-tree", "--write-tree", "--no-messages", check.base, check.head, check=False)
     if probe.returncode == 1:
         raise Stop("fail", ["it does not merge cleanly into main: merge main into the branch and "
                             "resolve the conflicts"])
@@ -402,7 +410,7 @@ def decide(check, supplied_base):
     if imports.returncode:
         raise Stop("error", ["the import policy check could not be carried out"], imports.stdout)
     base_dump, base_log, base_sizes = check.base_state(supplied_base)
-    check.merge(candidate)
+    check.merge(entries)
     held += [r for r in check.held_back_after_merge(entries) if r not in held]
     result = run([str(TOOLS / "scripts/lint.sh"), str(check.work)])
     if result.returncode:
@@ -417,12 +425,9 @@ def decide(check, supplied_base):
         raise Stop("fail", ["the signature dump failed after the build"], out)
     head_sizes = check.synonym_sizes()
 
-    changed, removed, added, bad = compare(base_dump, head_dump)
-    # A private definition cannot be mentioned by a public statement of a `module` file, so
-    # reworking one is not a changed statement; but it is not a finished proof and nothing else.
-    private = sorted(n for n in changed + removed if n.startswith("_private."))
-    changed = [n for n in changed if not n.startswith("_private.")]
-    removed = [n for n in removed if not n.startswith("_private.")]
+    # Reworking a private definition is not a changed statement, but it is not a finished proof
+    # and nothing else.
+    changed, removed, private, added, bad = statement_changes(base_dump, head_dump)
     failures = []
     if changed:
         failures.append("it changes the statement or definition of existing declarations: " + names(changed))
@@ -484,16 +489,18 @@ def report(args, verdict, reasons, log):
     data = dict(schema=1, verdict=verdict, pr=args.pr, head_sha=args.head, base_sha=args.base, reasons=reasons,
                 notes=list(NOTES))
     tip = getattr(args, "main", None)
-    if tip and SHA.fullmatch(tip) and tip != args.base:
+    older = bool(tip and SHA.fullmatch(tip) and tip != args.base)
+    if older:
         data["main_sha"] = tip
     (out / "verdict.json").write_text(json.dumps(data, indent=1) + "\n")
     lines = [f"## Verdict: `{verdict}`", "", NEXT[verdict], "",
              f"Checked commit `{args.head[:12]}` against `main` at `{args.base[:12]}`, "
              "with the checker, lakefile and toolchain of `main`.", ""]
-    if tip and SHA.fullmatch(tip) and tip != args.base:
-        lines[-1:] = [f"That is the newest commit of `main` with a saved build; `main` is at `{tip[:12]}`, "
-                      f"{args.behind} commits further, none of which changes a file of this pull request "
-                      "or the checker. Main state builds every merge and catches what those commits do to it.", ""]
+    if older:
+        lines[-1:] = [f"That is the newest commit of `main` with a saved build; `main` was at `{tip[:12]}`, "
+                      f"{getattr(args, 'behind', 'some')} commits further, none of which changes a file of this "
+                      "pull request or the checker (scripts/ci/base_state.py). Main state builds what is "
+                      "merged and fails if an existing statement changes.", ""]
     if reasons:
         lines += ["```", *reasons, "```", ""]
     if NOTES:
@@ -517,8 +524,8 @@ def main():
     parser.add_argument("--base-signatures")
     parser.add_argument("--main")
     args = parser.parse_args()
-    args.behind = "some"
     args.out = args.out or str(Path(args.work) / ".agent/verdict")
+    args.behind = "some"
     try:
         if not (SHA.fullmatch(args.base) and SHA.fullmatch(args.head) and SHA.fullmatch(args.main or args.base)):
             raise Stop("error", ["--base, --head and --main must be full commit ids"])

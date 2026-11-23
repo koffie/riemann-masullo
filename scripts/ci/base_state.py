@@ -1,33 +1,55 @@
 #!/usr/bin/env python3
 """Start a pull request check from the build of main that the Main state workflow saved.
 
-    scripts/ci/base_state.py --work DIR --base SHA --out DIR
+    scripts/ci/base_state.py --work DIR --base SHA --out DIR [--artifact ID]
     scripts/ci/base_state.py --choose --work DIR --main SHA --head SHA
 
-The first form looks for a `main-state` artifact made for exactly `--base` or, failing that, the
-newest one made for an ancestor of it, unpacks its build directory into DIR/.lake/build and, when
-it is for exactly `--base`, writes its signatures to `--out`/signatures-SHA.txt. Building main
-from scratch gives the same result; this only saves the time.
+The first form unpacks the build directory of a `main-state` artifact into DIR/.lake/build and,
+when it is for exactly `--base`, writes its signatures to `--out`/signatures-SHA.txt. The artifact
+is `--artifact` if given (it must pass the same tests as below and be for `--base` or one of its
+ancestors), otherwise the one made for exactly `--base` or, failing that, the newest made for an
+ancestor of it. The build is unpacked next to DIR/.lake/build and moved into place only once it
+is complete, so a failure leaves no partial build behind. Building main from scratch gives the
+same result; this only saves the time.
 
-The second form says which commit of main a pull request is checked against (#6414), and prints
-it: the newest commit that has a saved build, if main has changed, since then, neither a file the
-pull request changes nor a file that matters to every check (auto_merge.matters_to_everyone);
-otherwise `--main` itself, main's tip. Checking against the saved build costs only the pull
-request's own part; checking against the tip first rebuilds everything merged since the saved
-build, on every runner again. What main merged in between touches none of the pull request's
-files, and the checker and the build options are the same at both commits, so the check differs
-from one against the tip only by what those merges mean for the pull request's files: the same
-risk as main moving between a check and its merge, which scripts/ci/auto_merge.py bounds. DIR is
-a checkout with the history of main and the pull request's commit.
+The second form says which commit of main a pull request is checked against (#6414). It prints
+that commit and the id of the saved build to start from ("-" if there is none). Let S be the
+newest commit of main with a saved build, T main's tip (`--main`) and F the merge base of T and
+the pull request. The check is against S, so that only the pull request is compiled and not
+everything merged since S, when all of these hold (`usable_base`); otherwise against T:
 
-Both need GH_TOKEN (read access is enough), GH_REPO and REPO_ID, the numeric id of this
-repository.
+  - F is S or an ancestor of it: the pull request contains no commit of main newer than S, so
+    its own changes (F..head) are the same whichever of S and T they are measured from, and an
+    ordinary merge into S uses the same merge base as one into T;
+  - main has moved by at most MAX_SAVED_BEHIND commits since S, and the first of them is less
+    than MAX_SAVED_AGE_HOURS old;
+  - between S and T, main has changed none of the pull request's files and nothing that matters
+    to every check (`matters_to_everyone`), and fewer than MAX_MOVED_FILES files.
+
+The last two are `stale`, the same predicate Auto-merge applies between the checked commit and
+main when it merges, with the larger bound MAX_BEHIND. So whenever Auto-merge asks for another
+check because main has moved, the new check is never against the same commit again.
+
+What main merged between S and T touches none of the pull request's files, but it can still
+interact with them (an import that closes a cycle, an instance that changes how a statement
+elaborates). The bounds keep that window comparable to the one between a check and its merge,
+and two things in the workflows catch the rest within one build of main: Main state fails when a
+statement existing at its previous saved build has changed (main_statements.py), and Auto-merge
+merges nothing while the newest decisive Main state run has failed. A check against S that does
+not come back `merge` or `read` is run again against T in the same run (pr_check.yml), so a pull
+request is never told it fails because of the older base.
+
+Both forms need GH_TOKEN (read access is enough), GH_REPO and REPO_ID, the numeric id of this
+repository. DIR is a checkout with the history of main and the pull request's commit.
 
 Only an artifact uploaded by a run on this repository's own `main` branch is used. A pull
 request can upload an artifact with any name, but its run belongs to its own branch (and, from a
 fork, to another repository), and GitHub records that, not the pull request. The Actions cache
 is deliberately not used for this: a pull request can save a cache under any key, and later
 runs of the same pull request would restore it in preference to main's.
+
+This file also holds what decides whether a change on main matters to a verdict, which
+auto_merge.py imports: being under scripts/ci/, a change to it puts every verdict out of date.
 """
 import argparse
 import json
@@ -36,29 +58,93 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
-from auto_merge import matters_to_everyone
+import plain_proof
 
 SHA = re.compile(r"[0-9a-f]{40}")
 MAX_BYTES = 2 * 1024 ** 3
+# How far main may have moved past the commit a verdict was computed against. MAX_BEHIND is
+# Auto-merge's, when it merges. MAX_SAVED_BEHIND and MAX_SAVED_AGE_HOURS are the chooser's, when
+# the check starts: main merges about 30 pull requests an hour and Main state saves a build every
+# 30 to 90 minutes, so a saved build is normally under 40 commits and an hour or two behind; one
+# further behind means Main state is failing or stuck, and the tip is used. A check against S
+# takes some 20 minutes, so S is then at most about 50 commits behind main when Auto-merge acts:
+# the old flow had about as many between its check's start and the merge (a check of the tip
+# took 70 to 80 minutes). MAX_SAVED_BEHIND < MAX_BEHIND is what makes a check run again by
+# Auto-merge for being too far behind choose a newer base.
+MAX_BEHIND = 60
+MAX_SAVED_BEHIND = 40
+MAX_SAVED_AGE_HOURS = 3
+MAX_MOVED_FILES = 300     # GitHub lists at most 300 files of a comparison
+# Changes on main that make a verdict stale whatever files the pull request touches.
+# Of scripts/, only what the check itself runs: a change to the launcher or to the integrator's
+# tools does not touch any verdict, and counting it made every pending verdict stale.
+BUILD_FILES = ("lakefile.toml", "lakefile.lean", "lean-toolchain", "lake-manifest.json", ".gitattributes",
+               "scripts/lint.sh", "scripts/proof_review.sh", "scripts/signatures.sh", "scripts/Signatures.lean")
+BUILD_DIRS = ("scripts/ci/", ".github/workflows/", "RiemannMasullo/External/")
+# These files are independent of proof checking. The merge step applies its current policy
+# to the completed check, whose verdict was produced by the separate PR check workflow.
+NON_BUILD_FILES = (
+    "RiemannMasullo/External/ATTRIBUTION.md",
+    ".github/workflows/claims.yml",
+    "scripts/ci/stale_claims.py",
+    "scripts/ci/test_stale_claims.py",
+    "scripts/ci/auto_merge.py",
+    "scripts/ci/test_auto_merge.py",
+)
+
+
+def matters_to_everyone(path):
+    """Whether a change to this file on main can change the result of any pull request's check."""
+    if path in NON_BUILD_FILES:
+        return False
+    if path in BUILD_FILES or path.startswith(BUILD_DIRS):
+        return True
+    return path.endswith(".lean") and not plain_proof.library_file(path)
+
+
+def stale(behind, moved, ours, limit):
+    """Why a verdict about a pull request changing the files `ours` is out of date, or None, when
+    main has since moved by `behind` commits that changed the files `moved` (both names of a
+    rename). Used by the chooser here and by Auto-merge, with their own `limit`."""
+    if behind > limit:
+        return f"main has moved by {behind} commits since the commit checked against"
+    if len(moved) >= MAX_MOVED_FILES:
+        return "main has changed too many files since the commit checked against to tell"
+    for path in moved:
+        if path in ours:
+            return f"main has since changed {path}, which this pull request also changes"
+        if matters_to_everyone(path):
+            return f"main has since changed {path}, which affects every check"
+    return None
+
+
+def usable(artifact, repo_id):
+    """The commit a `main-state` artifact is for, if it may be used, or None."""
+    run = artifact.get("workflow_run") or {}
+    sha = str(run.get("head_sha"))
+    if (artifact.get("name") != "main-state" or artifact.get("expired") or run.get("repository_id") != repo_id
+            or run.get("head_repository_id") != repo_id or run.get("head_branch") != "main"
+            or not SHA.fullmatch(sha) or artifact.get("size_in_bytes", MAX_BYTES + 1) > MAX_BYTES):
+        return None
+    return sha
+
+
+def api(repo, path):
+    return json.loads(subprocess.run(["gh", "api", f"repos/{repo}/{path}"], check=True, capture_output=True).stdout)
 
 
 def saved_builds(repo, repo_id):
     """[(artifact, commit)] of the usable `main-state` artifacts, newest first."""
-    listing = json.loads(subprocess.run(
-        ["gh", "api", f"repos/{repo}/actions/artifacts?name=main-state&per_page=50"],
-        check=True, capture_output=True).stdout)
+    listing = api(repo, "actions/artifacts?name=main-state&per_page=50")
     found = []
     for artifact in sorted(listing["artifacts"], key=lambda a: a["created_at"], reverse=True):
-        run = artifact.get("workflow_run") or {}
-        sha = str(run.get("head_sha"))
-        if (artifact.get("expired") or run.get("repository_id") != repo_id
-                or run.get("head_repository_id") != repo_id or run.get("head_branch") != "main"
-                or not SHA.fullmatch(sha) or artifact.get("size_in_bytes", MAX_BYTES + 1) > MAX_BYTES):
-            continue
-        found.append((artifact, sha))
+        sha = usable(artifact, repo_id)
+        if sha:
+            found.append((artifact, sha))
     return found
 
 
@@ -71,70 +157,64 @@ def is_ancestor(work, older, newer):
     return git(work, "merge-base", "--is-ancestor", older, newer).returncode == 0
 
 
-def choose(work, main, head, saved):
-    """(the commit to check `head` against, why), given the commits with a saved build."""
-    best = None
-    for sha in saved:
-        if is_ancestor(work, sha, main) and (best is None or (sha != best and is_ancestor(work, best, sha))):
-            best = sha
-    if best is None:
-        return main, "no saved build of main to check against: checking against main's tip"
-    if best == main:
-        return main, "main's tip has a saved build"
+def usable_base(work, saved, main, head, now):
+    """Why `head` must not be checked against `saved`, an ancestor of `main`, or None."""
     fork = git(work, "merge-base", main, head)
+    if fork.returncode:
+        return "the pull request shares no history with main"
+    if not is_ancestor(work, fork.stdout.strip(), saved):
+        return "the pull request contains commits of main newer than the saved build"
     listed = git(work, "diff", "--name-only", "-z", "--no-renames", fork.stdout.strip(), head)
-    moved = git(work, "diff", "--name-only", "-z", "--no-renames", best, main)
-    if fork.returncode or listed.returncode or moved.returncode:
-        return main, "could not compare the saved build with main's tip: checking against main's tip"
-    ours = set(filter(None, listed.stdout.split("\0")))
-    for path in filter(None, moved.stdout.split("\0")):
-        if path in ours:
-            return main, f"main changed {path}, which the pull request changes, after its saved build " \
-                         f"{best[:12]}: checking against main's tip"
-        if matters_to_everyone(path):
-            return main, f"main changed {path}, which affects every check, after its saved build " \
-                         f"{best[:12]}: checking against main's tip"
-    behind = git(work, "rev-list", "--count", f"{best}..{main}").stdout.strip()
-    return best, f"checking against the saved build of main at {best[:12]}, {behind} commits behind main's tip"
+    moved = git(work, "diff", "--name-only", "-z", "--no-renames", saved, main)
+    times = git(work, "log", "--format=%ct", f"{saved}..{main}")
+    if listed.returncode or moved.returncode or times.returncode:
+        return "could not compare the saved build with main's tip"
+    times = [int(t) for t in times.stdout.split()]
+    why = stale(len(times), list(filter(None, moved.stdout.split("\0"))),
+                set(filter(None, listed.stdout.split("\0"))), MAX_SAVED_BEHIND)
+    if why:
+        return why
+    if times and now - min(times) > MAX_SAVED_AGE_HOURS * 3600:
+        return f"main has differed from the saved build for more than {MAX_SAVED_AGE_HOURS} hours"
+    return None
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    parser.add_argument("--work", required=True)
-    parser.add_argument("--base")
-    parser.add_argument("--out")
-    parser.add_argument("--choose", action="store_true")
-    parser.add_argument("--main")
-    parser.add_argument("--head")
-    args = parser.parse_args()
-    repo, repo_id = os.environ["GH_REPO"], int(os.environ["REPO_ID"])
-    work = Path(args.work)
+def choose(work, main, head, saved, now=None):
+    """(the commit to check `head` against, the saved build to start from or None, why), given
+    [(artifact, commit)] of the saved builds, newest first."""
+    best = None
+    for artifact, sha in saved:
+        if is_ancestor(work, sha, main) and (best is None or (sha != best[1] and is_ancestor(work, best[1], sha))):
+            best = (artifact, sha)
+    if best is None:
+        return main, None, "no saved build of main to check against: checking against main's tip"
+    artifact, sha = best
+    if sha == main:
+        return main, artifact, "main's tip has a saved build"
+    why = usable_base(work, sha, main, head, time.time() if now is None else now)
+    if why:
+        return main, artifact, f"{why} ({sha[:12]}): checking against main's tip"
+    behind = git(work, "rev-list", "--count", f"{sha}..{main}").stdout.strip()
+    return sha, artifact, f"checking against the saved build of main at {sha[:12]}, {behind} commits behind main's tip"
 
-    if args.choose:
-        if not (args.main and args.head and SHA.fullmatch(args.main) and SHA.fullmatch(args.head)):
-            raise SystemExit("--choose needs --main and --head, full commit ids")
-        try:
-            saved = [sha for _artifact, sha in saved_builds(repo, repo_id)]
-        except (subprocess.CalledProcessError, ValueError, KeyError):
-            saved = []
-        base, why = choose(work, args.main, args.head, saved)
-        print(why, file=sys.stderr)
-        print(base)
-        return 0
 
-    if not (args.base and args.out):
-        raise SystemExit("--base and --out are required")
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    chosen = None
-    candidates = saved_builds(repo, repo_id)
-    for artifact, sha in sorted(candidates, key=lambda c: c[1] != args.base):   # an exact match first
-        if subprocess.run(["git", "merge-base", "--is-ancestor", sha, args.base], cwd=work).returncode == 0:
-            chosen = (artifact, sha)
-            break
+def restore(work, base, out, repo, repo_id, pinned=None):
+    """Unpack a saved build into work/.lake/build (see the module's docstring)."""
+    if pinned is not None:
+        artifact = api(repo, f"actions/artifacts/{pinned}")
+        sha = usable(artifact, repo_id)
+        if not sha or not is_ancestor(work, sha, base):
+            raise SystemExit(f"artifact {pinned} is not a saved build of {base[:12]} or an ancestor of it")
+        chosen = (artifact, sha)
+    else:
+        chosen = None
+        for artifact, sha in sorted(saved_builds(repo, repo_id), key=lambda c: c[1] != base):   # an exact match first
+            if is_ancestor(work, sha, base):
+                chosen = (artifact, sha)
+                break
     if not chosen:
         print("no saved state of main to start from; main will be built here")
-        return 0
+        return
     artifact, sha = chosen
     archive = out / "main-state.zip"
     with open(archive, "wb") as target:
@@ -147,18 +227,58 @@ def main():
     archive.unlink()
     if json.loads((out / "meta.json").read_text()).get("sha") != sha:
         print("the saved state does not say which commit it is for; ignored")
-        return 0
-    build = work / ".lake/build"
-    shutil.rmtree(build, ignore_errors=True)
-    (work / ".lake").mkdir(exist_ok=True)
-    subprocess.run(["tar", "-C", str(work / ".lake"), "--no-same-owner", "-I", "zstd", "-xf",
-                    str(out / "build.tar.zst")], check=True)
-    (out / "build.tar.zst").unlink()
-    if sha == args.base:
+        return
+    lake = work / ".lake"
+    staging = lake / "build.unpacking"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True)
+    try:
+        subprocess.run(["tar", "-C", str(staging), "--no-same-owner", "-I", "zstd", "-xf",
+                        str(out / "build.tar.zst")], check=True)
+        if not (staging / "build").is_dir():
+            raise SystemExit("the saved build has no build directory")
+        shutil.rmtree(lake / "build", ignore_errors=True)
+        (staging / "build").rename(lake / "build")
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+        (out / "build.tar.zst").unlink()
+    if sha == base:
         (out / "signatures.txt").rename(out / f"signatures-{sha}.txt")
         print(f"starting from the saved build and signatures of main at {sha[:12]}")
     else:
-        print(f"starting from the saved build of main at {sha[:12]}, an ancestor of {args.base[:12]}")
+        print(f"starting from the saved build of main at {sha[:12]}, an ancestor of {base[:12]}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--work", required=True)
+    parser.add_argument("--base")
+    parser.add_argument("--out")
+    parser.add_argument("--artifact", type=int)
+    parser.add_argument("--choose", action="store_true")
+    parser.add_argument("--main")
+    parser.add_argument("--head")
+    args = parser.parse_args()
+    repo, repo_id = os.environ["GH_REPO"], int(os.environ["REPO_ID"])
+    work = Path(args.work)
+
+    if args.choose:
+        if not (args.main and args.head and SHA.fullmatch(args.main) and SHA.fullmatch(args.head)):
+            raise SystemExit("--choose needs --main and --head, full commit ids")
+        try:
+            saved = saved_builds(repo, repo_id)
+        except (subprocess.CalledProcessError, ValueError, KeyError):
+            saved = []
+        base, artifact, why = choose(work, args.main, args.head, saved)
+        print(why, file=sys.stderr)
+        print(base, artifact["id"] if artifact else "-")
+        return 0
+
+    if not (args.base and args.out and SHA.fullmatch(args.base)):
+        raise SystemExit("--base (a full commit id) and --out are required")
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    restore(work, args.base, out, repo, repo_id, args.artifact)
     return 0
 
 

@@ -35,13 +35,15 @@ class FakeApi:
 
     def __init__(self):
         self.calls = 0
+        self.paths = []
         self.changes = []
         self.artifacts, self.prs, self.runs = [], {}, {}
         self.common, self.heads, self.blobs = {}, {}, {}   # the merge base's files; each head's changes
         self.main_files = []          # files main changed since BASE
         self.not_on_main = set()      # commits that are not ancestors of main
         self.main_ahead = None        # commits main has moved since BASE, if not len(main_files)
-        self.after = set()            # (older, newer) pairs of commits of main
+        self.merge_bases = {}         # (base or "main", head) -> their merge base, if not MERGE_BASE
+        self.main_state = [dict(id=1, conclusion="success", created_at="2026-01-01T00:00:00Z")]
         self.merge_errors = {}
         self._ids = iter(range(100, 10_000))
 
@@ -83,6 +85,7 @@ class FakeApi:
 
     def call(self, path, method="GET", body=None, binary=False):
         self.calls += 1
+        self.paths.append(path)
         if method != "GET":
             raise AssertionError(f"a change through call(): {method} {path}")
         if path == "":
@@ -100,9 +103,8 @@ class FakeApi:
         if path.startswith("actions/runs?"):
             sha = re.search(r"head_sha=([0-9a-f]+)", path).group(1)
             return dict(workflow_runs=[r for r in self.runs.values() if r["head_sha"] == sha])
-        if m := re.fullmatch(r"compare/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?per_page=1", path):
-            status = "ahead" if (m.group(1), m.group(2)) in self.after else "behind"
-            return dict(merge_base_commit=dict(sha=MERGE_BASE), status=status)
+        if m := re.fullmatch(r"compare/([0-9a-f]{40}|main)\.\.\.([0-9a-f]{40})\?per_page=1", path):
+            return dict(merge_base_commit=dict(sha=self.merge_bases.get(m.groups(), MERGE_BASE)))
         if m := re.fullmatch(r"compare/([0-9a-f]{40})\.\.\.main\?per_page=1", path):
             if m.group(1) in self.not_on_main:
                 return dict(status="diverged", ahead_by=3, behind_by=2, files=[])
@@ -110,6 +112,11 @@ class FakeApi:
                 return dict(status="identical", ahead_by=0, behind_by=0, files=[])
             return dict(status="ahead", ahead_by=self.main_ahead or len(self.main_files), behind_by=0,
                         files=[dict(filename=f) for f in self.main_files])
+        if path.startswith("actions/workflows/main_state.yml/runs?"):
+            assert "branch=main" in path and "status=completed" in path
+            return dict(workflow_runs=[dict(dict(status="completed", head_branch="main", event="push",
+                                                 repository=dict(id=REPO_ID), head_repository=dict(id=REPO_ID)), **r)
+                                       for r in self.main_state])
         if m := re.fullmatch(r"git/trees/([0-9a-f]{40})\?recursive=1", path):
             return dict(truncated=False, tree=[dict(path=p, mode=e[0], type=e[1], sha=e[2])
                                                for p, e in self.tree(m.group(1)).items()])
@@ -117,13 +124,6 @@ class FakeApi:
             data = self.blobs[m.group(1)]
             return dict(size=len(data), encoding="base64", content=base64.b64encode(data).decode())
         raise AssertionError(f"unexpected call {path}")
-
-    def saved_build(self, sha, created="2026-01-01T00:20:00Z", **run):
-        """A `main-state` artifact for commit `sha`, uploaded by a run on main unless `run` says otherwise."""
-        self.artifacts.append(dict(
-            id=next(self._ids), name="main-state", expired=False, size_in_bytes=10 ** 9, created_at=created,
-            workflow_run=dict(dict(id=next(self._ids), repository_id=REPO_ID, head_repository_id=REPO_ID,
-                                   head_branch="main", head_sha=sha), **run)))
 
     def tree(self, sha):
         files = dict(self.common)
@@ -265,54 +265,70 @@ class AutoMerge(unittest.TestCase):
         self.assertEqual(self.drain(), {7: "merged"})
         self.assertFalse(self.api.did("POST", r"actions/runs/\d+/rerun"))
 
-    def test_check_against_a_saved_build_merges_when_main_moved_elsewhere(self):
-        # The check ran against an older commit of main, the newest with a saved build (#6414).
+    def test_check_against_an_older_commit_merges_when_main_moved_elsewhere(self):
+        # The check ran against the newest commit of main with a saved build (#6414).
         self.api.pull_request(7, {LEAN: (OLD, NEW)})
-        self.api.main_files = ["RiemannMasullo/AppB/Sec2.lean"] * 3
+        self.api.main_files = ["RiemannMasullo/AppB/Sec2.lean", "README.md"]
         self.api.main_ahead = auto_merge.MAX_BEHIND
         self.assertEqual(self.drain(), {7: "merged"})
 
-    def test_too_far_behind_waits_for_a_newer_saved_build(self):
+    def test_too_far_behind_is_checked_again(self):
+        # The chooser's bound is smaller, so the new check is against a newer commit (base_state.py).
         self.api.pull_request(7, {LEAN: (OLD, NEW)})
         self.api.main_files = ["RiemannMasullo/AppB/Sec2.lean"]
         self.api.main_ahead = auto_merge.MAX_BEHIND + 1
-        self.api.saved_build(BASE)                     # the build the check started from
-        self.api.saved_build("e" * 40, created="2026-01-01T00:30:00Z", head_branch="feature")   # not main's
-        outcome = self.drain()[7]
-        self.assertIn("waiting", outcome)
-        self.assertEqual(self.merged(), [])
-        self.assertFalse(self.api.did("POST", r"actions/runs/\d+/rerun"))
-        self.assertTrue([a for a in self.api.artifacts if a["name"] == "verdict-merge"])   # kept for later
-        self.assertFalse(self.api.did("POST", r"statuses/.*"))
-        # once Main state has saved a build of a later commit, the check runs again from it
-        self.api.saved_build("d" * 40, created="2026-01-01T00:40:00Z")
-        self.api.after.add((BASE, "d" * 40))
         self.assertIn("checking again", self.drain()[7])
         self.assertTrue(self.api.did("POST", r"actions/runs/1007/rerun"))
         self.assertEqual(self.merged(), [])
 
-    def test_too_far_behind_and_the_newest_saved_build_is_not_later(self):
-        for saved in (None, BASE, "d" * 40):
+    def test_branch_with_newer_commits_of_main_is_checked_again_not_refused(self):
+        # Review of #6461, item 2: measured from its merge base with the checked commit, a branch
+        # cut from a later main would show main's own changes (here a README) as its own.
+        head = self.api.pull_request(7, {LEAN: (OLD, NEW), "README.md": ("x", "y")})
+        self.api.merge_bases[("main", head)] = "e" * 40
+        self.assertIn("checking again", self.drain()[7])
+        self.assertTrue(self.api.did("POST", r"actions/runs/1007/rerun"))
+        self.assertFalse(self.api.did("POST", r"statuses/.*"))
+        self.assertEqual(self.merged(), [])
+
+    def test_files_are_measured_from_the_merge_base_with_the_checked_commit(self):
+        head = self.api.pull_request(7, {LEAN: (OLD, NEW)})
+        self.api.merge_bases[(BASE, head)] = self.api.merge_bases[("main", head)] = "e" * 40
+        self.assertEqual(self.drain(), {7: "merged"})
+        self.assertIn(f"git/trees/{'e' * 40}?recursive=1", self.api.paths)
+
+    def test_line_stopped_while_main_state_is_red(self):
+        self.api.pull_request(7, {LEAN: (OLD, NEW)})
+        self.api.pull_request(8, {"RiemannMasullo/AppB/Sec2.lean": (OLD, NEW)}, verdict="error",
+                              run=dict(conclusion="failure"))
+        self.api.main_state = [dict(id=1, conclusion="success", created_at="2026-01-01T00:00:00Z"),
+                               dict(id=2, conclusion="failure", created_at="2026-01-01T01:00:00Z"),
+                               dict(id=3, conclusion="cancelled", created_at="2026-01-01T02:00:00Z")]
+        self.assertEqual(self.drain(retry_errors=True), {})
+        self.assertEqual(self.api.changes, [])
+        self.assertIn("main's build is broken", self.out)
+        self.assertEqual(len([a for a in self.api.artifacts if a["name"].startswith("verdict-")]), 2)   # they wait
+        # a later run that succeeded restarts the line (a re-run of the failed one, too)
+        self.api.main_state.append(dict(id=4, conclusion="success", created_at="2026-01-01T03:00:00Z"))
+        self.assertEqual(self.drain()[7], "merged")
+
+    def test_line_stopped_by_runs_that_do_not_count(self):
+        for runs, stopped in (
+                ([dict(id=1, conclusion="cancelled", created_at="2026-01-01T00:00:00Z")], True),
+                ([], True),
+                ([dict(id=1, conclusion="timed_out", created_at="2026-01-01T01:00:00Z"),
+                  dict(id=2, conclusion="success", created_at="2026-01-01T00:00:00Z")], True),
+                ([dict(id=1, conclusion="failure", created_at="2026-01-01T01:00:00Z", head_branch="other"),
+                  dict(id=2, conclusion="success", created_at="2026-01-01T00:00:00Z")], False),
+                ([dict(id=1, conclusion="failure", created_at="2026-01-01T01:00:00Z", event="pull_request"),
+                  dict(id=2, conclusion="success", created_at="2026-01-01T00:00:00Z")], False),
+                ([dict(id=1, conclusion="failure", created_at="2026-01-01T01:00:00Z"),
+                  dict(id=2, conclusion="success", created_at="2026-01-01T00:00:00Z",
+                       head_repository=dict(id=99))], True)):
             self.api = FakeApi()
             self.api.pull_request(7, {LEAN: (OLD, NEW)})
-            self.api.main_ahead = auto_merge.MAX_BEHIND + 1
-            self.api.main_files = ["RiemannMasullo/AppB/Sec2.lean"]
-            if saved:
-                self.api.saved_build(saved)        # "d" is not after BASE: compare says behind
-            self.assertIn("waiting", self.drain()[7], saved)
-            self.assertFalse(self.api.did("POST", r"actions/runs/\d+/rerun"), saved)
-
-    def test_waiting_costs_one_lookup_of_saved_builds_per_run(self):
-        self.api.pull_request(7, {LEAN: (OLD, NEW)})
-        self.api.pull_request(8, {"RiemannMasullo/AppB/Sec3.lean": (OLD, NEW)})
-        self.api.main_ahead = auto_merge.MAX_BEHIND + 1
-        self.api.main_files = ["RiemannMasullo/AppB/Sec2.lean"]
-        self.api.saved_build("d" * 40)
-        outcomes = self.drain()
-        self.assertIn("waiting", outcomes[7])
-        self.assertIn("waiting", outcomes[8])
-        # verdicts, repository id, pull requests, 4 per pull request, saved builds, one comparison
-        self.assertEqual(self.api.calls, 1 + 1 + 1 + 2 * 4 + 1 + 1)
+            self.api.main_state = runs
+            self.assertEqual(self.drain() == {}, stopped, runs)
 
     def test_two_pull_requests_for_one_file_are_not_merged_on_one_check(self):
         self.api.pull_request(7, {LEAN: (OLD, NEW)})
@@ -426,7 +442,8 @@ class Verdict(unittest.TestCase):
 class Paths(unittest.TestCase):
     def test_what_matters_to_every_check(self):
         for path in ("lakefile.toml", "lean-toolchain", "lake-manifest.json", "scripts/ci/verdict.py",
-                     ".github/workflows/pr_check.yml", "Main.lean", "Statements.lean", "RiemannMasullo/External/A.lean"):
+                     ".github/workflows/pr_check.yml", "Main.lean", "Statements.lean", "RiemannMasullo/External/A.lean",
+                     ".gitattributes", "scripts/ci/base_state.py", "scripts/ci/main_statements.py"):
             self.assertTrue(auto_merge.matters_to_everyone(path), path)
         for path in ("RiemannMasullo/AppA/Sec1.lean", "ERRATA.md", "paper/paper.pdf", "prompts/prover.md",
                      "RiemannMasullo/External/ATTRIBUTION.md", ".github/workflows/claims.yml",

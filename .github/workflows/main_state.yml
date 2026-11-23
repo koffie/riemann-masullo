@@ -14,6 +14,13 @@ name: Main state
 # forward. Three things bound that: a build from scratch every night, a build from scratch
 # whenever the toolchain, the dependencies or the build options change, and the `full` switch of
 # a manual run. Outputs of modules whose source is gone are deleted (scripts/ci/prune_build.py).
+#
+# It fails, and saves nothing, when a declaration that the previous saved build had is gone or
+# has a different statement (scripts/ci/main_statements.py; new declarations are fine). A pull
+# request is checked against the newest saved build, not main's tip (#6414), so this is where
+# what main merged meanwhile shows. While the newest run here has failed, Auto-merge merges
+# nothing. When statements changed on purpose, run this workflow with `accept_changed_statements`
+# after reading the list in the failed run's summary (prompts/integrator.md).
 
 on:
   push:
@@ -24,6 +31,10 @@ on:
     inputs:
       full:
         description: Build from scratch instead of from the previous saved build
+        type: boolean
+        default: false
+      accept_changed_statements:
+        description: Accept declarations changed or removed since the previous saved build (read the list in the failed run first)
         type: boolean
         default: false
 
@@ -59,17 +70,26 @@ jobs:
       - name: Fetch the dependencies and Mathlib's build
         run: lake exe cache get || { sleep 20; lake exe cache get; }
       - name: Start from the previous saved build of main
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && !inputs.full)
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           REPO_ID: ${{ github.repository_id }}
+          FULL: ${{ (github.event_name == 'schedule' || inputs.full) && 'true' || 'false' }}
         run: |
           prev="$RUNNER_TEMP/previous"
           python3 scripts/ci/base_state.py --work . --base "$GITHUB_SHA" --out "$prev" ||
             { echo "could not fetch a saved build; building from scratch"; rm -rf .lake/build; exit 0; }
           [ -d .lake/build ] || exit 0
           from=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1])).get("sha", ""))' "$prev/meta.json")
+          # Its signatures, for comparing statements (named for the commit when it is this one).
+          for sigs in "$prev/signatures-$GITHUB_SHA.txt" "$prev/signatures.txt"; do
+            if [ -s "$sigs" ]; then echo "PREVIOUS_SIGNATURES=$sigs" >>"$GITHUB_ENV"; break; fi
+          done
+          if [ "$FULL" = true ]; then
+            echo "building from scratch"
+            rm -rf .lake/build
+            exit 0
+          fi
           if ! git diff --quiet "$from" "$GITHUB_SHA" -- lean-toolchain lake-manifest.json lakefile.toml lakefile.lean; then
             echo "the toolchain, the dependencies or the build options changed since $from: building from scratch"
             rm -rf .lake/build
@@ -84,6 +104,10 @@ jobs:
           mkdir main-state
           scripts/signatures.sh --all >main-state/signatures.txt
           scripts/signatures.sh --sorry-in-defs main-state/signatures.txt
+      - name: No existing statement changed since the previous saved build
+        env:
+          ACCEPT: ${{ inputs.accept_changed_statements && '--accept' || '' }}
+        run: python3 scripts/ci/main_statements.py ${ACCEPT:+"$ACCEPT"} "${PREVIOUS_SIGNATURES:-/nonexistent}" main-state/signatures.txt
       - name: The list of command keywords is up to date
         run: scripts/ci/keywords.sh --check
       - name: Pack the build

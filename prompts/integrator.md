@@ -89,10 +89,27 @@ queue and yours, as before. The workflows and `scripts/ci/` are your infrastruct
 - The check runs `scripts/proof_review.sh` itself, so a rule the merger adds there holds pull
   requests back in CI at once. `scripts/ci/plain_proof.py` repeats those rules for the workflow
   that merges; a rule the merger relaxes takes effect in CI only when it is relaxed there too.
-- A pull request is checked against the newest commit of `main` that `Main state` saved a build
-  for, not `main`'s tip, unless `main` has since changed one of its files or the checker (#6414);
-  the run's summary names both commits. What those later merges do to it semantically shows up
-  in the next `Main state` run, so a red `Main state` is the signal to revert.
+- A pull request is usually checked against the newest commit of `main` that `Main state` saved
+  a build for, not `main`'s tip (#6414; the rules are at the top of `scripts/ci/base_state.py`);
+  the run's summary names both commits. A verdict other than `merge` or `read` against that
+  commit is never published: the same run checks again against the tip. So nothing builds the
+  tip with a pull request before Auto-merge merges it, and an interaction with what was merged
+  in between shows only in `Main state`. That workflow builds `main` incrementally, once for
+  however many merges came since its last run, and fails if the build, the lint, the
+  `sorry`-in-definitions check or the command-keyword list fails, or if a declaration that its
+  previous saved build had is gone or has a different statement (names beginning `_private.`
+  excepted, new declarations allowed); unlike the check, it does not measure type synonyms.
+  While its newest run on `main` that finished with success or failure is a failure, Auto-merge
+  merges nothing; it starts again by itself once a run on `main` succeeds (a push, the nightly
+  build, `gh workflow run main_state.yml`, or a re-run of a failed run that was only unlucky).
+  A red `Main state` is the signal to revert or repair.
+- When you change or remove statements on `main` on purpose, or update the toolchain or Mathlib
+  (which can change many statement terms), `Main state` fails on the comparison and lists the
+  names in its summary, and nothing is merged automatically until you accept them: check the
+  list, then `gh workflow run main_state.yml -f accept_changed_statements=true`, and read the
+  list that run accepts too: it covers everything since the last saved build. Its dump is the
+  one later runs compare with. The same applies when no previous saved build is left to compare
+  with (saved builds are kept for a day).
 - A change to `.github/` or `scripts/` is never merged automatically, and CI runs
   `scripts/ci/selftest.sh` on it. What the workflows defend against is written at the top of
   `scripts/ci/auto_merge.py`; read it before changing either workflow.
