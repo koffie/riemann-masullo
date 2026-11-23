@@ -1,7 +1,12 @@
 """A pull request fails when it adds a type synonym of at least LARGE_SYNONYM nodes as a tree, or
 makes one larger than on main; synonyms already that large on main do not hold it up."""
+import json
+import tempfile
+import types
 import unittest
+from pathlib import Path
 
+import verdict
 from verdict import LARGE_SYNONYM, grown_synonyms, parse_sizes
 
 BIG = LARGE_SYNONYM
@@ -30,6 +35,22 @@ class SynonymSizesTest(unittest.TestCase):
     def test_synonym_that_crosses_the_threshold_fails(self):
         # main lists only synonyms above the threshold, so one below it is absent from `base`
         self.assertEqual(grown_synonyms({}, {"Y": BIG + 1, "X": 2 * BIG}), ["X", "Y"])
+
+
+class NotesTest(unittest.TestCase):
+    """A measurement that could not run is reported without changing the verdict."""
+    def test_note_is_shown_and_verdict_kept(self):
+        verdict.NOTES[:] = ["the size of type synonyms could not be measured"]
+        try:
+            with tempfile.TemporaryDirectory() as out:
+                args = types.SimpleNamespace(out=out, pr=1, head="a" * 40, base="b" * 40)
+                verdict.report(args, "merge", [], "")
+                data = json.loads((Path(out) / "verdict.json").read_text())
+                self.assertEqual(data["verdict"], "merge")
+                self.assertEqual(data["notes"], ["the size of type synonyms could not be measured"])
+                self.assertIn("could not be measured", (Path(out) / "summary.md").read_text())
+        finally:
+            verdict.NOTES.clear()
 
 
 if __name__ == "__main__":

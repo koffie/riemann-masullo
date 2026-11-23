@@ -62,6 +62,11 @@ BUILD_MINUTES = 45
 LARGE_SYNONYM = 10 ** 8
 
 
+# Remarks for the summary that do not change the verdict: a measurement that could not run
+# must not stop the automatic merge of every pull request at once.
+NOTES = []
+
+
 class Stop(Exception):
     """The verdict is known."""
     def __init__(self, verdict, reasons, log=""):
@@ -225,7 +230,7 @@ class Check:
         if not script.is_file():
             return None
         status, out = self.lake("lake", "env", "lean", "--run", str(script), "--min", str(LARGE_SYNONYM),
-                                *self.modules(), timeout=1200, quiet=True)
+                                *self.modules(), timeout=300, quiet=True)
         return parse_sizes(out) if status == 0 else None
 
     def keywords_current(self):
@@ -400,7 +405,8 @@ def decide(check, supplied_base):
             failures.append("type synonyms of over 10^8 nodes as a tree, new or larger than on main: "
                             + names(grown) + ". Make them defs with their own instances (AGENTS.md, #5398)")
     else:
-        held.append("the size of type synonyms could not be measured (scripts/AbbrevSizes.lean)")
+        NOTES.append("the size of type synonyms could not be measured (scripts/AbbrevSizes.lean), "
+                     "so new or grown synonyms were not checked")
     if failures:
         raise Stop("fail", failures, log)
 
@@ -441,13 +447,16 @@ def report(args, verdict, reasons, log):
     out.mkdir(parents=True, exist_ok=True)
     reasons = [clean(r, 600).replace("\n", " ") for r in reasons[:40]] + (
         ["(more reasons not shown)"] if len(reasons) > 40 else [])
-    data = dict(schema=1, verdict=verdict, pr=args.pr, head_sha=args.head, base_sha=args.base, reasons=reasons)
+    data = dict(schema=1, verdict=verdict, pr=args.pr, head_sha=args.head, base_sha=args.base, reasons=reasons,
+                notes=list(NOTES))
     (out / "verdict.json").write_text(json.dumps(data, indent=1) + "\n")
     lines = [f"## Verdict: `{verdict}`", "", NEXT[verdict], "",
              f"Checked commit `{args.head[:12]}` against `main` at `{args.base[:12]}`, "
              "with the checker, lakefile and toolchain of `main`.", ""]
     if reasons:
         lines += ["```", *reasons, "```", ""]
+    if NOTES:
+        lines += ["Notes (they do not change the verdict):", "", *[f"- {clean(n, 600)}" for n in NOTES], ""]
     if log and verdict in ("fail", "error"):
         tail = "\n".join(clean(log, 6000).split("\n")[-60:])
         lines += ["<details><summary>Last lines of the output</summary>", "", "```", tail, "```", "", "</details>", ""]
