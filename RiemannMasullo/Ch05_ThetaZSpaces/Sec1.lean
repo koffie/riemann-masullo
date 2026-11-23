@@ -204,7 +204,9 @@ private theorem continuousAt_of_normTwist (hm : Continuous m) (hchart : HasNormT
 
 end NormCoordinates
 
-private theorem exists_ideleClassNormTwist (c : X𝔽) :
+/-- Every quasi-character of the idele class group is a unitary character twisted by a power of
+the idele class norm. -/
+theorem exists_ideleClassNormTwist (c : X𝔽) :
     ∃ (χ : PontryaginDual C𝔽) (s : ℂ), ideleClassNormTwist χ s = c := by
   let : T2Space C𝔽 := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.1
   let : LocallyCompactSpace C𝔽 := (ideleGroup_quotient.{_, 0} F).2.2.2.2.2.2.1

@@ -1,7 +1,7 @@
 module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
-import all RiemannMasullo.Ch05_ThetaZSpaces.Sec1
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
