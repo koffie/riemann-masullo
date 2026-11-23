@@ -1351,13 +1351,121 @@ theorem finiteEigendistributions_dense_span (v : HeightOneSpectrum (𝓞 F)) :
     (fun f hf ↦ finiteEigendistributions_dense_span_separating v f
       (fun T hT ↦ hf ⟨T, hT⟩))
 
+/-- Point-separating functionals on a Montel space span its strong dual densely,
+since every separating strong-bidual functional is evaluation at a vector. -/
+private theorem infiniteEigendistributions_dense_span_of_separating
+    {E I : Type*} [AddCommGroup E] [Module ℂ E] [UniformSpace E]
+    [IsUniformAddGroup E] [ContinuousSMul ℂ E] [PolynormableSpace ℂ E] [T2Space E]
+    [MontelSpace ℂ E] [PolynormableSpace ℂ (StrongDual ℂ E)] (T : I → StrongDual ℂ E)
+    (hsep : ∀ x : E, (∀ i, T i x = 0) → x = 0) :
+    Dense (Submodule.span ℂ (Set.range T) : Set (StrongDual ℂ E)) := by
+  let D := StrongDual ℂ E
+  let : Module ℝ D := Module.restrictScalars ℝ ℂ D
+  let : IsScalarTower ℝ ℂ D := IsScalarTower.restrictScalars ℝ ℂ D
+  let : LocallyConvexSpace ℝ D := (PolynormableSpace.withSeminorms ℂ D).toLocallyConvexSpace
+  let V := (Submodule.span ℂ (Set.range T)).topologicalClosure
+  rw [dense_iff_closure_eq]
+  apply Set.eq_univ_of_forall
+  intro l
+  by_contra hl
+  obtain ⟨φ, hφ, hv⟩ := exists_dual_eq_zero_on_submodule_of_notMem V
+    (Submodule.span ℂ (Set.range T)).isClosed_topologicalClosure hl
+  obtain ⟨x, rfl⟩ := surjective_strongBidual_eval φ
+  have hx : x = 0 := hsep x (fun i ↦ hv (T i)
+    ((Submodule.span ℂ (Set.range T)).le_topologicalClosure (Submodule.subset_span (Set.mem_range_self i))))
+  exact hφ (by change l x = 0; rw [hx, map_zero])
+
+/-- Vanishing on every infinite-place eigendistribution forces all convergent
+Mellin integrals on the line of real part one to vanish. -/
+private theorem infiniteEigendistributions_dense_span_zeta
+    (w : InfinitePlace F) (f : ℬ(w.Completion))
+    (hf : ∀ T : D(ℬ(w.Completion)),
+      (∃ c : QuasiCharacter w.Completionˣ, T ∈ schwartzBruhatEigendistributions c) → T f = 0)
+    (χ : PontryaginDual w.Completionˣ) :
+    infiniteLocalIdelicZFunction w f
+      (quasiCharacterNormTwist (infiniteModule(w)) (continuous_infiniteLocalModule w)
+        ((circleToComplex).comp χ) 1) = 0 := by
+  let D := (infiniteEigendistribution_normalized w χ).choose
+  have hD := (infiniteEigendistribution_normalized w χ).choose_spec
+  have hz (z : ℂ) : D z f = 0 := hf (D z) ⟨_, ((hD.2.1 z _).mp rfl).1⟩
+  have he : ∀ᶠ z : ℂ in 𝓝[≠] (1 : ℂ),
+      infiniteLocalIdelicZFunction w f
+        (quasiCharacterNormTwist (infiniteModule(w)) (continuous_infiniteLocalModule w)
+          ((circleToComplex).comp χ) z) = 0 := by
+    filter_upwards [nhdsNE_le_codiscrete (1 : ℂ) hD.2.2] with z he
+    exact (he f).trans (by rw [hz, mul_zero])
+  have hNF := ((infiniteLocalIdelicZFunction_existsUnique w f).exists.choose_spec χ).1
+    (Set.mem_univ (1 : ℂ))
+  have hzero := ((hNF.eventuallyEq_nhdsNE_iff_eventuallyEq_nhds
+    analyticAt_const.meromorphicNFAt).mp he).eq_of_nhds
+  exact hzero
+
+/-- Character uniqueness recovers an infinite-place test off zero, and continuity
+recovers its value at zero. -/
+private theorem infiniteEigendistributions_dense_span_separating
+    (w : InfinitePlace F) (f : ℬ(w.Completion))
+    (hf : ∀ T : D(ℬ(w.Completion)),
+      (∃ c : QuasiCharacter w.Completionˣ, T ∈ schwartzBruhatEigendistributions c) → T f = 0) :
+    f = 0 := by
+  let K := w.Completion
+  have htwo : 1 < ‖(2 : K)‖ := by
+    rw [← (InfinitePlace.Completion.isometry_extensionEmbedding w).norm_map_of_map_zero
+      (map_zero _) (2 : K), map_ofNat]
+    norm_num
+  let : NontriviallyNormedField K := ⟨⟨2, htwo⟩⟩
+  let : SecondCountableTopology K :=
+    (InfinitePlace.Completion.isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+  let : SecondCountableTopology Kˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let : MeasurableSpace K := borel _
+  let : BorelSpace K := ⟨rfl⟩
+  let : BorelSpace Kˣ := borelSpace_units_of_continuousInv₀ _
+  let μ := infiniteLocalMultiplicativeTamagawaMeasure F w
+  let : μ.IsHaarMeasure := infiniteLocalMultiplicativeTamagawaMeasure_haar F w
+  let θ : C(Kˣ, ℂ) := ⟨fun u ↦ f (Multiplicative.ofAdd u.val),
+    (schwartzBruhat_continuous f).comp (continuous_ofAdd.comp Units.continuous_val)⟩
+  let c := quasiCharacterNormTwist (infiniteModule(w)) (continuous_infiniteLocalModule w)
+    ((circleToComplex).comp (1 : PontryaginDual Kˣ)) 1
+  have hθ : θ = 0 := by
+    refine eq_zero_of_weighted_integrals μ θ c
+      (infiniteLocalIdelicZetaIntegral_integrable w f 1 (s := 1) (by norm_num)) fun χ ↦ ?_
+    refine (MeasureTheory.integral_congr_ae (Filter.Eventually.of_forall fun g ↦ ?_)).trans
+      ((infiniteLocalIdelicZFunction_eq_integral w f χ (s := 1) (by norm_num)).symm.trans
+        (infiniteEigendistributions_dense_span_zeta w f hf χ))
+    change f (Multiplicative.ofAdd g.val) * (1 * _ ^ (1 : ℂ)) * (χ g : ℂ) =
+      f (Multiplicative.ofAdd g.val) * ((χ g : ℂ) * _ ^ (1 : ℂ))
+    rw [one_mul, mul_right_comm, mul_assoc]
+  have he : (fun x : K ↦ f (Multiplicative.ofAdd x)) = fun _ ↦ 0 := by
+    apply Continuous.ext_on (dense_compl_singleton (0 : K))
+      ((schwartzBruhat_continuous f).comp continuous_ofAdd) continuous_const
+    intro x hx
+    exact DFunLike.congr_fun hθ (Units.mk0 x hx)
+  apply Subtype.ext
+  exact funext fun x ↦ congrFun he x.toAdd
+
 /-- Paper: Proposition 5.5.3.1, p. 281.
 At an infinite place the eigendistributions span a strongly dense subspace of the dual.
 The set of all eigenvectors gives the same span as the normalized generators of §3.4. -/
 theorem infiniteEigendistributions_dense_span (w : InfinitePlace F) :
     Dense (Submodule.span ℂ {T : D(ℬ(w.Completion)) |
       ∃ c : QuasiCharacter w.Completionˣ, T ∈ schwartzBruhatEigendistributions c} :
-      Set D(ℬ(w.Completion))) := by sorry
+      Set D(ℬ(w.Completion))) := by
+  let K := w.Completion
+  let : SecondCountableTopology K :=
+    (InfinitePlace.Completion.isometry_extensionEmbedding w).isEmbedding.secondCountableTopology
+  let E := ℬ(K)
+  let : T2Space E := schwartzBruhat_t2
+  let : MontelSpace ℂ E := schwartzBruhat_montel
+  let : PolynormableSpace ℂ (StrongDual ℂ E) :=
+    (schwartzBruhat_strongDual_nuclear.{0,_} (G := Multiplicative K)).2.1
+  let I := {T : StrongDual ℂ E // ∃ c : QuasiCharacter Kˣ,
+    T ∈ schwartzBruhatEigendistributions c}
+  have hi : Set.range (fun T : I ↦ T.val) =
+      {T : StrongDual ℂ E | ∃ c : QuasiCharacter Kˣ,
+        T ∈ schwartzBruhatEigendistributions c} := Subtype.range_coe_subtype
+  rw [← hi]
+  exact infiniteEigendistributions_dense_span_of_separating (fun T : I ↦ T.val)
+    (fun f hf ↦ infiniteEigendistributions_dense_span_separating w f
+      (fun T hT ↦ hf ⟨T, hT⟩))
 
 /-- Paper: Proposition 5.5.3.1, p. 281.
 At a finite place the closed span of eigendistributions with prescribed norm-one
