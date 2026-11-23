@@ -70,9 +70,7 @@ Apache-2.0).
     descriptive name and a docstring, or move it to `RiemannMasullo/ForMathlib/` if it is general.
     Remove `private` in place, or give a moved lemma a `section` of its own, so that the universe
     names of later declarations do not change. Leave private instances private.
-  - In a proof, use the imports the file already has. Put an unavoidable new import in the
-    section's `Sec<N>_Imports.lean` when it has one: the section imports that file privately, so
-    a line added there rebuilds only the section.
+  - In a proof, use the imports the file already has.
   - Keep new helpers `private`.
   - Use the existing `f_def` and `f_apply` lemmas instead of `simp [f]` or `unfold f`.
   - *Why:* a module rebuilds when anything it reaches through `public import` changes its public
@@ -178,7 +176,6 @@ and your issue is at the end of that file.
 | Path | Contents | Who edits |
 |---|---|---|
 | `RiemannMasullo/<Chapter>/Sec<N>.lean` | paper section N of that chapter; a long section is split into `Sec<N>a.lean`, `Sec<N>b.lean`, …, and the section issue names the file | digesters, provers |
-| `RiemannMasullo/<Chapter>/Sec<N>_Imports.lean` | the private imports of that section file, each as `public import`; only the section file imports it, with a plain `import` (see "Rules for Lean code") | digesters, provers |
 | `RiemannMasullo/<Chapter>/Sec<N>_Printed.lean` | statements of that section that are false as printed, each kept as a proposition with a proof of its negation; it imports the section file, and nothing imports it | integrator (the propositions), provers (the refutations) |
 | `RiemannMasullo/<Chapter>.lean` | chapter index (docstring only) | nobody |
 | `RiemannMasullo/ForMathlib/` | general lemmas missing from Mathlib, at the path Mathlib would use | provers |
