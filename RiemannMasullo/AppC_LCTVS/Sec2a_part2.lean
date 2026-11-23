@@ -2352,7 +2352,7 @@ private theorem product_polar_eq_sum_single {K : Type*} (X : K → Type*)
 
 /-- The injective topology on the algebraic tensor product of products is induced by
 the pairwise coordinate projections. -/
-private theorem injectiveTensor_products_isUniformInducing :
+theorem injectiveTensor_products_isUniformInducing :
     IsUniformInducing (fun (z : InjectiveTensor (∀ i, E i) (∀ j, F j)) (ij : I × J) ↦
       injectiveTensorMap (LinearMap.proj ij.1) (LinearMap.proj ij.2) z) := by
   classical
@@ -2571,7 +2571,7 @@ variable {E F} [lcE : PolynormableSpace ℂ E] [sE : T2Space E]
 
 omit sE sF in
 /-- The canonical bilinear map into the projective tensor product is jointly continuous. -/
-private theorem continuous_projectiveTensor_tmul :
+theorem continuous_projectiveTensor_tmul :
     @Continuous (E × F) (ProjectiveTensor E F) _ _ (fun v ↦ v.1 ⊗ₜ[ℂ] v.2) := by
   let : IsTopologicalAddGroup E := PolynormableSpace.isTopologicalAddGroup ℂ E
   let : IsTopologicalAddGroup F := PolynormableSpace.isTopologicalAddGroup ℂ F
@@ -3876,7 +3876,7 @@ theorem projectiveTensor_directSum :
       (hball.mono fun v hv ↦ htotal v.1 v.2 hv) hr0
 
 /-- The generating seminorms for the final locally convex topology are tested on each stage. -/
-private theorem finalTopology_withSeminorms {K Z : Type*} {V : K → Type*}
+theorem finalTopology_withSeminorms {K Z : Type*} {V : K → Type*}
     [AddCommGroup Z] [Module ℂ Z] [∀ k, AddCommGroup (V k)] [∀ k, Module ℂ (V k)]
     [∀ k, TopologicalSpace (V k)] (j : ∀ k, V k →ₗ[ℂ] Z) :
     letI := locallyConvexFinalTopology j
@@ -3885,7 +3885,7 @@ private theorem finalTopology_withSeminorms {K Z : Type*} {V : K → Type*}
   exact ⟨rfl⟩
 
 /-- Each stage map into the final locally convex topology is continuous. -/
-private theorem continuous_finalTopology_stage {K Z : Type*} {V : K → Type*}
+theorem continuous_finalTopology_stage {K Z : Type*} {V : K → Type*}
     [AddCommGroup Z] [Module ℂ Z] [∀ k, AddCommGroup (V k)] [∀ k, Module ℂ (V k)]
     [∀ k, TopologicalSpace (V k)] [∀ k, IsTopologicalAddGroup (V k)]
     (j : ∀ k, V k →ₗ[ℂ] Z) (k : K) :
@@ -3896,7 +3896,7 @@ private theorem continuous_finalTopology_stage {K Z : Type*} {V : K → Type*}
 
 /-- A linear map on a space with the final locally convex topology is continuous if all
 its restrictions to the defining stages are continuous. -/
-private theorem continuous_finalTopology_lift {K Z W : Type*} {V : K → Type*}
+theorem continuous_finalTopology_lift {K Z W : Type*} {V : K → Type*}
     [AddCommGroup Z] [Module ℂ Z] [∀ i, AddCommGroup (V i)] [∀ i, Module ℂ (V i)]
     [∀ i, TopologicalSpace (V i)] [AddCommGroup W] [Module ℂ W] [TopologicalSpace W]
     [PolynormableSpace ℂ W] (u : ∀ i, V i →ₗ[ℂ] Z) (T : Z →ₗ[ℂ] W)
