@@ -4,6 +4,11 @@ public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 import RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 import RiemannMasullo.Ch03_IdelicZeta.Sec4
 import RiemannMasullo.Ch05_ThetaZSpaces.Sec2
+import RiemannMasullo.ForMathlib.NumberTheory.NumberField.Completion.FinitePlace
+import RiemannMasullo.ForMathlib.MeasureTheory.Group.Arithmetic
+import RiemannMasullo.ForMathlib.Analysis.Normed.Field.ProperSpace
+import RiemannMasullo.ForMathlib.Analysis.Distribution.SchwartzSpace.ChangeOfVariables
+import Mathlib.Analysis.Normed.Field.ProperSpace
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
@@ -1314,8 +1319,8 @@ private theorem finiteEigendistributions_dense_span_separating
   have hθ : θ = 0 := by
     refine eq_zero_of_weighted_integrals μ θ w
       (finiteLocalIdelicZetaIntegral_integrable v f 1 (s := 1) (by norm_num)) fun χ ↦ ?_
-    have hz := hf (finiteIntegralOnRight v χ 1 (by norm_num))
-      ⟨_, finiteIntegralOnRight_eigen v χ 1 (by norm_num)⟩
+    obtain ⟨D, hD, hDf⟩ := exists_finiteEigendistribution_eq_zetaIntegral v χ 1 (by norm_num)
+    have hz := (hDf f).symm.trans (hf D ⟨_, hD⟩)
     refine (MeasureTheory.integral_congr_ae (Filter.Eventually.of_forall fun g ↦ ?_)).trans hz
     change f (Multiplicative.ofAdd g.val) * (1 * _ ^ (1 : ℂ)) * (χ g : ℂ) =
       f (Multiplicative.ofAdd g.val) * ((χ g : ℂ) * _ ^ (1 : ℂ))

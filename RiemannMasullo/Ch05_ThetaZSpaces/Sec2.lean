@@ -1099,7 +1099,7 @@ open scoped Uniformity Classical TensorProduct RestrictedProduct
 
 /-- Pointwise continuity of a locally compact family of continuous linear maps
 gives joint continuity when the domain is barrelled. -/
-private theorem continuous_family_of_orbits {G E : Type*} [TopologicalSpace G] [WeaklyLocallyCompactSpace G]
+theorem continuous_family_of_orbits {G E : Type*} [TopologicalSpace G] [WeaklyLocallyCompactSpace G]
     [AddCommGroup E] [Module ℂ E] [UniformSpace E] [IsUniformAddGroup E] [ContinuousSMul ℂ E]
     [PolynormableSpace ℂ E] [BarrelledSpace ℂ E]
     (T : G → E →L[ℂ] E) (hT : ∀ x, Continuous fun g ↦ T g x) :
@@ -1117,7 +1117,8 @@ private theorem continuous_family_of_orbits {G E : Type*} [TopologicalSpace G] [
     with p hp he
   exact he ⟨p.1,hp⟩
 
-private theorem finiteDimensional_schwartz_montel {V : Type*} [NormedAddCommGroup V]
+/-- The Schwartz space of a finite-dimensional real vector space is a Montel space. -/
+theorem finiteDimensional_schwartz_montel {V : Type*} [NormedAddCommGroup V]
     [NormedSpace ℝ V] [FiniteDimensional ℝ V] : MontelSpace ℂ (SchwartzMap V ℂ) := by
   let m := Module.finrank ℝ V
   let E := EuclideanSpace ℝ (Fin m)
@@ -1134,7 +1135,8 @@ private theorem finiteDimensional_schwartz_montel {V : Type*} [NormedAddCommGrou
     (MontelSpace.isCompact_of_isClosed_of_isVonNBounded ℂ
       (e.toHomeomorph.isClosedMap s hs) (hb.image e.toContinuousLinearMap))
 
-private def mulUnitLinearEquiv {V : Type*} [NormedCommRing V] [NormedAlgebra ℝ V]
+/-- Multiplication by a unit of a normed `ℝ`-algebra, as a continuous `ℝ`-linear equivalence. -/
+def mulUnitLinearEquiv {V : Type*} [NormedCommRing V] [NormedAlgebra ℝ V]
     (u : Vˣ) : V ≃L[ℝ] V :=
   ContinuousLinearEquiv.equivOfInverse (ContinuousLinearMap.mul ℝ V u.val)
     (ContinuousLinearMap.mul ℝ V u.inv)
@@ -1265,7 +1267,9 @@ section
 variable {R : Type*} [CommRing R] [TopologicalSpace R] [IsTopologicalRing R]
 local notation "B" => SchwartzBruhat (Multiplicative R)
 
-private def unitTranslateEnd : Rˣ →* Module.End ℂ B where
+/-- The action of the units of `R` on Schwartz-Bruhat functions by translation, as a monoid
+homomorphism to the endomorphisms. -/
+def unitTranslateEnd : Rˣ →* Module.End ℂ B where
   toFun u :=
     { toFun := schwartzBruhatUnitTranslate u
       map_add' := fun _ _ ↦ rfl
@@ -1275,7 +1279,8 @@ private def unitTranslateEnd : Rˣ →* Module.End ℂ B where
   map_mul' := fun u v ↦ LinearMap.ext fun f ↦ Subtype.ext (funext fun x ↦
     congrArg (fun y ↦ f (Multiplicative.ofAdd y)) (mul_assoc v.inv u.inv x.toAdd))
 
-private theorem continuous_unitTranslate [T2Space R] [LocallyCompactSpace R] (g : Rˣ) :
+/-- Translation of Schwartz-Bruhat functions by a unit is continuous. -/
+theorem continuous_unitTranslate [T2Space R] [LocallyCompactSpace R] (g : Rˣ) :
     Continuous (schwartzBruhatUnitTranslate g) := by
   let : T2Space (Multiplicative R) := inferInstanceAs (T2Space R)
   let : LocallyCompactSpace (Multiplicative R) := inferInstanceAs (LocallyCompactSpace R)
