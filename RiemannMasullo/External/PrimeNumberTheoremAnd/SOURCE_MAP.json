@@ -1,0 +1,19 @@
+{
+  "upstream": "https://github.com/AlexKontorovich/PrimeNumberTheoremAnd",
+  "commit": "a4fb6989b07e9c76b511807ae93e33e25b820e9b",
+  "files": [
+    {
+      "path": "StrongPNT.lean",
+      "upstream_path": "PrimeNumberTheoremAnd/StrongPNT.lean",
+      "upstream_lines": "34-1230",
+      "upstream_sha256": "bbee41f2cd93909b84a8709233ad7ebfbbec2ed1060a5d7f7ff23898ee77fa4a",
+      "sha256": "ae7d2cfd5ac3d8149a70afbb83c3e2b7a282fd34b4dcbc7e096236ac9b649a0b"
+    },
+    {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "upstream_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

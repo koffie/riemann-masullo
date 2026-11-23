@@ -1,11 +1,11 @@
 # External
 
-Third-party Lean developments vendored into this project. **Nothing is vendored yet**; the
-directories below are reserved for the sources we expect to draw on.
+Third-party Lean developments vendored into this project, and the directories reserved for the
+sources we expect to draw on.
 
 | Directory | Upstream | License | Status |
 |---|---|---|---|
-| [`PrimeNumberTheoremAnd/`](PrimeNumberTheoremAnd/) | <https://github.com/AlexKontorovich/PrimeNumberTheoremAnd> | Apache-2.0 | planned |
+| [`PrimeNumberTheoremAnd/`](PrimeNumberTheoremAnd/) | <https://github.com/AlexKontorovich/PrimeNumberTheoremAnd> | Apache-2.0 | vendored at `a4fb698`: `StrongPNT.lean` (general part: Borel–Carathéodory, Blaschke products, Landau's bound for logarithmic derivatives) |
 | [`TauCeti/`](TauCeti/) | <https://github.com/TauCetiProject/TauCeti> | Apache-2.0 | planned (selected modules) |
 | [`Stacks/`](Stacks/) | <https://github.com/AxiomMath/Stacks> | Apache-2.0 | under consideration |
 
