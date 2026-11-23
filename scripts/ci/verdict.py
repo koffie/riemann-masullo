@@ -357,6 +357,45 @@ def sorry_counts(log):
     return counts
 
 
+HEADER_LINE = re.compile(r"\s*(module|prelude|--.*)?\s*$")
+PLAIN_IMPORT = re.compile(r"\s*import\s+(?!all\s)([^\s-]+)")
+ANY_IMPORT = re.compile(r"\s*(public\s+)?(meta\s+)?import\s")
+
+
+def plain_imports(text):
+    """The modules of the plain `import` lines (not `public`, not `all`) of a Lean file's header."""
+    found = set()
+    for line in text.split("\n"):
+        if HEADER_LINE.fullmatch(line):
+            continue
+        if not ANY_IMPORT.match(line):
+            break
+        m = PLAIN_IMPORT.match(line)
+        if m:
+            found.add(m.group(1))
+    return found
+
+
+def imports_bypassing_import_file(files, has_file):
+    """Failures for the section files that gain a plain `import` although they have an import
+    file `X_Imports.lean`: a line in the section changes its public .olean and rebuilds every
+    module above it, one in the import file rebuilds only the section (#6263).
+    `files` holds (path, old text, new text); `has_file(path)` says whether main has that file."""
+    reasons = []
+    for path, old, new in files:
+        if not path.endswith(".lean") or path.endswith("_Imports.lean"):
+            continue
+        import_file = path[:-len(".lean")] + "_Imports.lean"
+        if not has_file(import_file):
+            continue
+        added = sorted(plain_imports(new) - plain_imports(old))
+        if added:
+            more = f" and {len(added) - 1} more" if len(added) > 1 else ""
+            reasons.append(f"{path} gains `import {added[0]}`{more}: add it to the import file "
+                           f"`{import_file}` (see AGENTS.md)")
+    return reasons
+
+
 def names(items, limit=12):
     return ", ".join(items[:limit]) + (f" and {len(items) - limit} more" if len(items) > limit else "")
 
@@ -365,6 +404,13 @@ def decide(check, supplied_base):
     entries = check.changed_files()
     held = check.held_back(entries)
     check.lint_text(entries)
+    texts = [(e["path"], check.blob(e["old"]), check.blob(e["new"])) for e in entries if e["status"] == "M"]
+    bypass = imports_bypassing_import_file(
+        [(p, o.decode("utf-8", "replace"), n.decode("utf-8", "replace")) for p, o, n in texts
+         if o is not None and n is not None],
+        lambda p: (check.work / p).is_file())
+    if bypass:
+        raise Stop("fail", bypass)
     # A conflict is reported before the long build of main, when git can tell without a work tree.
     probe = check.git("merge-tree", "--write-tree", "--no-messages", check.base, check.head, check=False)
     if probe.returncode == 1:
