@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 import RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 import RiemannMasullo.Ch03_IdelicZeta.Sec4
+import RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
 
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
@@ -1467,6 +1468,142 @@ theorem infiniteEigendistributions_dense_span (w : InfinitePlace F) :
     (fun f hf ↦ infiniteEigendistributions_dense_span_separating w f
       (fun T hT ↦ hf ⟨T, hT⟩))
 
+/-- Normalized compact averaging on tests induces a projection on functionals with
+prescribed weight. Both action conventions are recorded explicitly. -/
+private theorem finiteEigendistributions_component_closedSpan_projection
+    {G E : Type*} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+    [CompactSpace G] [T2Space G] [MeasurableSpace G] [BorelSpace G]
+    [AddCommGroup E] [Module ℂ E] [UniformSpace E] [IsUniformAddGroup E] [T2Space E]
+    [ContinuousSMul ℂ E] [LocallyConvexSpace ℝ E] [QuasiCompleteSpace ℂ E]
+    [SeparatingDual ℂ E]
+    (μ : MeasureTheory.Measure G) [μ.IsHaarMeasure]
+    (ρ : G →* (E →L[ℂ] E)) (hρ : Continuous fun p : G × E ↦ ρ p.1 p.2)
+    (ω : PontryaginDual G) :
+    ∃ P : E →L[ℂ] E,
+      (∀ g x, P (ρ g x) = (ω g : ℂ) • P x) ∧
+      (∀ g x, ρ g (P x) = (ω g : ℂ) • P x) ∧
+      ∀ T : StrongDual ℂ E, (∀ g x, T (ρ g x) = (ω g : ℂ) * T x) → T.comp P = T := by
+  let A (g : G) := star (ω g : ℂ) • ρ g
+  have hA : Continuous (fun p : G × E ↦ A p.1 p.2) :=
+    (show Continuous (fun p : G × E ↦ star (ω p.1 : ℂ)) from by fun_prop).smul hρ
+  obtain ⟨P, hP, -⟩ := existsUnique_pettisIntegral_continuousFamily μ isCompact_univ
+    (MeasureTheory.ae_of_all _ fun _ ↦ Set.mem_univ _) A hA
+  have hp : IsPettisIsotypicAverageOn μ univ ρ ω P := by
+    simpa only [IsPettisIsotypicAverageOn, MeasureTheory.Measure.restrict_univ, A, smul_apply] using hP
+  have hleft (g : G) (x : E) : ρ g (P x) = (ω g : ℂ) • P x :=
+    (mem_actionIsotype ρ ω _).mp (compactActionAverage_mem_isotype μ ρ ω P hp x) g
+  have hcomm (g : G) (x : E) : P (ρ g x) = ρ g (P x) := by
+    apply (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).mpr
+    intro T
+    rw [compactActionAverage_dual_apply μ ρ ω P hp]
+    have h := compactActionAverage_dual_apply μ ρ ω P hp x (T.comp (ρ g))
+    refine Eq.trans ?_ h.symm
+    apply MeasureTheory.integral_congr_ae
+    filter_upwards [] with k
+    change star (ω k : ℂ) * T (ρ k (ρ g x)) = star (ω k : ℂ) * T (ρ g (ρ k x))
+    rw [← mul_apply_eq_comp, ← map_mul, mul_comm k g, map_mul, mul_apply_eq_comp]
+  let m : ℂ := μ.real univ
+  have hm : m ≠ 0 := by
+    change (μ.real univ : ℂ) ≠ 0
+    exact_mod_cast (MeasureTheory.measureReal_univ_pos (μ := μ)).ne'
+  refine ⟨m⁻¹ • P, ?_, ?_, ?_⟩
+  · intro g x
+    change m⁻¹ • P (ρ g x) = (ω g : ℂ) • (m⁻¹ • P x)
+    rw [hcomm, hleft, smul_comm]
+  · intro g x
+    change ρ g (m⁻¹ • P x) = (ω g : ℂ) • (m⁻¹ • P x)
+    rw [map_smul, hleft, smul_comm]
+  · intro T hT
+    ext x
+    have hfix : T (P x) = m * T x := by
+      rw [compactActionAverage_dual_apply μ ρ ω P hp]
+      simp [hT, ← Circle.coe_inv_eq_conj, m, Complex.real_smul]
+    change T (m⁻¹ • P x) = T x
+    rw [map_smul, hfix, smul_eq_mul, ← mul_assoc, inv_mul_cancel₀ hm, one_mul]
+
+/-- A continuous projection carries a dense generating family to a dense family
+in its closed fixed subspace. -/
+private theorem finiteEigendistributions_component_closedSpan_image
+    {D : Type*} [AddCommGroup D] [Module ℂ D] [TopologicalSpace D]
+    (A B : Set D) (R : Submodule ℂ D) (Q : D →L[ℂ] D)
+    (hd : Dense (Submodule.span ℂ A : Set D)) (hR : IsClosed (R : Set D))
+    (hB : B ⊆ R) (hQ : ∀ T ∈ A, Q T ∈ Submodule.span ℂ B)
+    (hfix : ∀ T ∈ R, Q T = T) :
+    closure (Submodule.span ℂ B : Set D) = R := by
+  have hm : Submodule.span ℂ A ≤ (Submodule.span ℂ B).comap Q.toLinearMap :=
+    Submodule.span_le.mpr hQ
+  have hrange : Set.range Q ⊆ closure (Submodule.span ℂ B : Set D) :=
+    (Q.continuous.range_subset_closure_image_dense hd).trans
+      (closure_mono (by rintro _ ⟨T, hT, rfl⟩; exact hm hT))
+  refine subset_antisymm (closure_minimal (Submodule.span_le.mpr hB) hR) ?_
+  intro T hT
+  exact (hfix T hT) ▸ hrange (Set.mem_range_self T)
+
+/-- Applying the test projection to a dense eigenfamily selects exactly the
+weights with the prescribed restriction to the subgroup. -/
+private theorem finiteEigendistributions_component_closedSpan_eigenprojection
+    {H E : Type*} [CommGroup H] [TopologicalSpace H]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [IsTopologicalAddGroup E] [ContinuousSMul ℂ E]
+    (ρ : H →* (E →L[ℂ] E)) (N : Subgroup H) (η : PontryaginDual N)
+    (P : E →L[ℂ] E)
+    (hleft : ∀ (g : N) (x : E), ρ g.val (P x) = (η g : ℂ) • P x)
+    (hfix : ∀ T : StrongDual ℂ E,
+      (∀ (g : N) (x : E), T (ρ g.val x) = (η g : ℂ) * T x) → T.comp P = T)
+    (hd : Dense (Submodule.span ℂ {T : StrongDual ℂ E | ∃ c : QuasiCharacter H,
+      ∀ (g : H) (x : E), T (ρ g x) = c g * T x} : Set (StrongDual ℂ E))) :
+    closure (Submodule.span ℂ {T : StrongDual ℂ E | ∃ c : QuasiCharacter H,
+      (∀ g : N, c g.val = (η g : ℂ)) ∧
+      (∀ (g : H) (x : E), T (ρ g x) = c g * T x)} : Set (StrongDual ℂ E)) =
+      {T | ∀ (g : N) (x : E), T (ρ g.val x) = (η g : ℂ) * T x} := by
+  classical
+  let D := StrongDual ℂ E
+  let Q : D →L[ℂ] D := ContinuousLinearMap.precomp ℂ P
+  let R : Submodule ℂ D :=
+    { carrier := {T | ∀ g : N, ∀ f : E, T (ρ g.val f) = (η g : ℂ) * T f}
+      zero_mem' := by simp
+      add_mem' := by
+        intro T U hT hU g f
+        change T (ρ g.val f) + U (ρ g.val f) = (η g : ℂ) * (T f + U f)
+        rw [hT, hU, mul_add]
+      smul_mem' := by
+        intro a T hT g f
+        change a * T (ρ g.val f) = (η g : ℂ) * (a * T f)
+        rw [hT, mul_left_comm] }
+  have hR : IsClosed (R : Set D) := by
+    change IsClosed {T : D | ∀ g : N, ∀ f : E, T (ρ g.val f) = (η g : ℂ) * T f}
+    simp only [ofPred_forall]
+    exact isClosed_iInter fun g ↦ isClosed_iInter fun f ↦ isClosed_eq
+      (continuous_eval_const (ρ g.val f)) (continuous_const.mul (continuous_eval_const f))
+  let A := {T : D | ∃ c : QuasiCharacter H, ∀ g : H, ∀ x : E, T (ρ g x) = c g * T x}
+  let B := {T : D | ∃ c : QuasiCharacter H,
+    (∀ g : N, c g.val = (η g : ℂ)) ∧ (∀ g : H, ∀ x : E, T (ρ g x) = c g * T x)}
+  have hB : B ⊆ R := by
+    rintro T ⟨c, hc, hT⟩ g f
+    exact (hT g.val f).trans (congrArg (· * T f) (hc g))
+  have hQ : ∀ T ∈ A, Q T ∈ Submodule.span ℂ B := by
+    rintro T ⟨c, hT⟩
+    by_cases hc : ∀ g : N, c g.val = (η g : ℂ)
+    · have he : Q T = T := hfix T (hB ⟨c, hc, hT⟩)
+      rw [he]
+      exact Submodule.subset_span ⟨c, hc, hT⟩
+    · push Not at hc
+      obtain ⟨g, hg⟩ := hc
+      have he : Q T = 0 := by
+        ext f
+        have hv := hT g.val (P f)
+        change T (ρ g.val (P f)) = c g.val * T (P f) at hv
+        rw [hleft, map_smul, smul_eq_mul] at hv
+        have hz : (c g.val - (η g : ℂ)) * T (P f) = 0 := by
+          rw [sub_mul, ← hv, sub_self]
+        exact (mul_eq_zero.mp hz).resolve_left (sub_ne_zero.mpr hg)
+      rw [he]
+      exact Submodule.zero_mem _
+  change closure (Submodule.span ℂ B : Set D) = (R : Set D)
+  exact finiteEigendistributions_component_closedSpan_image A B R Q
+    hd hR hB hQ (fun T hT ↦ hfix T hT)
+
+
 /-- Paper: Proposition 5.5.3.1, p. 281.
 At a finite place the closed span of eigendistributions with prescribed norm-one
 restriction is the corresponding homogeneous subspace of the strong dual.
@@ -1478,7 +1615,59 @@ theorem finiteEigendistributions_component_closedSpan (v : HeightOneSpectrum (�
         (∀ u : (finiteModule(v)).ker, c u.val = (ω u.val : ℂ)) ∧
           T ∈ schwartzBruhatEigendistributions c} : Set D(ℬ(v.adicCompletion F))) =
       {T | ∀ (u : (finiteModule(v)).ker) (f : ℬ(v.adicCompletion F)),
-        T (schwartzBruhatUnitTranslate u.val f) = (ω u.val : ℂ) * T f} := by sorry
+        T (schwartzBruhatUnitTranslate u.val f) = (ω u.val : ℂ) * T f} := by
+  with_reducible_and_instances
+    classical
+    let K := v.adicCompletion F
+    let H := Kˣ
+    let E := ℬ(K)
+    let D := StrongDual ℂ E
+    let N := (finiteModule(v)).ker
+    let : ProperSpace K := properSpace_adicCompletion v
+    have hp : IsProperMap (finiteModule(v)) := by
+      simpa only [pow_one] using (isProperMap_units_nnNorm_pow (K := K) 1 one_ne_zero)
+    have hc : IsCompact (N : Set H) := by
+      simpa only [N, MonoidHom.coe_ker] using hp.isCompact_preimage (isCompact_singleton (x := (1 : ℝ≥0ˣ)))
+    let : CompactSpace N := isCompact_iff_compactSpace.mp hc
+    let : MeasurableSpace N := borel _
+    let : BorelSpace N := ⟨rfl⟩
+    let : T2Space E := schwartzBruhat_t2
+    let : BarrelledSpace ℂ E := schwartzBruhat_barrelled
+    let : CompleteSpace E := schwartzBruhat_complete
+    let : Module ℝ E := Module.restrictScalars ℝ ℂ E
+    let : IsScalarTower ℝ ℂ E := IsScalarTower.restrictScalars ℝ ℂ E
+    let : LocallyConvexSpace ℝ E := (PolynormableSpace.withSeminorms ℂ E).toLocallyConvexSpace
+    let : SeparatingDual ℂ E := polynormableSpace_separatingDual ℂ E
+    let ρ : H →* (E →L[ℂ] E) :=
+      { toFun := fun g ↦ ⟨unitTranslateEnd g, by with_unfolding_all exact continuous_unitTranslate g⟩
+        map_one' := by
+          apply ContinuousLinearMap.ext
+          intro f
+          with_unfolding_all
+            change unitTranslateEnd (1 : H) f = f
+            rw [map_one]
+            rfl
+        map_mul' := fun g h ↦ by
+          apply ContinuousLinearMap.ext
+          intro f
+          with_unfolding_all
+            change unitTranslateEnd (g * h) f = unitTranslateEnd g (unitTranslateEnd h f)
+            rw [map_mul]
+            rfl }
+    have hρ : Continuous (fun p : H × E ↦ ρ p.1 p.2) :=
+      continuous_family_of_orbits (fun g ↦ ρ g)
+        (fun f ↦ by with_unfolding_all exact
+          (finiteTest_translate_locallyConstant v f).continuous)
+    let ρN := ρ.comp N.subtype
+    have hρN : Continuous (fun p : N × E ↦ ρN p.1 p.2) :=
+      hρ.comp ((continuous_subtype_val.comp continuous_fst).prodMk continuous_snd)
+    let η : PontryaginDual N := PontryaginDual.map ⟨N.subtype, continuous_subtype_val⟩ ω
+    let μ := MeasureTheory.Measure.haar (G := N)
+    obtain ⟨P, -, hleft, hfix⟩ :=
+      finiteEigendistributions_component_closedSpan_projection μ ρN hρN η
+    with_unfolding_all
+      exact finiteEigendistributions_component_closedSpan_eigenprojection ρ N η P hleft hfix
+        (finiteEigendistributions_dense_span v)
 
 /-- Paper: Proposition 5.5.3.1, p. 281.
 At an infinite place the closed span of eigendistributions with prescribed norm-one
