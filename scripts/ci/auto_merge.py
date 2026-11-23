@@ -29,6 +29,12 @@ commit ids and the GitHub API alone, this script
   5. requires that main has not moved, since the commit the verdict was computed against, in a
      way that matters to this pull request: no file it touches, and nothing outside the library
      that affects the build. If it has, the check is run again and nothing is merged;
+     and that main has moved by at most MAX_BEHIND commits. The check is usually against the
+     newest commit of main that Main state has a saved build for, not main's tip (#6414,
+     base_state.py --choose), so some of that distance is there before the check starts. When it
+     is too far, the check is run again only if Main state has since saved a build of a newer
+     commit, which the new check starts from; otherwise the pull request waits for one, since a
+     check run again now would be against the same commit and come back with the same verdict;
   6. squash-merges, naming the head commit, so that a push made after the check is not merged.
 
 One run handles everything that is waiting, one pull request at a time (the workflow allows
@@ -165,6 +171,8 @@ class Merger:
         self.rows = []       # (pull request, commit, what happened)
         self.merged = 0
         self.scanner = plain_proof.Scanner()
+        self.saved = False   # the commit of the newest saved build of main, once looked up
+        self.newer = {}      # base commit -> whether that saved build comes after it
         run_id = os.environ.get("GITHUB_RUN_ID", "")
         self.url = (f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{api.repo}/actions/runs/{run_id}"
                     if run_id.isdigit() else None)
@@ -234,16 +242,23 @@ class Merger:
         return ahead
 
     @staticmethod
-    def moved(ahead, paths):
-        """Why main has moved too far (see `since`) for a verdict about `paths`, or None."""
+    def too_far(ahead):
+        """Why main has moved too far (see `since`) for any verdict against its base, or None."""
         if ahead["status"] == "identical":
             return None
         if ahead["ahead_by"] > MAX_BEHIND:
-            return f"main has moved by {ahead['ahead_by']} commits since the check"
-        files = ahead.get("files") or []
-        if len(files) >= 300:
+            return f"main has moved by {ahead['ahead_by']} commits since the commit checked against"
+        if len(ahead.get("files") or []) >= 300:
             return "main has changed too many files since the check to tell"
-        for entry in files:
+        return None
+
+    @staticmethod
+    def moved(ahead, paths):
+        """Why main has moved (see `since`) in a way that matters to a verdict about `paths`, or None."""
+        why = Merger.too_far(ahead)
+        if why or ahead["status"] == "identical":
+            return why
+        for entry in ahead.get("files") or []:
             for name in (entry.get("filename"), entry.get("previous_filename")):
                 if name is None:
                     continue
@@ -252,6 +267,29 @@ class Merger:
                 if matters_to_everyone(name):
                     return f"main has since changed {name}, which affects every check"
         return None
+
+    def saved_build(self, repo_id):
+        """The commit of the newest build of main that Main state saved, or None (see base_state.py)."""
+        if self.saved is False:
+            listing = self.api.call("actions/artifacts?" + query(name="main-state", per_page=50))
+            self.saved = None
+            for artifact in sorted(listing["artifacts"], key=lambda a: a["created_at"], reverse=True):
+                run = artifact.get("workflow_run") or {}
+                if (not artifact.get("expired") and run.get("repository_id") == repo_id
+                        and run.get("head_repository_id") == repo_id and run.get("head_branch") == BRANCH
+                        and SHA.fullmatch(str(run.get("head_sha")))):
+                    self.saved = run["head_sha"]
+                    break
+        return self.saved
+
+    def newer_saved_build(self, base, repo_id):
+        """Whether Main state has saved a build of a commit of main that comes after `base`."""
+        saved = self.saved_build(repo_id)
+        if saved is None or saved == base:
+            return False
+        if base not in self.newer:
+            self.newer[base] = self.api.call(f"compare/{base}...{saved}?per_page=1").get("status") == "ahead"
+        return self.newer[base]
 
     # -- acting -------------------------------------------------------------------------------
 
@@ -361,6 +399,11 @@ class Merger:
         ahead = self.since(base)
         if ahead is None:
             return self.refuse(artifact, sha, "the verdict was not computed against a commit of main")
+        far = self.too_far(ahead)
+        if far:
+            if self.newer_saved_build(base, repo_id):
+                return self.check_again(run, artifact, sha, f"{far}; Main state has saved a newer build since")
+            return f"waiting: {far}, and Main state has saved no newer build to check against yet"
         reasons, paths = self.rederive(base, sha)
         if reasons:
             return self.refuse(artifact, sha, "; ".join(reasons)[:400])

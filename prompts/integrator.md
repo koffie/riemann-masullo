@@ -89,6 +89,10 @@ queue and yours, as before. The workflows and `scripts/ci/` are your infrastruct
 - The check runs `scripts/proof_review.sh` itself, so a rule the merger adds there holds pull
   requests back in CI at once. `scripts/ci/plain_proof.py` repeats those rules for the workflow
   that merges; a rule the merger relaxes takes effect in CI only when it is relaxed there too.
+- A pull request is checked against the newest commit of `main` that `Main state` saved a build
+  for, not `main`'s tip, unless `main` has since changed one of its files or the checker (#6414);
+  the run's summary names both commits. What those later merges do to it semantically shows up
+  in the next `Main state` run, so a red `Main state` is the signal to revert.
 - A change to `.github/` or `scripts/` is never merged automatically, and CI runs
   `scripts/ci/selftest.sh` on it. What the workflows defend against is written at the top of
   `scripts/ci/auto_merge.py`; read it before changing either workflow.

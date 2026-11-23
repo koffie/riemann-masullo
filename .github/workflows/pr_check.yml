@@ -10,6 +10,12 @@ name: PR check
 # scripts/ci/verdict.py has the exact rules; they are those of scripts/triage_prs.sh. The verdict
 # is shown in the run's summary and uploaded as the artifact `verdict-<verdict>`.
 #
+# The pull request is checked against the newest commit of main that the Main state workflow has
+# a saved build for, so that only the pull request itself is compiled here, not everything merged
+# since that build (#6414). Main's tip is used instead when main has changed one of the pull
+# request's files or anything that affects every check since then (scripts/ci/base_state.py
+# --choose). Auto-merge bounds how far main may have moved before the merge.
+#
 # The pull request is only ever data here. The checker (scripts/, lakefile, lean-toolchain,
 # lake-manifest.json) is main's: main is what gets checked out, the pull request's commit is
 # fetched next to it, and only its Lean files under RiemannMasullo/ are merged in, after
@@ -71,8 +77,17 @@ jobs:
             echo "::error::The pull request was pushed to after this run started; a newer run checks it."
             exit 1
           fi
-          base=$(git rev-parse HEAD)
-          git worktree add --detach ../work "$base"
+          echo "MAIN_SHA=$(git rev-parse HEAD)" >>"$GITHUB_ENV"
+
+      - name: Choose the commit of main to check against, and make the work tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPO_ID: ${{ github.repository_id }}
+        run: |
+          base=$(python3 tools/scripts/ci/base_state.py --choose --work tools --main "$MAIN_SHA" --head "$HEAD_SHA") || base=
+          [[ "$base" =~ ^[0-9a-f]{40}$ ]] || { echo "could not choose; checking against main's tip"; base=$MAIN_SHA; }
+          git -C tools worktree add --detach ../work "$base"
           echo "BASE_SHA=$base" >>"$GITHUB_ENV"
 
       - name: Set up the sandbox
@@ -105,8 +120,8 @@ jobs:
         run: |
           saved=()
           if [ -s "base-state/signatures-$BASE_SHA.txt" ]; then saved=(--base-signatures "base-state/signatures-$BASE_SHA.txt"); fi
-          python3 tools/scripts/ci/verdict.py --work work --base "$BASE_SHA" --head "$HEAD_SHA" --pr "$PR" \
-            --out verdict "${saved[@]}" || true
+          python3 tools/scripts/ci/verdict.py --work work --base "$BASE_SHA" --main "$MAIN_SHA" --head "$HEAD_SHA" \
+            --pr "$PR" --out verdict "${saved[@]}" || true
           verdict=$(python3 -c 'import json; print(json.load(open("verdict/verdict.json"))["verdict"])')
           case $verdict in merge|read|fail|error) ;; *) verdict=error ;; esac
           echo "verdict=$verdict" >>"$GITHUB_OUTPUT"
