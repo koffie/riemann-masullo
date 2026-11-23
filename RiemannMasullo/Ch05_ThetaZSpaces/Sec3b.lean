@@ -1351,10 +1351,93 @@ theorem archimedeanWeightedSchwartz_empty_equiv (I : Set ℝ) :
 -- TODO(paper-gap): The proof's integer exponents need not meet I. Use a countable
 -- family of exponents in I bracketing each exponent in I, together with zero.
 
+/-- The product of all partial twists induces the weighted Schwartz topology. -/
+private theorem archimedeanSchwartzTwists_isEmbedding (I : Set ℝ) :
+    Topology.IsEmbedding (LinearMap.pi (archimedeanSchwartzTwist (ι := ι) (κ := κ) I) :
+      𝓦(I) →ₗ[ℂ] (weights(ι, κ, I) → SchwartzBruhat (archMul(ι, κ)))) := by
+  classical
+  let : SecondCountableTopology ℝˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let : SecondCountableTopology ℂˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let X := SchwartzBruhat (archMul(ι, κ))
+  let Z := weights(ι, κ, I)
+  let t : 𝓦(I) →ₗ[ℂ] (Z → X) := LinearMap.pi (archimedeanSchwartzTwist I)
+  let : PolynormableSpace ℂ X := (schwartzBruhat_nuclear.{0} (G := archMul(ι, κ))).2.1
+  have hp := withSeminorms_pi fun _ : Z ↦ PolynormableSpace.withSeminorms ℂ X
+  have hs := withGeneratingSeminorms_spec (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I)
+    (fun i : Z × {p : Seminorm ℂ X // Continuous p} ↦ i.2.val.comp (archimedeanSchwartzTwist I i.1))
+  constructor
+  · constructor
+    refine hs.topologicalSpace_eq_iInf.trans ?_
+    refine Eq.trans ?_ (WithSeminorms.topologicalSpace_eq_iInf
+      (t := TopologicalSpace.induced t inferInstance) (t.withSeminorms_induced hp)).symm
+    rw [iInf_sigma, iInf_prod]
+    rfl
+  · intro f g h
+    let a : Z := (fun _ ↦ ⟨0, Set.mem_insert _ _⟩, fun _ ↦ ⟨0, Set.mem_insert _ _⟩)
+    apply Subtype.ext
+    funext u
+    have hu := congrArg (fun v : X ↦ v u) (congrFun h a)
+    change archimedeanSchwartzTwist I a f u = archimedeanSchwartzTwist I a g u at hu
+    have hv := (archimedeanSchwartzTwist_apply I a f u).symm.trans
+      (hu.trans (archimedeanSchwartzTwist_apply I a g u))
+    simpa [a] using hv
+
+/-- Paper: Lemma 5.3.3.3(1), p. 252.
+Metrizability half of the lemma. A weight at an exponent between two exponents of `I`
+is bounded by the larger of the two weights, so countably many exponents in `I`
+together with zero already generate the seminorm topology. This is where the printed
+proof uses integer exponents, which need not lie in an interval `I` that misses `ℤ`. -/
+theorem archimedeanWeightedSchwartz_metrizable {I : Set ℝ} (ho : IsOpen I)
+    (hi : OrdConnected I) (hne : I.Nonempty) : MetrizableSpace 𝓦(I) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(1), p. 252.
+Completeness half of the lemma. The partial weight maps embed the weighted space as a
+closed submodule of a product of complete Schwartz–Bruhat spaces, so every Cauchy
+filter of twists converges to the family of its pointwise limits. -/
+theorem archimedeanWeightedSchwartz_complete {I : Set ℝ} (ho : IsOpen I)
+    (hi : OrdConnected I) (hne : I.Nonempty) : CompleteSpace 𝓦(I) := by
+  classical
+  let : SecondCountableTopology ℝˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let : SecondCountableTopology ℂˣ := Units.isEmbedding_val₀.secondCountableTopology
+  let G := archMul(ι, κ)
+  let X := SchwartzBruhat G
+  let Z := weights(ι, κ, I)
+  let a₀ : Z := (fun _ ↦ ⟨0, Set.mem_insert _ _⟩, fun _ ↦ ⟨0, Set.mem_insert _ _⟩)
+  let w (a : Z) (u : G) : ℂ :=
+    (↑(∏ i, ‖(u.1 i).val‖ ^ (a.1 i : ℝ)) : ℂ) *
+      (↑(∏ j, (‖(u.2 j).val‖ ^ (2 : ℕ)) ^ (a.2 j : ℝ)) : ℂ)
+  let T : 𝓦(I) →ₗ[ℂ] (Z → X) := LinearMap.pi (archimedeanSchwartzTwist I)
+  have hr : Set.range T = ⋂ a : Z, ⋂ u : G, {p : Z → X | p a u = w a u * p a₀ u} := by
+    ext y
+    simp only [Set.mem_range, Set.mem_iInter, Set.mem_ofPred_eq]
+    constructor
+    · rintro ⟨x, rfl⟩ a u
+      change w a u * x.val u = w a u * (w a₀ u * x.val u)
+      simp [w, a₀]
+    · intro hy
+      have he (a : Z) : weightMap(a) (y a₀).val = (y a).val := funext fun u ↦ (hy a u).symm
+      let x : 𝓦(I) := ⟨(y a₀).val, (Submodule.mem_iInf _).mpr fun a ↦
+        Submodule.mem_comap.mpr ((he a).symm ▸ (y a).property)⟩
+      exact ⟨x, funext fun a ↦ Subtype.ext (he a)⟩
+  have ev (u : G) : Continuous (fun x : X ↦ x u) := continuous_schwartzBruhat_eval_forEndpoints u
+  have hcl : IsClosed (Set.range T) := by
+    rw [hr]
+    exact isClosed_iInter fun a ↦ isClosed_iInter fun u ↦ isClosed_eq
+      ((ev u).comp (continuous_apply a)) (continuous_const.mul ((ev u).comp (continuous_apply a₀)))
+  let : CompleteSpace X := schwartzBruhat_complete
+  have ht : Topology.IsEmbedding T := archimedeanSchwartzTwists_isEmbedding I
+  exact (AddMonoidHom.isUniformInducing_of_isInducing (f := T.toAddMonoidHom)
+    ht.isInducing).completeSpace hcl.isComplete
+
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the topology from the partial weight maps is Fréchet. -/
 theorem archimedeanWeightedSchwartz_frechet {I : Set ℝ} (_ho : IsOpen I)
-    (_hi : OrdConnected I) (_hne : I.Nonempty) : IsFrechetTVS 𝓦(I) := by sorry
+    (_hi : OrdConnected I) (_hne : I.Nonempty) : IsFrechetTVS 𝓦(I) := by
+  refine ⟨inferInstance, inferInstance,
+    archimedeanWeightedSchwartz_metrizable _ho _hi _hne, ?_⟩
+  rw [IsUniformAddGroup.rightUniformSpace_eq]
+  exact archimedeanWeightedSchwartz_complete _ho _hi _hne
 
 /-- Paper: Lemma 5.3.3.3(1), p. 252.
 For an open nonempty interval the weighted Schwartz–Bruhat space is separable. -/
@@ -1401,26 +1484,7 @@ theorem archimedeanWeightedSchwartz_separable {I : Set ℝ} (_ho : IsOpen I)
   let Z := weights(ι, κ, I)
   let t : 𝓦(I) →ₗ[ℂ] (Z → X) := LinearMap.pi (archimedeanSchwartzTwist I)
   let : PolynormableSpace ℂ X := (schwartzBruhat_nuclear.{0} (G := archMul(ι, κ))).2.1
-  have hp := withSeminorms_pi fun _ : Z ↦ PolynormableSpace.withSeminorms ℂ X
-  have hs := withGeneratingSeminorms_spec (archimedeanWeightedSchwartzSubmodule (ι := ι) (κ := κ) I)
-    (fun i : Z × {p : Seminorm ℂ X // Continuous p} ↦ i.2.val.comp (archimedeanSchwartzTwist I i.1))
-  have ht : Topology.IsEmbedding t := by
-    constructor
-    · constructor
-      refine hs.topologicalSpace_eq_iInf.trans ?_
-      refine Eq.trans ?_ (WithSeminorms.topologicalSpace_eq_iInf
-        (t := TopologicalSpace.induced t inferInstance) (t.withSeminorms_induced hp)).symm
-      rw [iInf_sigma, iInf_prod]
-      rfl
-    · intro f g h
-      let a : Z := (fun _ ↦ ⟨0, Set.mem_insert _ _⟩, fun _ ↦ ⟨0, Set.mem_insert _ _⟩)
-      apply Subtype.ext
-      funext u
-      have hu := congrArg (fun v : X ↦ v u) (congrFun h a)
-      change archimedeanSchwartzTwist I a f u = archimedeanSchwartzTwist I a g u at hu
-      have hv := (archimedeanSchwartzTwist_apply I a f u).symm.trans
-        (hu.trans (archimedeanSchwartzTwist_apply I a g u))
-      simpa [a] using hv
+  have ht : Topology.IsEmbedding t := archimedeanSchwartzTwists_isEmbedding I
   have hn : IsNuclearTVS.{0} 𝓦(I) := isNuclearTVS_of_linearEmbedding t ht
     (isNuclearTVS_pi fun _ : Z ↦ schwartzBruhat_nuclear (G := archMul(ι, κ)))
   obtain ⟨_, -, _, -⟩ := archimedeanWeightedSchwartz_frechet (ι := ι) (κ := κ) _ho _hi _hne
@@ -1619,12 +1683,43 @@ theorem archimedeanFlatSchwartz_isClosed :
 -- supported close to, but away from, the origin.
 
 /-- Paper: Lemma 5.3.3.3(3), p. 253.
+Forward half of the restriction equivalence: restricting a flat Schwartz function to the
+product of the punctured lines is a continuous linear map into the all-exponent weighted
+space. The estimates (5.3.3.21)–(5.3.3.23) fail for bumps supported close to, but away
+from, the origin; the bound comes instead from Taylor's theorem at the coordinate walls. -/
+theorem archimedeanFlatSchwartz_restrict_to_weighted :
+    ∃ R : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) →L[ℂ] 𝓦(univ),
+      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (R f).val u = f.val (archVal u) := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(3), p. 253.
+Inverse half of the restriction equivalence, for a fixed restriction map: a function of
+the all-exponent weighted space extends by zero across the coordinate walls to a flat
+Schwartz function, the extension is continuous, and it is a left inverse of restriction. -/
+theorem archimedeanWeightedSchwartz_zeroExtension
+    (R : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) →L[ℂ] 𝓦(univ))
+    (hR : ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (R f).val u =
+      f.val (archVal u)) :
+    ∃ E : 𝓦(univ) →L[ℂ] ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)),
+      (∀ (f : 𝓦(univ)) (u : archMul(ι, κ)), (E f).val (archVal u) = f.val u) ∧
+        ∀ f, E (R f) = f := by
+  sorry
+
+/-- Paper: Lemma 5.3.3.3(3), p. 253.
 Restriction to the product of the punctured lines identifies flat Schwartz functions
 with the all-exponent weighted space. The inverse extends by zero. -/
 theorem archimedeanFlatSchwartz_restrict_equiv :
     ∃ e : ↥(archimedeanFlatSchwartz (ι := ι) (κ := κ)) ≃L[ℂ] 𝓦(univ),
-      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (e f).val u = f.val (archVal u) :=
-  by sorry
+      ∀ (f : archimedeanFlatSchwartz) (u : archMul(ι, κ)), (e f).val u = f.val (archVal u) := by
+  obtain ⟨R, hR⟩ := archimedeanFlatSchwartz_restrict_to_weighted (ι := ι) (κ := κ)
+  obtain ⟨E, hE, hER⟩ :=
+    archimedeanWeightedSchwartz_zeroExtension (ι := ι) (κ := κ) R hR
+  have hRE : ∀ g : 𝓦(univ), R (E g) = g := by
+    intro g
+    apply Subtype.ext
+    funext u
+    rw [hR (E g) u, hE g u]
+  exact ⟨ContinuousLinearEquiv.equivOfInverse R E hER hRE, hR⟩
 
 /-- Paper: Lemma 5.3.3.3(3), p. 253.
 A continuous quasi-character on the product of punctured fields acts by multiplication

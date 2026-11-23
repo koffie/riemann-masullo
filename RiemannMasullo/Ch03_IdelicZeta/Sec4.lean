@@ -6655,8 +6655,7 @@ private theorem finite_twist_ne_one (χ : PontryaginDual C_F) (v : V) {z : ℂ} 
   rw [norm_one, norm_mul, Circle.norm_coe, one_mul, Complex.norm_cpow_eq_rpow_re_of_pos hpos] at hh
   exact (Real.rpow_lt_one hpos.le hlt hz).ne hh
 
-/-- A vector-holomorphic family `D z` of continuous linear functionals on `E` is analytic in `z`
-when evaluated at any fixed vector. -/
+/-- Pointwise evaluation of a holomorphic strong-dual family is entire. -/
 theorem analytic_eval_normalized {E : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
     [ContinuousSMul ℂ E] {D : ℂ → StrongDual ℂ E} (hD : VectorHolomorphicOn D univ) (f : E) :
     AnalyticOnNhd ℂ (fun z ↦ D z f) univ := by
@@ -7173,7 +7172,7 @@ private theorem stageProducts (χ : PontryaginDual C_F) (S : Finset V) :
     exact ContinuousLinearMap.ext fun f ↦ (congrArg U (k.symm_apply_apply f).symm).trans
       ((DFunLike.congr_fun eq (k f)).trans (congrArg W (k.symm_apply_apply f)))
 
-/-- The Gaussian normalizing factor `gaussianCompletedHeckeL χ z` is nonzero for `1 < re z`. -/
+/-- The completed Gaussian zeta factor does not vanish in the half-plane of absolute convergence. -/
 theorem normalizedGaussian_ne_zero (χ : PontryaginDual C_F) (z : ℂ) (hz : 1 < z.re) :
     gaussianCompletedHeckeL χ z ≠ 0 := by
   rw [gaussianCompletedHeckeL_eq_completedHeckeL χ z hz]
@@ -7731,8 +7730,7 @@ theorem adelicEigendistributions_rank (c : X) :
 
 local notation "DG(" χ ")" => (adelicEigendistribution_normalized (χ)).choose
 
-/-- For `1 < re z`, the global zeta integral at the twist `χ |·|^z` equals the Gaussian
-normalizing factor times the Gaussian-normalized eigendistribution chosen for `χ`. -/
+/-- In the half-plane of convergence the global zeta integral is the Gaussian factor times the normalized eigendistribution. -/
 theorem globalIntegral_normalized_ratio (χ : PontryaginDual C_F) {z : ℂ} (hz : 1 < z.re)
     (f : ℬ(𝔸[F])) :
     globalIdelicZetaIntegral f (ideleClassNormTwist χ z) = gaussianCompletedHeckeL χ z * DG(χ) z f := by
