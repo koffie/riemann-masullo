@@ -4,7 +4,7 @@ public import RiemannMasullo.Ch10_TraceSpectral.Sec2
 public import RiemannMasullo.AppC_LCTVS.Sec3a_part2
 public import RiemannMasullo.Ch09_HardySobolev.Sec3
 public import Mathlib.Analysis.InnerProductSpace.ProdL2
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 
 import all RiemannMasullo.Ch09_HardySobolev.Sec3
 
@@ -170,10 +170,42 @@ section Convolution
 
 variable (a : ℝ) {l r s : ℝ} (hI : l ≤ r) (hs : 0 ≤ s)
 
+/-- A Pettis integral of translates of a vector in a closed invariant subspace of a
+Hilbert space stays in that subspace, since every vector orthogonal to it kills the integrand. -/
+private theorem hardySobolevTestAction_preserves_globalTheta_aux {X V : Type*}
+    [Group X] [MeasurableSpace X] (μ : Measure X) [NormedAddCommGroup V]
+    [InnerProductSpace ℂ V] [CompleteSpace V] (K : Submodule ℂ V) (hK : IsClosed (K : Set V))
+    (τ : X →* (V →L[ℂ] V)) (hτ : ∀ g, ∀ v ∈ K, τ g v ∈ K) {ψ : X → ℂ} {u b : V}
+    (hu : u ∈ K) (hb : HasPettisIntegral (.positive μ) (fun g ↦ ψ g • τ g u) b) : b ∈ K := by
+  have : CompleteSpace K := hK.completeSpace_coe
+  rw [← K.orthogonal_orthogonal]
+  intro w hw
+  have hδ := congrArg
+    (fun z : PettisWeakCompletion V ↦ (show Module.Dual ℂ (StrongDual ℂ V) from z)
+      (innerSL ℂ w)) hb.2
+  change innerSL ℂ w b = ∫ g, innerSL ℂ w (ψ g • τ g u) ∂μ at hδ
+  rw [innerSL_apply_apply] at hδ
+  rw [hδ]
+  refine integral_eq_zero_of_ae (.of_forall fun g ↦ ?_)
+  change innerSL ℂ w (ψ g • τ g u) = 0
+  rw [innerSL_apply_apply]
+  exact (K.mem_orthogonal' w).mp hw _ (K.smul_mem _ (hτ g u hu))
+
 /-- Paper: (10.3.1.2), p. 448, and (10.3.2.2), p. 454. Convolution with a
 test preserves the closed weighted theta subspace, so it descends to the quotient. -/
 theorem hardySobolevTestAction_preserves_globalTheta (φ : BruhatCompactSupport C𝔽) :
-    Θ(a, hI, hs) ≤ ((Θ(a, hI, hs)).mkQL.comp (testAction(l, r, s, hI, hs) φ)).ker := by sorry
+    Θ(a, hI, hs) ≤ ((Θ(a, hI, hs)).mkQL.comp (testAction(l, r, s, hI, hs) φ)).ker := by
+  intro v hv
+  obtain ⟨ρ, hρ, -, -⟩ := exists_globalThetaSobolevAction (F := F) a hI hs
+  have hinv : ∀ g, ∀ w ∈ Θ(a, hI, hs), hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs g w ∈
+      Θ(a, hI, hs) := fun g w hw ↦ by
+    rw [← hρ g ⟨w, hw⟩]
+    exact (ρ g ⟨w, hw⟩).property
+  have hmem := hardySobolevTestAction_preserves_globalTheta_aux μ𝔽 (Θ(a, hI, hs))
+    (Submodule.isClosed_topologicalClosure _) (hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs)
+    hinv hv (bruhatRegularizedAction_apply μ𝔽 (hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs)
+      (exists_hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs).choose_spec.2 φ v)
+  exact (Submodule.Quotient.mk_eq_zero (Θ(a, hI, hs))).mpr hmem
 
 /-- Paper: (10.3.1.2), p. 448, and (10.3.2.2), p. 454. The spectral convolution
 operator is the descended Hardy–Sobolev test action. -/
@@ -306,6 +338,40 @@ theorem spectralIsotypeConvolution_mkQ (ω : PontryaginDual C₁) (φ : BruhatCo
     (hardySobolevTestAction_preserves_spectralIsotypeTheta (F := F) a hI hs ω φ) v)
   with_reducible_and_instances exact h.trans (Submodule.mkQL_apply _ _)
 
+private theorem spectralConvolution_range_isotype_aux {X V : Type*}
+    [CommGroup X] [TopologicalSpace X] [IsTopologicalGroup X] [MeasurableSpace X]
+    [BorelSpace X] (μ : Measure X) [μ.IsHaarMeasure]
+    [AddCommGroup V] [Module ℂ V] [TopologicalSpace V] [IsTopologicalAddGroup V]
+    [ContinuousSMul ℂ V] [SeparatingDual ℂ V]
+    (τ : X →* (V →L[ℂ] V)) (ψ : X → ℂ) (k : X) (c : ℂ)
+    (hψ : ∀ g, ψ (k⁻¹ * g) = c * ψ g) (u a : V)
+    (ha : HasPettisIntegral (.positive μ) (fun g ↦ ψ g • τ g u) a) :
+    τ k a = c • a := by
+  have ev (δ : StrongDual ℂ V) : δ a = ∫ g, δ (ψ g • τ g u) ∂μ :=
+    congrArg (fun z : PettisWeakCompletion V ↦
+      (show Module.Dual ℂ (StrongDual ℂ V) from z) δ) ha.2
+  apply (SeparatingDual.eq_iff_forall_dual_eq (R := ℂ)).2
+  intro δ
+  have hδ := ev (δ.comp (τ k))
+  rw [ContinuousLinearMap.comp_apply] at hδ
+  calc
+    δ (τ k a) = ∫ g, δ (τ k (ψ g • τ g u)) ∂μ := hδ
+    _ = ∫ g, δ (ψ g • τ (k * g) u) ∂μ := by
+      apply integral_congr_ae (.of_forall fun g ↦ ?_)
+      rw [(τ k).map_smul, map_mul]
+      rfl
+    _ = ∫ g, δ (ψ (k⁻¹ * g) • τ g u) ∂μ := by
+      rw [← integral_mul_left_eq_self
+        (fun g ↦ δ (ψ (k⁻¹ * g) • τ g u)) k]
+      apply integral_congr_ae (.of_forall fun g ↦ ?_)
+      simp
+    _ = c * ∫ g, δ (ψ g • τ g u) ∂μ := by
+      rw [← integral_const_mul]
+      apply integral_congr_ae (.of_forall fun g ↦ ?_)
+      rw [hψ g, mul_smul, map_smul]
+      simp
+    _ = δ (c • a) := by rw [← ev δ, map_smul]; rfl
+
 /-- Paper: Theorems 10.3.1.1(3), p. 449, and 10.3.2.1(3), p. 454.
 The full quotient action of an isotypic test has range in the corresponding quotient isotype.
 Deviation: For left translation φ(x) ↦ φ(k⁻¹x), the weight is ω as an
@@ -313,7 +379,21 @@ eigencharacter. Equivalently the pointwise covariance is φ(kx) = ω⁻¹(k)φ(x
 theorem spectralConvolution_range_isotype (ω : PontryaginDual C₁) (φ : BruhatCompactSupport C𝔽)
     (_hφ : ∀ (k : C₁) (x : C𝔽), φ.val (k.val⁻¹ * x) = (ω k : ℂ) * φ.val x) :
     range (spectralConvolution (F := F) a hI hs φ) ⊆
-      range (fun v : Wω(hI, hs, ω) ↦ (Θ(a, hI, hs)).mkQ v.val) := by sorry
+      range (fun v : Wω(hI, hs, ω) ↦ (Θ(a, hI, hs)).mkQ v.val) := by
+  have hW (v : W(l, r, s)) :
+      testAction(l, r, s, hI, hs) φ v ∈ Wω(hI, hs, ω) := by
+    rw [mem_actionIsotype]
+    intro k
+    exact spectralConvolution_range_isotype_aux μ𝔽
+      (hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs) φ.val k.val (ω k : ℂ)
+      (_hφ k) v _ (bruhatRegularizedAction_apply μ𝔽
+        (hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs)
+        (exists_hardySobolevTranslation μ𝔽 m𝔽 l r s hI hs).choose_spec.2 φ v)
+  intro y hy
+  obtain ⟨x, rfl⟩ := hy
+  obtain ⟨v, rfl⟩ := Submodule.mkQ_surjective (Θ(a, hI, hs)) x
+  exact ⟨⟨testAction(l, r, s, hI, hs) φ v, hW v⟩,
+    spectralConvolution_mkQ (F := F) a hI hs φ v⟩
 
 end Convolution
 

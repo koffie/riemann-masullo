@@ -1131,13 +1131,166 @@ theorem sLocalThetaPrincipalValue_equivariant {S₀ S : Finset V}
       (Submodule.Quotient.mk
         (schwartzBruhatUnitTranslate g (sAdelePrincipalValue F h₀ f)) : Θₛ(S)) := by sorry
 
+/-- Weil's local principal value commutes with multiplicative translation, since both only
+rescale the argument. -/
+private theorem globalThetaPrincipalValue_equivariant_local (v : V) (c : (v.adicCompletion F)ˣ)
+    (h : ℬ(v.adicCompletion F)) :
+    finitePlacePrincipalValue v (schwartzBruhatUnitTranslate c h) =
+      schwartzBruhatUnitTranslate c (finitePlacePrincipalValue v h) := by
+  let hπ0 := (Valued.v : Valuation (v.adicCompletion F)
+    (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+  let π := Units.mk0 (hπ0.choose : v.adicCompletion F) hπ0.choose_spec.ne_zero
+  let : MeasurableSpace (v.adicCompletion F)ˣ := borel _
+  have : BorelSpace (v.adicCompletion F)ˣ := ⟨rfl⟩
+  apply Subtype.ext
+  funext x
+  change finitePlacePrincipalValue v (schwartzBruhatUnitTranslate c h)
+      (Multiplicative.ofAdd x.toAdd) =
+    schwartzBruhatUnitTranslate c (finitePlacePrincipalValue v h) (Multiplicative.ofAdd x.toAdd)
+  rw [schwartzBruhatUnitTranslate_apply, finitePlacePrincipalValue_spec v π hπ0.choose_spec,
+    finitePlacePrincipalValue_spec v π hπ0.choose_spec]
+  unfold finitePlacePrincipalValueFun
+  simp only [schwartzBruhatUnitTranslate_apply, toAdd_ofAdd]
+  congr 2
+  refine setIntegral_congr_fun ?_ fun u _ ↦ ?_
+  · exact (Submonoid.isOpen_units (Valued.isOpen_valuationSubring _)).measurableSet
+  · exact congrArg (fun y ↦ h (Multiplicative.ofAdd y)) (by ring)
+
+/-- Two linear maps agree once they agree on the pure tensors of an inductive tensor product
+with a projective tensor power. -/
+private theorem globalThetaPrincipalValue_equivariant_ext {A B : Type*}
+    [AddCommGroup A] [Module ℂ A] [TopologicalSpace A]
+    [AddCommGroup B] [Module ℂ B] [TopologicalSpace B] {ι : Type*} {D : ι → Type*}
+    [∀ i, AddCommGroup (D i)] [∀ i, Module ℂ (D i)]
+    (e : InductiveTensor A (FinestLocallyConvex (⨂[ℂ] i, D i)) ≃L[ℂ] B)
+    (L₁ L₂ : B →ₗ[ℂ] B)
+    (h : ∀ (a : A) (g : ∀ i, D i), L₁ (e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] i, g i))) =
+      L₂ (e (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] i, g i)))) (x : B) :
+    L₁ x = L₂ x := by
+  obtain ⟨t, rfl⟩ := e.surjective x
+  let W := FinestLocallyConvex (⨂[ℂ] i, D i)
+  let M₁ : A ⊗[ℂ] W →ₗ[ℂ] B := L₁ ∘ₗ (e.toLinearMap : InductiveTensor A W →ₗ[ℂ] B)
+  let M₂ : A ⊗[ℂ] W →ₗ[ℂ] B := L₂ ∘ₗ (e.toLinearMap : InductiveTensor A W →ₗ[ℂ] B)
+  have hM : M₁ = M₂ := by
+    refine TensorProduct.ext' fun a z ↦ ?_
+    refine PiTensorProduct.induction_on (motive := fun z : ⨂[ℂ] i, D i ↦
+      M₁ (a ⊗ₜ[ℂ] (z : W)) = M₂ (a ⊗ₜ[ℂ] (z : W))) z ?_ ?_
+    · intro r g
+      have ht : (a ⊗ₜ[ℂ] (((r • (⨂ₜ[ℂ] i, g i) : ⨂[ℂ] i, D i)) : W) : A ⊗[ℂ] W) =
+          r • (a ⊗ₜ[ℂ] (((⨂ₜ[ℂ] i, g i) : ⨂[ℂ] i, D i) : W)) :=
+        (TensorProduct.mk ℂ A W a).map_smul r (((⨂ₜ[ℂ] i, g i) : ⨂[ℂ] i, D i) : W)
+      have hp : M₁ (a ⊗ₜ[ℂ] (((⨂ₜ[ℂ] i, g i) : ⨂[ℂ] i, D i) : W)) =
+          M₂ (a ⊗ₜ[ℂ] (((⨂ₜ[ℂ] i, g i) : ⨂[ℂ] i, D i) : W)) := h a g
+      exact (congrArg M₁ ht).trans ((map_smul M₁ r _).trans ((congrArg (r • ·) hp).trans
+        ((map_smul M₂ r _).symm.trans (congrArg M₂ ht.symm))))
+    · intro z₁ z₂ h₁ h₂
+      have ht : (a ⊗ₜ[ℂ] (((z₁ + z₂ : ⨂[ℂ] i, D i)) : W) : A ⊗[ℂ] W) =
+          a ⊗ₜ[ℂ] (z₁ : W) + a ⊗ₜ[ℂ] (z₂ : W) :=
+        (TensorProduct.mk ℂ A W a).map_add (z₁ : W) (z₂ : W)
+      exact (congrArg M₁ ht).trans ((map_add M₁ _ _).trans ((congrArg₂ (· + ·) h₁ h₂).trans
+        ((map_add M₂ _ _).symm.trans (congrArg M₂ ht.symm))))
+  exact LinearMap.congr_fun hM t
+
+open Classical in
+/-- The S-local principal value commutes with translation by an S-idele. -/
+private theorem globalThetaPrincipalValue_equivariant_stage {S₀ : Finset V}
+    (gS : (SAdeleRing F S₀)ˣ) (k : ℬₛ(S₀)) :
+    sAdelePrincipalValue F (Finset.Subset.refl S₀) (schwartzBruhatUnitTranslate gS k) =
+      schwartzBruhatUnitTranslate gS (sAdelePrincipalValue F (Finset.Subset.refl S₀) k) := by
+  let e' := (sAdeleSchwartz_inductiveTensor_equiv F S₀).choose
+  have he' := (sAdeleSchwartz_inductiveTensor_equiv F S₀).choose_spec
+  let P := sAdelePrincipalValue F (Finset.Subset.refl S₀)
+  let T : ℬₛ(S₀) →ₗ[ℂ] ℬₛ(S₀) :=
+    { toFun := schwartzBruhatUnitTranslate gS
+      map_add' := fun _ _ ↦ rfl
+      map_smul' := fun _ _ ↦ rfl }
+  let gInf : (InfiniteAdeleRing F)ˣ := Units.map (RingHom.fst _ _).toMonoidHom gS
+  let gw (w : S₀) : (w.val.adicCompletion F)ˣ :=
+    Units.map ((Pi.evalRingHom _ w).comp (RingHom.snd _ _)).toMonoidHom gS
+  have hT (a : ℬ(InfiniteAdeleRing F)) (g : ∀ w : S₀, ℬ(w.val.adicCompletion F)) :
+      T (e' (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, g w))) = e' (schwartzBruhatUnitTranslate gInf a ⊗ₜ[ℂ]
+        (⨂ₜ[ℂ] w, schwartzBruhatUnitTranslate (gw w) (g w))) := by
+    apply Subtype.ext
+    funext x
+    refine (he' a g ((↑gS⁻¹ : SAdeleRing F S₀) * x.toAdd)).trans (Eq.trans ?_
+      (he' (schwartzBruhatUnitTranslate gInf a)
+        (fun w ↦ schwartzBruhatUnitTranslate (gw w) (g w)) x.toAdd).symm)
+    rfl
+  have hyp : ∀ (a : ℬ(InfiniteAdeleRing F)) (g : ∀ w : S₀, ℬ(w.val.adicCompletion F)),
+      (P ∘ₗ T) (e' (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, g w))) = (T ∘ₗ P) (e' (a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, g w))) := by
+    intro a g
+    have h1 := sAdelePrincipalValue_tmul (Finset.Subset.refl S₀) (schwartzBruhatUnitTranslate gInf a)
+      (fun w ↦ schwartzBruhatUnitTranslate (gw w) (g w))
+    have h2 := sAdelePrincipalValue_tmul (Finset.Subset.refl S₀) a g
+    refine (congrArg P (hT a g)).trans (h1.trans ?_)
+    refine Eq.trans ?_ (congrArg T h2).symm
+    refine Eq.trans ?_ (hT a _).symm
+    have hfun : (fun w : S₀ ↦ if w.val ∈ S₀ then
+          finitePlacePrincipalValue w.val (schwartzBruhatUnitTranslate (gw w) (g w))
+        else schwartzBruhatUnitTranslate (gw w) (g w)) =
+        fun w ↦ schwartzBruhatUnitTranslate (gw w)
+          (if w.val ∈ S₀ then finitePlacePrincipalValue w.val (g w) else g w) := by
+      funext w
+      simp only [w.property, ite_true]
+      exact globalThetaPrincipalValue_equivariant_local w.val (gw w) (g w)
+    exact congrArg (fun φ : ∀ w : S₀, ℬ(w.val.adicCompletion F) ↦
+      e' (schwartzBruhatUnitTranslate gInf a ⊗ₜ[ℂ] (⨂ₜ[ℂ] w, φ w))) hfun
+  exact globalThetaPrincipalValue_equivariant_ext
+    (D := fun w : S₀ ↦ ℬ(w.val.adicCompletion F)) e' (P ∘ₗ T) (T ∘ₗ P)
+    (by with_reducible exact hyp) k
+
 /-- Paper: Lemma 5.3.1.5, p. 242.
 The global principal value commutes with each idele translation on theta classes. -/
 theorem globalThetaPrincipalValue_equivariant {S₀ : Finset V}
     (hn : S₀.Nonempty) (g : IdeleGroup (𝓞 F) F) (f : ℬ(𝔸[F])) :
     Submodule.Quotient.mk (adelePrincipalValue F S₀ (schwartzBruhatUnitTranslate g f)) =
       (Submodule.Quotient.mk
-        (schwartzBruhatUnitTranslate g (adelePrincipalValue F S₀ f)) : Θ𝔽) := by sorry
+        (schwartzBruhatUnitTranslate g (adelePrincipalValue F S₀ f)) : Θ𝔽) := by
+  apply congrArg
+  have : Fact (∀ w : {w : V // w ∉ S₀},
+      IsOpen (w.val.adicCompletionIntegers F : Set (w.val.adicCompletion F))) :=
+    ⟨fun w ↦ Valued.isOpen_valuationSubring (w.val.adicCompletion F)⟩
+  let : IsTopologicalRing (FiniteAdeleTail F S₀) :=
+    RestrictedProduct.isTopologicalRing (fun w : {w : V // w ∉ S₀} ↦ w.val.adicCompletion F)
+  let Tl := ℬ(FiniteAdeleTail F S₀)
+  let e := (sAdeleTailSchwartz_inductiveTensor_equiv F S₀).choose
+  have he := (sAdeleTailSchwartz_inductiveTensor_equiv F S₀).choose_spec
+  let P := adelePrincipalValue F S₀
+  let T : ℬ(𝔸[F]) →ₗ[ℂ] ℬ(𝔸[F]) :=
+    { toFun := schwartzBruhatUnitTranslate g
+      map_add' := fun _ _ ↦ rfl
+      map_smul' := fun _ _ ↦ rfl }
+  let gS : (SAdeleRing F S₀)ˣ := Units.map (adeleProjection F S₀).toMonoidHom g
+  have hval : finiteAdeleTailProjection F S₀ g.val.2 * finiteAdeleTailProjection F S₀ g.inv.2 = 1 := by
+    apply RestrictedProduct.ext
+    intro w
+    exact congrArg (fun z : AdeleRing (𝓞 F) F ↦ z.2 w.val) g.val_inv
+  have hinv : finiteAdeleTailProjection F S₀ g.inv.2 * finiteAdeleTailProjection F S₀ g.val.2 = 1 := by
+    apply RestrictedProduct.ext
+    intro w
+    exact congrArg (fun z : AdeleRing (𝓞 F) F ↦ z.2 w.val) g.inv_val
+  let gt : (FiniteAdeleTail F S₀)ˣ := ⟨_, _, hval, hinv⟩
+  have hT (k : ℬₛ(S₀)) (b : Tl) : T (e (k ⊗ₜ[ℂ] b)) =
+      e (schwartzBruhatUnitTranslate gS k ⊗ₜ[ℂ] schwartzBruhatUnitTranslate gt b) := by
+    apply Subtype.ext
+    funext x
+    refine (he k b ((↑g⁻¹ : AdeleRing (𝓞 F) F) * x.toAdd)).trans (Eq.trans ?_
+      (he (schwartzBruhatUnitTranslate gS k) (schwartzBruhatUnitTranslate gt b) x.toAdd).symm)
+    rfl
+  obtain ⟨t, rfl⟩ := e.surjective f
+  suffices h : P ∘ₗ T ∘ₗ (e.toLinearMap : InductiveTensor ℬₛ(S₀) Tl →ₗ[ℂ] _) =
+      T ∘ₗ P ∘ₗ (e.toLinearMap : InductiveTensor ℬₛ(S₀) Tl →ₗ[ℂ] _) from
+    LinearMap.congr_fun h t
+  refine TensorProduct.ext' fun k b ↦ ?_
+  have h1 := adelePrincipalValue_tmul (F := F) (Finset.Subset.refl S₀)
+    (schwartzBruhatUnitTranslate gS k) (schwartzBruhatUnitTranslate gt b)
+  have h2 := adelePrincipalValue_tmul (F := F) (Finset.Subset.refl S₀) k b
+  change P (T (e (k ⊗ₜ[ℂ] b))) = T (P (e (k ⊗ₜ[ℂ] b)))
+  refine (congrArg P (hT k b)).trans (h1.trans ?_)
+  refine Eq.trans ?_ (congrArg T h2).symm
+  refine Eq.trans ?_ (hT _ b).symm
+  exact congrArg (fun z ↦ e (z ⊗ₜ[ℂ] schwartzBruhatUnitTranslate gt b))
+    (globalThetaPrincipalValue_equivariant_stage gS k)
 
 /-- Paper: Lemma 5.3.1.5, p. 242.
 The S-local principal value commutes with the norm-one character average of §5.2.3. -/
@@ -1572,25 +1725,6 @@ private theorem realSchwartzFlatQuotient_strongDual_lift
   change realDiracDerivative n f - realDiracDerivative n g = 0
   rw [hfd n, sub_self]
 
--- TODO(paper-gap): The coefficient seminorms in (5.3.2.2) give the coefficientwise
--- topology on the whole polynomial space and do not give its finest locally convex topology.
-
-/-- Paper: Theorem 5.3.2.1(1), p. 243.
-Polynomials with the finest locally convex topology identify with the strong dual of the
-real Schwartz quotient by flat functions through the factorial-normalized Dirac derivatives.
-The least order bound of the distribution is the polynomial's natural degree.
-Deviation: Uses the finest locally convex topology and omits the false equivalence in (5.3.2.2). -/
-theorem realDiracDerivatives_polynomialEquiv :
-    ∃ e : FinestLocallyConvex (Polynomial ℂ) ≃L[ℂ]
-        StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin),
-      (∀ k : ℕ, ∀ f : 𝓢(ℝ, ℂ),
-        e (Polynomial.monomial k 1) (realSchwartzFlatAtOrigin.mkQ f) =
-          realDiracDerivative k f / (k.factorial : ℂ)) ∧
-      ∀ (p : Polynomial ℂ) (N : ℕ),
-        DistributionOrderLE
-          (fun f : 𝒟ℝ ↦ e p (realSchwartzFlatAtOrigin.mkQ
-            (f.hasCompactSupport.toSchwartzMap f.contDiff))) N ↔ p.natDegree ≤ N := by sorry
-
 /-- A Borel series `∑ bₙ φₙ` whose terms past `m` are dominated by a summable sequence converges
 in the Schwartz space. Its Dirac derivatives are those of the coefficients, and its seminorms of
 order at most `m` are bounded by the first `m + 1` terms plus the dominating sum. -/
@@ -1853,6 +1987,261 @@ theorem realSchwartzFlatQuotient_strongDual :
   rw [range_transpose_mkQL]
   ext T
   simp [Set.mem_iInter]
+
+/-- A continuous functional on formal power series vanishes on every series whose coefficients
+up to some fixed order are zero. -/
+private theorem realDiracDerivatives_polynomialEquiv_finite (L : PowerSeries ℂ →L[ℂ] ℂ) :
+    ∃ N : ℕ, ∀ s : PowerSeries ℂ, (∀ n ≤ N, PowerSeries.coeff n s = 0) → L s = 0 := by
+  by_contra h
+  push Not at h
+  choose s hs0 hs using h
+  let t (N : ℕ) : PowerSeries ℂ := (L (s N))⁻¹ • s N
+  have ht : Tendsto t atTop (𝓝 0) := by
+    rw [PowerSeries.WithPiTopology.tendsto_iff_coeff_tendsto]
+    intro d
+    rw [map_zero]
+    refine tendsto_const_nhds.congr' ?_
+    filter_upwards [eventually_ge_atTop d] with N hN
+    simp [t, hs0 N d hN]
+  have h1 := (L.continuous.tendsto 0).comp ht
+  rw [map_zero] at h1
+  have h2 : ⇑L ∘ t = fun _ ↦ 1 := by
+    funext N
+    simp [t, inv_mul_cancel₀ (hs N)]
+  rw [h2] at h1
+  exact one_ne_zero (tendsto_nhds_unique tendsto_const_nhds h1)
+
+-- TODO(paper-gap): The coefficient seminorms in (5.3.2.2) give the coefficientwise
+-- topology on the whole polynomial space and do not give its finest locally convex topology.
+
+/-- Paper: Theorem 5.3.2.1(1), p. 243.
+Polynomials with the finest locally convex topology identify with the strong dual of the
+real Schwartz quotient by flat functions through the factorial-normalized Dirac derivatives.
+The least order bound of the distribution is the polynomial's natural degree.
+Deviation: Uses the finest locally convex topology and omits the false equivalence in (5.3.2.2). -/
+theorem realDiracDerivatives_polynomialEquiv :
+    ∃ e : FinestLocallyConvex (Polynomial ℂ) ≃L[ℂ]
+        StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin),
+      (∀ k : ℕ, ∀ f : 𝓢(ℝ, ℂ),
+        e (Polynomial.monomial k 1) (realSchwartzFlatAtOrigin.mkQ f) =
+          realDiracDerivative k f / (k.factorial : ℂ)) ∧
+      ∀ (p : Polynomial ℂ) (N : ℕ),
+        DistributionOrderLE
+          (fun f : 𝒟ℝ ↦ e p (realSchwartzFlatAtOrigin.mkQ
+            (f.hasCompactSupport.toSchwartzMap f.contDiff))) N ↔ p.natDegree ≤ N := by
+  obtain ⟨τ, hτ⟩ := realSchwartzTaylor_equiv
+  have hfact (k : ℕ) : (k.factorial : ℂ) ≠ 0 := mod_cast Nat.factorial_ne_zero k
+  let cf (k : ℕ) : PowerSeries ℂ →L[ℂ] ℂ :=
+    ⟨PowerSeries.coeff k, PowerSeries.WithPiTopology.continuous_coeff ℂ k⟩
+  let c (k : ℕ) : StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :=
+    ((-1 : ℂ) ^ k) • (cf k).comp τ.toContinuousLinearMap
+  have hc (k : ℕ) (y : 𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :
+      c k y = (-1 : ℂ) ^ k * PowerSeries.coeff k (τ y) := rfl
+  have hcf (k : ℕ) (f : 𝓢(ℝ, ℂ)) :
+      c k (realSchwartzFlatAtOrigin.mkQ f) = realDiracDerivative k f / (k.factorial : ℂ) := by
+    rw [hc, hτ, realSchwartzFlatQuotient_strongDual_dirac]
+    ring
+  let Φ : Polynomial ℂ →ₗ[ℂ] StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :=
+    Polynomial.lsum fun k ↦ LinearMap.smulRight LinearMap.id (c k)
+  have hΦ (p : Polynomial ℂ) (y : 𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :
+      Φ p y = ∑ k ∈ p.support, p.coeff k * c k y := by
+    simp [Φ, Polynomial.lsum_apply, Polynomial.sum_def, sum_apply]
+  have hΦm (k : ℕ) (a : ℂ) : Φ (Polynomial.monomial k a) = a • c k := by
+    simp [Φ, Polynomial.lsum_apply, Polynomial.sum_monomial_index]
+  have hinj : Function.Injective Φ := by
+    refine (injective_iff_map_eq_zero Φ).mpr fun p hp ↦ ?_
+    ext n
+    have h := congrArg (fun T : StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) ↦
+      T (τ.symm (PowerSeries.X ^ n))) hp
+    simp only [hΦ, hc, ContinuousLinearEquiv.apply_symm_apply, PowerSeries.coeff_X_pow,
+      zero_apply] at h
+    rw [Finset.sum_eq_single n (fun k _ hk ↦ by simp [hk])
+      (fun hn ↦ by simp [Polynomial.notMem_support_iff.mp hn])] at h
+    simpa using h
+  have hsurj : Function.Surjective Φ := by
+    intro T
+    let L : PowerSeries ℂ →L[ℂ] ℂ := T.comp τ.symm.toContinuousLinearMap
+    obtain ⟨N, hN⟩ := realDiracDerivatives_polynomialEquiv_finite L
+    refine ⟨∑ n ∈ Finset.range (N + 1),
+      Polynomial.monomial n ((-1 : ℂ) ^ n * L (PowerSeries.X ^ n)), ?_⟩
+    ext y
+    rw [map_sum]
+    simp only [hΦm, sum_apply, smul_apply, hc,
+      smul_eq_mul]
+    have hy : T y = L (τ y) := by simp [L]
+    have hs : L (τ y - ∑ n ∈ Finset.range (N + 1),
+        PowerSeries.coeff n (τ y) • PowerSeries.X ^ n) = 0 := by
+      apply hN
+      intro m hm
+      rw [map_sub, map_sum]
+      simp [PowerSeries.coeff_X_pow, Finset.sum_ite_eq, Finset.mem_range, Nat.lt_succ_of_le hm]
+    rw [map_sub, map_sum, sub_eq_zero] at hs
+    rw [hy, hs]
+    refine Finset.sum_congr rfl fun n _ ↦ ?_
+    rw [map_smul, smul_eq_mul]
+    have : ((-1 : ℂ) ^ n) * (-1) ^ n = 1 := by rw [← mul_pow]; norm_num
+    linear_combination (L (PowerSeries.X ^ n) * PowerSeries.coeff n (τ y)) * this
+  let e₀ : Polynomial ℂ ≃ₗ[ℂ] StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :=
+    LinearEquiv.ofBijective Φ ⟨hinj, hsurj⟩
+  let e₁ : FinestLocallyConvex (Polynomial ℂ) ≃ₗ[ℂ]
+      StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) := e₀
+  have he₁ (p : Polynomial ℂ) : e₁ p = Φ p := rfl
+  have : IsClosed (realSchwartzFlatAtOrigin : Set 𝓢(ℝ, ℂ)) := realSchwartzFlatAtOrigin_isClosed
+  let : UniformSpace (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :=
+    IsTopologicalAddGroup.rightUniformSpace _
+  let : IsUniformAddGroup (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :=
+    isUniformAddGroup_of_addCommGroup
+  let : PolynormableSpace ℂ (StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin)) :=
+    uniformConvergenceCLM_polynormable (F := ℂ)
+      {B : Set (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) | Bornology.IsVonNBounded ℂ B}
+      (fun _ h ↦ by exact h)
+      (by rw [Bornology.sUnion_isVonNBounded_eq_univ, Submodule.span_univ]; simp)
+  have hcont : Continuous e₁ :=
+    continuous_of_finestLocallyConvex (Polynomial ℂ) e₁.toLinearMap
+  have hsymm : Continuous e₁.symm := by
+    refine (finestLocallyConvex_withSeminorms (Polynomial ℂ)).continuous_of_continuous_comp
+      e₁.symm.toLinearMap fun p ↦ ?_
+    refine Seminorm.continuous (r := 1) ?_
+    let w (n : ℕ) : ℝ := p (Polynomial.monomial n 1)
+    obtain ⟨S, hS, hSc⟩ :=
+      realSchwartzFlatQuotient_strongDual_borel fun n ↦ (n.factorial : ℝ) * w n
+    have hB : Bornology.IsVonNBounded ℂ (realSchwartzFlatAtOrigin.mkQ '' S) :=
+      hS.image realSchwartzFlatAtOrigin.mkQL
+    filter_upwards [ContinuousLinearMap.eventually_nhds_zero_mapsTo hB
+      (Metric.ball_mem_nhds (0 : ℂ) one_pos)] with T hT
+    rw [Seminorm.mem_ball_zero]
+    change p (e₁.symm T) < 1
+    obtain ⟨q, hq⟩ : ∃ q : Polynomial ℂ, e₁.symm T = q := ⟨_, rfl⟩
+    have hTq : T = Φ q := by rw [← he₁, ← hq, LinearEquiv.apply_symm_apply]
+    rw [hq]
+    let d (n : ℕ) : ℂ :=
+      (n.factorial : ℂ) * (w n : ℂ) * (star (q.coeff n) / (‖q.coeff n‖ : ℂ))
+    have hd (n : ℕ) : ‖d n‖ ≤ (n.factorial : ℝ) * w n := by
+      have hw : 0 ≤ w n := apply_nonneg _ _
+      have hu : ‖star (q.coeff n) / (‖q.coeff n‖ : ℂ)‖ ≤ 1 := by
+        rw [norm_div, norm_star, Complex.norm_real, Real.norm_of_nonneg (norm_nonneg _)]
+        exact div_self_le_one _
+      calc ‖d n‖ = (n.factorial : ℝ) * w n * ‖star (q.coeff n) / (‖q.coeff n‖ : ℂ)‖ := by
+            simp only [d, norm_mul, Complex.norm_natCast, Complex.norm_real,
+              Real.norm_of_nonneg hw]
+        _ ≤ (n.factorial : ℝ) * w n * 1 := by gcongr
+        _ = (n.factorial : ℝ) * w n := mul_one _
+    obtain ⟨f, hfS, hf⟩ := hSc d hd
+    have hval : T (realSchwartzFlatAtOrigin.mkQ f) =
+        ((∑ k ∈ q.support, w k * ‖q.coeff k‖ : ℝ) : ℂ) := by
+      rw [hTq, hΦ]
+      push_cast
+      refine Finset.sum_congr rfl fun k hk ↦ ?_
+      have hq0 : q.coeff k ≠ 0 := Polynomial.mem_support_iff.mp hk
+      have hn0 : (‖q.coeff k‖ : ℂ) ≠ 0 := by exact_mod_cast norm_ne_zero_iff.mpr hq0
+      rw [hcf, hf k]
+      simp only [d]
+      field_simp
+      rw [Complex.star_def, show q.coeff k * (k.factorial : ℂ) * (w k : ℂ) *
+          (starRingEnd ℂ) (q.coeff k) = (q.coeff k * (starRingEnd ℂ) (q.coeff k)) *
+          ((k.factorial : ℂ) * (w k : ℂ)) by ring, Complex.mul_conj']
+      field_simp
+      exact mul_div_cancel_left₀ _ (hfact k)
+    have hle : p q ≤ ∑ k ∈ q.support, w k * ‖q.coeff k‖ := by
+      conv_lhs => rw [q.as_sum_support]
+      refine (Finset.le_sum_of_subadditive p (map_zero p).le (map_add_le_add p) _ _).trans
+        (Finset.sum_le_sum fun k _ ↦ ?_)
+      rw [show Polynomial.monomial k (q.coeff k) = q.coeff k • Polynomial.monomial k 1 by
+        rw [Polynomial.smul_monomial, smul_eq_mul, mul_one], map_smul_eq_mul, mul_comm]
+    have hlt := hT ⟨f, hfS, rfl⟩
+    rw [Metric.mem_ball, dist_zero_right, hval, Complex.norm_real,
+      Real.norm_of_nonneg (Finset.sum_nonneg fun k _ ↦
+        mul_nonneg (apply_nonneg _ _) (norm_nonneg _))] at hlt
+    exact hle.trans_lt hlt
+  let e : FinestLocallyConvex (Polynomial ℂ) ≃L[ℂ]
+      StrongDual ℂ (𝓢(ℝ, ℂ) ⧸ realSchwartzFlatAtOrigin) :=
+    { e₁ with
+      continuous_toFun := hcont
+      continuous_invFun := hsymm }
+  have he (p : Polynomial ℂ) : e p = Φ p := rfl
+  have hev (p : Polynomial ℂ) (g : 𝓢(ℝ, ℂ)) : e p (realSchwartzFlatAtOrigin.mkQ g) =
+      ∑ k ∈ p.support, p.coeff k * (realDiracDerivative k g / (k.factorial : ℂ)) := by
+    rw [he, hΦ]
+    simp only [hcf]
+  refine ⟨e, fun k f ↦ ?_, fun p N ↦ ⟨fun hord ↦ ?_, fun hdeg K ↦ ?_⟩⟩
+  · rw [he, hΦm, one_smul, hcf]
+  · by_contra hlt
+    push Not at hlt
+    have hpd : p.coeff p.natDegree ≠ 0 :=
+      Polynomial.leadingCoeff_ne_zero.mpr (Polynomial.ne_zero_of_natDegree_gt hlt)
+    have hpd' : 0 < ‖p.coeff p.natDegree‖ := norm_pos_iff.mpr hpd
+    let K0 : Compacts ℝ := ⟨Metric.closedBall 0 1, isCompact_closedBall 0 1⟩
+    obtain ⟨C, hC0, hC⟩ := hord K0
+    let χ : ContDiffBump (0 : ℝ) := ⟨1 / 2, 1, by norm_num, by norm_num⟩
+    obtain ⟨G, hG⟩ := realSchwartzFlatQuotient_strongDual_exists_bump χ p.natDegree
+    have hGc : HasCompactSupport (G : ℝ → ℂ) :=
+      (isCompact_closedBall (0 : ℝ) 1).of_isClosed_subset (isClosed_tsupport _)
+        (realSchwartzFlatQuotient_strongDual_bump_tsupport χ le_rfl _ G hG)
+    let A : ℝ := ∑ j ∈ Finset.range (N + 1), SchwartzMap.seminorm ℂ 0 j G
+    have hA : 0 ≤ A := Finset.sum_nonneg fun _ _ ↦ apply_nonneg _ _
+    let ε : ℝ := min 1 (‖p.coeff p.natDegree‖ / (2 * (C * A + 1)))
+    have hε : 0 < ε := lt_min one_pos (by positivity)
+    have hε1 : ε ≤ 1 := min_le_left _ _
+    have hε2 : ε * (2 * (C * A + 1)) ≤ ‖p.coeff p.natDegree‖ :=
+      (le_div_iff₀ (by positivity)).mp (min_le_right _ _)
+    obtain ⟨ψ, hψ⟩ := realSchwartzFlatQuotient_strongDual_exists_scaled G hGc p.natDegree ε hε.ne'
+    have hψsupp : tsupport (ψ : ℝ → ℂ) ⊆ Metric.closedBall 0 1 := by
+      refine closure_minimal (fun x hx ↦ ?_) Metric.isClosed_closedBall
+      rw [mem_support, hψ] at hx
+      have hGx : ε⁻¹ * x ∈ tsupport (G : ℝ → ℂ) := subset_tsupport _ (right_ne_zero_of_mul hx)
+      have h := realSchwartzFlatQuotient_strongDual_bump_tsupport χ le_rfl _ G hG hGx
+      rw [Metric.mem_closedBall, Real.dist_eq, sub_zero, abs_mul, abs_inv, abs_of_pos hε,
+        inv_mul_le_iff₀ hε] at h
+      rw [Metric.mem_closedBall, Real.dist_eq, sub_zero]
+      nlinarith
+    have hψc : HasCompactSupport (ψ : ℝ → ℂ) :=
+      (isCompact_closedBall (0 : ℝ) 1).of_isClosed_subset (isClosed_tsupport _) hψsupp
+    let φ : 𝒟ℝ := ⟨ψ, ψ.smooth ⊤, hψc, by simp⟩
+    have hφ : φ.hasCompactSupport.toSchwartzMap φ.contDiff = ψ := by ext x; rfl
+    have hbound := hC φ hψsupp (ε * A) (by positivity) fun j hj x ↦ by
+      change ‖iteratedFDeriv ℝ j (ψ : ℝ → ℂ) x‖ ≤ ε * A
+      rw [norm_iteratedFDeriv_eq_norm_iteratedDeriv]
+      have h1 := SchwartzMap.le_seminorm' ℂ 0 j ψ x
+      rw [pow_zero, one_mul] at h1
+      have h2 := realSchwartzFlatQuotient_strongDual_scaled_seminorm χ le_rfl p.natDegree j 0
+        (by omega) G ψ hG ε hε hε1 hψ
+      have h3 : SchwartzMap.seminorm ℂ 0 j G ≤ A :=
+        Finset.single_le_sum (f := fun j ↦ SchwartzMap.seminorm ℂ 0 j G)
+          (fun _ _ ↦ apply_nonneg _ _) (Finset.mem_range.mpr (by omega))
+      calc ‖iteratedDeriv j (ψ : ℝ → ℂ) x‖ ≤ SchwartzMap.seminorm ℂ 0 j ψ := h1
+        _ ≤ ε * SchwartzMap.seminorm ℂ 0 j G := h2
+        _ ≤ ε * A := by gcongr
+    simp only at hbound
+    rw [hφ, hev] at hbound
+    have hsum : ∑ k ∈ p.support, p.coeff k * (realDiracDerivative k ψ / (k.factorial : ℂ)) =
+        p.coeff p.natDegree * (-1 : ℂ) ^ p.natDegree := by
+      rw [Finset.sum_eq_single p.natDegree]
+      · rw [realSchwartzFlatQuotient_strongDual_scaled_dirac χ _ G ψ hG ε hε hψ]
+        simp only [↓reduceIte]
+        rw [mul_div_assoc, div_self (hfact _), mul_one]
+      · intro k _ hk
+        rw [realSchwartzFlatQuotient_strongDual_scaled_dirac χ _ G ψ hG ε hε hψ]
+        simp [hk]
+      · intro h
+        exact absurd (Polynomial.mem_support_iff.mpr hpd) h
+    rw [hsum, norm_mul, norm_pow, norm_neg, norm_one, one_pow, mul_one] at hbound
+    have hCA : 0 ≤ C * (ε * A) := by positivity
+    nlinarith
+  · refine ⟨∑ k ∈ p.support, ‖p.coeff k‖, Finset.sum_nonneg fun _ _ ↦ norm_nonneg _,
+      fun f _ B _ hf ↦ ?_⟩
+    beta_reduce
+    rw [hev, Finset.sum_mul]
+    refine (norm_sum_le _ _).trans (Finset.sum_le_sum fun k hk ↦ ?_)
+    have hkN : k ≤ N := (Polynomial.le_natDegree_of_mem_supp k hk).trans hdeg
+    have hB := hf k hkN 0
+    change ‖iteratedFDeriv ℝ k (f.hasCompactSupport.toSchwartzMap f.contDiff : ℝ → ℂ) 0‖ ≤ B
+      at hB
+    rw [norm_iteratedFDeriv_eq_norm_iteratedDeriv] at hB
+    have hf1 : (1 : ℝ) ≤ k.factorial := mod_cast k.factorial_pos
+    rw [norm_mul, norm_div, realSchwartzFlatQuotient_strongDual_dirac, norm_mul, norm_pow,
+      norm_neg, norm_one, one_pow, one_mul, Complex.norm_natCast]
+    gcongr
+    exact (div_le_self (norm_nonneg _) hf1).trans hB
 
 end RealOrigin
 
@@ -2651,6 +3040,390 @@ theorem complexDiracDerivatives_polynomialEquiv :
 -- has a sign for each odd total degree and includes all degrees. The positive
 -- Taylor map below differs from that adjoint by (X,Y) ↦ (-X,-Y).
 
+/-- the first Wirtinger derivatives of a mixed monomial. -/
+private theorem complexSchwartzTaylor_equiv_monomial_deriv (c : ℂ) (k l : ℕ) (z : ℂ) :
+    wirtingerDeriv (fun w : ℂ ↦ c * (w ^ k * (star w) ^ l)) z =
+      c * (k : ℂ) * z ^ (k - 1) * (star z) ^ l ∧
+    wirtingerConjDeriv (fun w : ℂ ↦ c * (w ^ k * (star w) ^ l)) z =
+      c * (l : ℂ) * z ^ k * (star z) ^ (l - 1) := by
+  have hi := (hasFDerivAt_id (𝕜 := ℝ) z).pow k
+  have hb := (Complex.conjCLE.hasFDerivAt (x := z)).pow l
+  have h := (hi.mul hb).const_mul c
+  simp only [Pi.mul_apply, id_eq, Complex.conjCLE_apply, ← Complex.star_def] at h
+  change (fderiv ℝ (fun w : ℂ ↦ c * (w ^ k * (star w) ^ l)) z 1 -
+    Complex.I * fderiv ℝ (fun w : ℂ ↦ c * (w ^ k * (star w) ^ l)) z Complex.I) / 2 = _ ∧
+    (fderiv ℝ (fun w : ℂ ↦ c * (w ^ k * (star w) ^ l)) z 1 +
+    Complex.I * fderiv ℝ (fun w : ℂ ↦ c * (w ^ k * (star w) ^ l)) z Complex.I) / 2 = _
+  rw [h.fderiv]
+  simp only [add_apply, smul_apply,
+    ContinuousLinearMap.id_apply, Complex.conjCLE_apply, smul_eq_mul, map_one,
+    Complex.star_def, Complex.conj_I, nsmul_eq_mul,
+    ContinuousLinearEquiv.coe_coe]
+  constructor
+  · linear_combination (c * (l : ℂ) * z ^ k * ((starRingEnd ℂ) z) ^ (l - 1) -
+      c * (k : ℂ) * z ^ (k - 1) * ((starRingEnd ℂ) z) ^ l) * Complex.I_sq / 2
+  · linear_combination (c * (k : ℂ) * z ^ (k - 1) * ((starRingEnd ℂ) z) ^ l -
+      c * (l : ℂ) * z ^ k * ((starRingEnd ℂ) z) ^ (l - 1)) * Complex.I_sq / 2
+
+/-- Wirtinger differentiation preserves equality with a monomial near zero. -/
+private theorem complexSchwartzTaylor_equiv_germ (f : 𝓢(ℂ, ℂ))
+    (c : ℂ) (k l : ℕ)
+    (hf : (f : ℂ → ℂ) =ᶠ[𝓝 0] fun z ↦ c * (z ^ k * (star z) ^ l)) :
+    (schwartzWirtingerZ f : ℂ → ℂ) =ᶠ[𝓝 0]
+      (fun z ↦ (c * k) * (z ^ (k - 1) * (star z) ^ l)) ∧
+    (schwartzWirtingerZBar f : ℂ → ℂ) =ᶠ[𝓝 0]
+      (fun z ↦ (c * l) * (z ^ k * (star z) ^ (l - 1))) := by
+  have hd := hf.fderiv (𝕜 := ℝ)
+  constructor
+  · filter_upwards [hd] with z hz
+    rw [(schwartzWirtinger_apply f z).1, wirtingerDeriv, hz]
+    have h := (complexSchwartzTaylor_equiv_monomial_deriv c k l z).1
+    dsimp only [wirtingerDeriv] at h
+    rw [h]
+    ring
+  · filter_upwards [hd] with z hz
+    rw [(schwartzWirtinger_apply f z).2, wirtingerConjDeriv, hz]
+    have h := (complexSchwartzTaylor_equiv_monomial_deriv c k l z).2
+    dsimp only [wirtingerConjDeriv] at h
+    rw [h]
+    ring
+
+/-- iterated mixed derivatives of a monomial germ have descending-factorial coefficients. -/
+private theorem complexSchwartzTaylor_equiv_germ_pow (f : 𝓢(ℂ, ℂ))
+    (c : ℂ) (k l : ℕ)
+    (hf : (f : ℂ → ℂ) =ᶠ[𝓝 0] fun z ↦ c * (z ^ k * (star z) ^ l)) (u v : ℕ) :
+    ((schwartzWirtingerZ ^ u) ((schwartzWirtingerZBar ^ v) f) : ℂ → ℂ) =ᶠ[𝓝 0]
+      fun z ↦ (c * (l.descFactorial v : ℂ) * (k.descFactorial u : ℂ)) *
+        (z ^ (k - u) * (star z) ^ (l - v)) := by
+  have hb (v : ℕ) : ((schwartzWirtingerZBar ^ v) f : ℂ → ℂ) =ᶠ[𝓝 0]
+      fun z ↦ (c * (l.descFactorial v : ℂ)) * (z ^ k * (star z) ^ (l - v)) := by
+    induction v with
+    | zero => simpa using hf
+    | succ v ih =>
+      have h := (complexSchwartzTaylor_equiv_germ _ _ _ _ ih).2
+      rw [pow_succ']
+      filter_upwards [h] with z hz
+      change schwartzWirtingerZBar ((schwartzWirtingerZBar ^ v) f) z = _
+      rw [hz, Nat.descFactorial_succ, Nat.sub_sub]
+      push_cast
+      ring
+  induction u with
+  | zero => simpa using hb v
+  | succ u ih =>
+    have h := (complexSchwartzTaylor_equiv_germ _ _ _ _ ih).1
+    rw [pow_succ']
+    filter_upwards [h] with z hz
+    change schwartzWirtingerZ ((schwartzWirtingerZ ^ u) ((schwartzWirtingerZBar ^ v) f)) z = _
+    rw [hz, Nat.descFactorial_succ, Nat.sub_sub]
+    push_cast
+    ring
+
+/-- a mixed monomial germ has exactly one nonzero mixed derivative at zero. -/
+private theorem complexSchwartzTaylor_equiv_germ_zero (f : 𝓢(ℂ, ℂ)) (k l : ℕ)
+    (hf : (f : ℂ → ℂ) =ᶠ[𝓝 0] fun z ↦ z ^ k * (star z) ^ l) (u v : ℕ) :
+    (schwartzWirtingerZ ^ u) ((schwartzWirtingerZBar ^ v) f) 0 =
+      if u = k ∧ v = l then (k.factorial * l.factorial : ℂ) else 0 := by
+  have h := (complexSchwartzTaylor_equiv_germ_pow f 1 k l (by simpa using hf) u v).eq_of_nhds
+  rw [h]
+  rcases lt_trichotomy u k with hu | rfl | hu
+  · simp [hu.ne, Nat.sub_ne_zero_of_lt hu]
+  · rcases lt_trichotomy v l with hv | rfl | hv
+    · simp [hv.ne, Nat.sub_ne_zero_of_lt hv]
+    · simp [Nat.descFactorial_self, mul_comm]
+    · simp [hv.ne', Nat.descFactorial_eq_zero_iff_lt.mpr hv]
+  · simp [hu.ne', Nat.descFactorial_eq_zero_iff_lt.mpr hu]
+
+/-- dilation makes every seminorm below the homogeneous degree arbitrarily small. -/
+private theorem complexSchwartzTaylor_equiv_scaled (G ψ : 𝓢(ℂ, ℂ)) (n m k : ℕ)
+    (hG : tsupport (G : ℂ → ℂ) ⊆ Metric.closedBall 0 1)
+    (ε : ℝ) (hε : 0 < ε) (hε1 : ε ≤ 1) (hmn : m < n)
+    (hψ : ∀ z, ψ z = (ε : ℂ) ^ n * G (ε⁻¹ • z)) :
+    SchwartzMap.seminorm ℂ k m ψ ≤ ε * SchwartzMap.seminorm ℂ 0 m G := by
+  have hd (z : ℂ) : iteratedFDeriv ℝ m (ψ : ℂ → ℂ) z =
+      (ε : ℂ) ^ n • ((ε⁻¹) ^ m • iteratedFDeriv ℝ m (G : ℂ → ℂ) (ε⁻¹ • z)) := by
+    rw [show (ψ : ℂ → ℂ) = fun z ↦ (ε : ℂ) ^ n • G (ε⁻¹ • z) from funext hψ,
+      iteratedFDeriv_const_smul_apply']
+    · rw [iteratedFDeriv_comp_const_smul ε⁻¹ (G.smooth m)]
+    · exact ((G.smooth m).comp (contDiff_id.const_smul ε⁻¹)).contDiffAt
+  have hGb (z : ℂ) : ‖iteratedFDeriv ℝ m (G : ℂ → ℂ) z‖ ≤ SchwartzMap.seminorm ℂ 0 m G := by
+    simpa using SchwartzMap.le_seminorm ℂ 0 m G z
+  have hpow : ε ^ n * (ε⁻¹) ^ m ≤ ε := by
+    rw [← pow_sub_mul_pow ε hmn.le, mul_assoc, ← mul_pow, mul_inv_cancel₀ hε.ne', one_pow,
+      mul_one]
+    calc ε ^ (n - m) ≤ ε ^ 1 := pow_le_pow_of_le_one hε.le hε1 (by omega)
+      _ = ε := pow_one ε
+  refine SchwartzMap.seminorm_le_bound ℂ k m _ (by positivity) fun z ↦ ?_
+  rw [hd, norm_smul, norm_smul, norm_pow, norm_pow, Complex.norm_real,
+    Real.norm_eq_abs, Real.norm_eq_abs, abs_of_pos hε, abs_of_pos (inv_pos.mpr hε)]
+  by_cases hz : ‖z‖ ≤ 1
+  · calc ‖z‖ ^ k * (ε ^ n * ((ε⁻¹) ^ m * ‖iteratedFDeriv ℝ m (G : ℂ → ℂ) (ε⁻¹ • z)‖))
+        ≤ 1 * ((ε ^ n * (ε⁻¹) ^ m) * SchwartzMap.seminorm ℂ 0 m G) := by
+          rw [← mul_assoc (ε ^ n)]
+          gcongr
+          · exact pow_le_one₀ (norm_nonneg _) hz
+          · exact hGb _
+      _ ≤ ε * SchwartzMap.seminorm ℂ 0 m G := by rw [one_mul]; gcongr
+  · have hout : ε⁻¹ • z ∉ tsupport (G : ℂ → ℂ) := by
+      intro h
+      have hh := hG h
+      rw [Metric.mem_closedBall, dist_zero_right, norm_smul, Real.norm_eq_abs,
+        abs_inv, abs_of_pos hε, inv_mul_le_iff₀ hε] at hh
+      exact hz ((by simpa using hh : ‖z‖ ≤ ε).trans hε1)
+    have h0 : iteratedFDeriv ℝ m (G : ℂ → ℂ) (ε⁻¹ • z) = 0 := by
+      by_contra hne
+      exact hout (support_iteratedFDeriv_subset m hne)
+    rw [h0, norm_zero, mul_zero, mul_zero, mul_zero]
+    positivity
+
+/-- a compactly supported mixed monomial and its dilations realize the same jet. -/
+private theorem complexSchwartzTaylor_equiv_bump (k l : ℕ) :
+    ∃ G : 𝓢(ℂ, ℂ), tsupport (G : ℂ → ℂ) ⊆ Metric.closedBall 0 1 ∧
+      ∀ ε : ℝ, 0 < ε → ∃ ψ : 𝓢(ℂ, ℂ),
+        (∀ z, ψ z = (ε : ℂ) ^ (k + l) * G (ε⁻¹ • z)) ∧
+        (∀ u v, (schwartzWirtingerZ ^ u) ((schwartzWirtingerZBar ^ v) ψ) 0 =
+          if u = k ∧ v = l then (k.factorial * l.factorial : ℂ) else 0) := by
+  let χ : ContDiffBump (0 : ℂ) := ⟨1 / 2, 1, by norm_num, by norm_num⟩
+  let g : ℂ → ℂ := fun z ↦ (χ z : ℂ) * (z ^ k * (star z) ^ l)
+  have hc : HasCompactSupport g :=
+    (χ.hasCompactSupport.comp_left Complex.ofReal_zero).mul_right
+  have hd : ContDiff (ℝ) (∞) g := (Complex.ofRealCLM.contDiff.comp χ.contDiff).mul
+    ((contDiff_id.pow k).mul (Complex.conjLIE.contDiff.pow l))
+  let G := hc.toSchwartzMap hd
+  have hG : tsupport (G : ℂ → ℂ) ⊆ Metric.closedBall 0 1 := by
+    change tsupport g ⊆ _
+    exact tsupport_mul_subset_left.trans ((tsupport_comp_subset Complex.ofReal_zero _).trans
+      (by rw [χ.tsupport_eq]))
+  refine ⟨G, hG, fun ε hε ↦ ?_⟩
+  have hsc : HasCompactSupport (fun z : ℂ ↦ (ε : ℂ) ^ (k + l) * G (ε⁻¹ • z)) :=
+    (hc.comp_smul (inv_ne_zero hε.ne')).mul_left
+  have hsd : ContDiff (ℝ) (∞) (fun z : ℂ ↦ (ε : ℂ) ^ (k + l) * G (ε⁻¹ • z)) :=
+    contDiff_const.mul ((G.smooth ⊤).comp (contDiff_id.const_smul ε⁻¹))
+  let ψ := hsc.toSchwartzMap hsd
+  refine ⟨ψ, fun _ ↦ rfl, fun u v ↦ complexSchwartzTaylor_equiv_germ_zero ψ k l ?_ u v⟩
+  filter_upwards [Metric.ball_mem_nhds (0 : ℂ) (mul_pos hε χ.rIn_pos)] with z hz
+  have hb : ε⁻¹ • z ∈ Metric.closedBall (0 : ℂ) χ.rIn := by
+    rw [Metric.mem_ball, dist_zero_right] at hz
+    rw [Metric.mem_closedBall, dist_zero_right, norm_smul, Real.norm_eq_abs,
+      abs_inv, abs_of_pos hε, inv_mul_le_iff₀ hε]
+    exact hz.le
+  change (ε : ℂ) ^ (k + l) * ((χ (ε⁻¹ • z) : ℂ) * ((ε⁻¹ • z) ^ k * (star (ε⁻¹ • z)) ^ l)) = _
+  rw [χ.one_of_mem_closedBall hb]
+  simp only [Complex.ofReal_one, one_mul, Complex.real_smul, star_mul',
+    Complex.star_def, Complex.conj_ofReal, Complex.ofReal_inv, map_inv₀, mul_pow, pow_add]
+  have he : (ε : ℂ) ≠ 0 := by exact_mod_cast hε.ne'
+  have hk : (ε : ℂ) ^ k * ((ε : ℂ)⁻¹) ^ k = 1 := by
+    rw [← mul_pow, mul_inv_cancel₀ he, one_pow]
+  have hl : (ε : ℂ) ^ l * ((ε : ℂ)⁻¹) ^ l = 1 := by
+    rw [← mul_pow, mul_inv_cancel₀ he, one_pow]
+  calc _ = ((ε : ℂ) ^ k * ((ε : ℂ)⁻¹) ^ k) *
+      ((ε : ℂ) ^ l * ((ε : ℂ)⁻¹) ^ l) * (z ^ k * ((starRingEnd ℂ) z) ^ l) := by ring
+    _ = _ := by rw [hk, hl]; simp
+
+/-- a normalized jet basis element can be made small in every lower-order seminorm. -/
+private theorem complexSchwartzTaylor_equiv_basis (d : Fin 2 →₀ ℕ) (δ : ℝ) (hδ : 0 < δ) :
+    ∃ φ : 𝓢(ℂ, ℂ),
+      (∀ q : Fin 2 →₀ ℕ,
+        (schwartzWirtingerZ ^ (q 0)) ((schwartzWirtingerZBar ^ (q 1)) φ) 0 /
+          ((q 0).factorial * (q 1).factorial : ℂ) = if q = d then 1 else 0) ∧
+      ∀ k m : ℕ, m < d 0 + d 1 → SchwartzMap.seminorm ℂ k m φ ≤ δ := by
+  classical
+  obtain ⟨G, hG, hψ⟩ := complexSchwartzTaylor_equiv_bump (d 0) (d 1)
+  let C : ℝ := ∑ m ∈ Finset.range (d 0 + d 1), SchwartzMap.seminorm ℂ 0 m G + 1
+  have hC : 0 < C := by
+    have : 0 ≤ ∑ m ∈ Finset.range (d 0 + d 1), SchwartzMap.seminorm ℂ 0 m G :=
+      Finset.sum_nonneg fun _ _ ↦ apply_nonneg _ _
+    dsimp [C]; linarith
+  let ε := min 1 (δ / C)
+  have hε : 0 < ε := lt_min one_pos (div_pos hδ hC)
+  obtain ⟨φ, hφ, hj⟩ := hψ ε hε
+  refine ⟨φ, fun q ↦ ?_, fun k m hm ↦ ?_⟩
+  · rw [hj]
+    have he : q 0 = d 0 ∧ q 1 = d 1 ↔ q = d := by
+      constructor
+      · rintro ⟨h0, h1⟩
+        ext i
+        fin_cases i <;> assumption
+      · rintro rfl; exact ⟨rfl, rfl⟩
+    simp only [he]
+    split_ifs with h
+    · subst q
+      exact div_self (mul_ne_zero (by exact_mod_cast Nat.factorial_ne_zero (d 0))
+        (by exact_mod_cast Nat.factorial_ne_zero (d 1)))
+    · exact zero_div _
+  · have hmc : SchwartzMap.seminorm ℂ 0 m G ≤ C := by
+      have h := Finset.single_le_sum (fun j _ ↦ apply_nonneg (SchwartzMap.seminorm ℂ 0 j) G)
+        (Finset.mem_range.mpr hm)
+      dsimp [C]; linarith
+    calc SchwartzMap.seminorm ℂ k m φ ≤ ε * SchwartzMap.seminorm ℂ 0 m G :=
+          complexSchwartzTaylor_equiv_scaled G φ (d 0 + d 1) m k hG ε hε (min_le_left _ _) hm hφ
+      _ ≤ (δ / C) * C := by
+          gcongr
+          exact min_le_right _ _
+      _ = δ := div_mul_cancel₀ _ hC.ne'
+
+/-- Paper: Theorem 5.3.2.5(2), p. 246.
+Finite mixed Wirtinger jets can be realized by Schwartz functions, with a linear bound
+on any prescribed finite family of Schwartz seminorms. -/
+private theorem complexSchwartzTaylor_equiv_finite
+    (s : Finset (ℕ × ℕ)) (t : Finset (Fin 2 →₀ ℕ)) :
+    ∃ C : ℝ, 0 < C ∧ ∀ b : (Fin 2 →₀ ℕ) → ℂ, ∃ f : 𝓢(ℂ, ℂ),
+      (∀ d : Fin 2 →₀ ℕ,
+        (schwartzWirtingerZ ^ (d 0)) ((schwartzWirtingerZBar ^ (d 1)) f) 0 /
+          ((d 0).factorial * (d 1).factorial : ℂ) = if d ∈ t then b d else 0) ∧
+      (s.sup (schwartzSeminormFamily ℂ ℂ ℂ)) f ≤ C * ∑ d ∈ t, ‖b d‖ := by
+  classical
+  choose φ hφ using fun d ↦ complexSchwartzTaylor_equiv_basis d 1 one_pos
+  let p := s.sup (schwartzSeminormFamily ℂ ℂ ℂ)
+  let C := ∑ d ∈ t, p (φ d) + 1
+  have hC : 0 < C := by
+    have := Finset.sum_nonneg (fun d (_ : d ∈ t) ↦ apply_nonneg p (φ d))
+    dsimp [C]; linarith
+  refine ⟨C, hC, fun b ↦ ⟨∑ d ∈ t, b d • φ d, fun q ↦ ?_, ?_⟩⟩
+  · let a : StrongDual ℂ 𝓢(ℂ, ℂ) :=
+      (((q 0).factorial * (q 1).factorial : ℂ))⁻¹ •
+        (TemperedDistribution.delta (0 : ℂ)).comp
+          ((schwartzWirtingerZ ^ (q 0)).comp (schwartzWirtingerZBar ^ (q 1)))
+    have ha (f : 𝓢(ℂ, ℂ)) : a f =
+        (schwartzWirtingerZ ^ (q 0)) ((schwartzWirtingerZBar ^ (q 1)) f) 0 /
+          ((q 0).factorial * (q 1).factorial : ℂ) := by
+      change (((q 0).factorial * (q 1).factorial : ℂ))⁻¹ * _ = _; rw [div_eq_mul_inv, mul_comm]; rfl
+    have hap (d : Fin 2 →₀ ℕ) : a (φ d) = if q = d then 1 else 0 :=
+      (ha _).trans ((hφ d).1 q)
+    rw [← ha, map_sum]
+    simp [map_smul, hap]
+  · calc p (∑ d ∈ t, b d • φ d) ≤ ∑ d ∈ t, p (b d • φ d) :=
+          Finset.le_sum_of_subadditive p (map_zero _).le (map_add_le_add _) _ _
+      _ ≤ ∑ d ∈ t, C * ‖b d‖ := by
+          apply Finset.sum_le_sum
+          intro d hd
+          rw [map_smul_eq_mul, mul_comm]
+          apply mul_le_mul_of_nonneg_right _ (norm_nonneg _)
+          have h := Finset.single_le_sum (fun d _ ↦ apply_nonneg p (φ d)) hd
+          dsimp [C]; linarith
+      _ = C * ∑ d ∈ t, ‖b d‖ := (Finset.mul_sum _ _ _).symm
+
+
+/-- Paper: Theorem 5.3.2.5(2), p. 246.
+For any finite family of Schwartz seminorms, jets vanishing on a sufficiently large
+finite set of indices admit realizations arbitrarily small in those seminorms.
+This is the tail part of the two-variable Borel construction. -/
+private theorem complexSchwartzTaylor_equiv_tail (s : Finset (ℕ × ℕ)) :
+    ∃ t : Finset (Fin 2 →₀ ℕ), ∀ b : (Fin 2 →₀ ℕ) → ℂ,
+      (∀ d ∈ t, b d = 0) → ∀ r : ℝ, 0 < r → ∃ f : 𝓢(ℂ, ℂ),
+        (∀ d : Fin 2 →₀ ℕ,
+          (schwartzWirtingerZ ^ (d 0)) ((schwartzWirtingerZBar ^ (d 1)) f) 0 /
+            ((d 0).factorial * (d 1).factorial : ℂ) = b d) ∧
+        (s.sup (schwartzSeminormFamily ℂ ℂ ℂ)) f < r := by
+  classical
+  let e : ℕ ≃ (Fin 2 →₀ ℕ) :=
+    (Finsupp.equivFunOnFinite.trans ((finTwoArrowEquiv ℕ).trans Nat.pairEquiv)).symm
+  have he (n : ℕ) : (e n) 0 = (Nat.unpair n).1 ∧ (e n) 1 = (Nat.unpair n).2 := by
+    simp [e, finTwoArrowEquiv, Nat.pairEquiv]
+    exact ⟨rfl, rfl⟩
+  have hdeg (j n : ℕ) (hn : (j + 1) ^ 2 ≤ n) : j < (e n) 0 + (e n) 1 := by
+    by_contra h
+    have h0 : (Nat.unpair n).1 ≤ j := by rw [← (he n).1]; omega
+    have h1 : (Nat.unpair n).2 ≤ j := by rw [← (he n).2]; omega
+    have hp := Nat.pair_lt_max_add_one_sq (Nat.unpair n).1 (Nat.unpair n).2
+    rw [Nat.pair_unpair] at hp
+    have hmax : max (Nat.unpair n).1 (Nat.unpair n).2 ≤ j := max_le h0 h1
+    have hs : (max (Nat.unpair n).1 (Nat.unpair n).2 + 1) ^ 2 ≤ (j + 1) ^ 2 := by gcongr
+    omega
+  let m := s.sup Prod.snd
+  let t := (Finset.range ((m + 1) ^ 2)).image e
+  refine ⟨t, fun b hb r hr ↦ ?_⟩
+  let w (n : ℕ) : ℝ := r / 4 * (1 / 2) ^ n
+  have hw (n : ℕ) : 0 < w n := by positivity
+  have hwsum : HasSum w (r / 2) := by
+    have h := (hasSum_geometric_of_lt_one (r := (1 / 2 : ℝ)) (by norm_num) (by norm_num)).mul_left
+      (r / 4)
+    convert h using 1
+    norm_num
+    ring
+  choose φ hφ using fun n ↦ complexSchwartzTaylor_equiv_basis (e n)
+    (w n / (‖b (e n)‖ + 1)) (by have := hw n; positivity)
+  have hsmall (n k j : ℕ) (hn : (j + 1) ^ 2 ≤ n) :
+      ‖b (e n)‖ * SchwartzMap.seminorm ℂ k j (φ n) ≤ w n := by
+    calc ‖b (e n)‖ * SchwartzMap.seminorm ℂ k j (φ n)
+        ≤ ‖b (e n)‖ * (w n / (‖b (e n)‖ + 1)) := by
+          gcongr
+          exact (hφ n).2 k j (hdeg j n hn)
+      _ = w n * (‖b (e n)‖ / (‖b (e n)‖ + 1)) := by ring
+      _ ≤ w n * 1 := by
+          gcongr
+          rw [div_le_one (by positivity)]
+          linarith
+      _ = w n := mul_one _
+  let v (i : ℕ × ℕ) (n : ℕ) : ℝ :=
+    if n < (i.2 + 1) ^ 2 then ‖b (e n)‖ * SchwartzMap.seminorm ℂ i.1 i.2 (φ n) else 0
+  have hv (i : ℕ × ℕ) : Summable (v i) := by
+    refine summable_of_ne_finset_zero (s := Finset.range ((i.2 + 1) ^ 2)) fun n hn ↦ ?_
+    simp only [Finset.mem_range] at hn
+    simp only [v, hn, ↓reduceIte]
+  have hx (i : ℕ × ℕ) (n : ℕ) :
+      schwartzSeminormFamily ℂ ℂ ℂ i (b (e n) • φ n) ≤ w n + v i n := by
+    rw [SchwartzMap.schwartzSeminormFamily_apply, map_smul_eq_mul]
+    by_cases hn : n < (i.2 + 1) ^ 2
+    · simp only [v, hn, ↓reduceIte]
+      linarith [hw n]
+    · simp only [v, hn, ↓reduceIte, add_zero]
+      exact hsmall n i.1 i.2 (by omega)
+  have : CompleteSpace 𝓢(ℂ, ℂ) := completeSpace_schwartzMap
+  obtain ⟨hsum, hbound⟩ := realSchwartzFlatQuotient_strongDual_summable
+    (schwartz_withSeminorms ℂ ℂ ℂ) (fun n ↦ b (e n) • φ n)
+    (fun i n ↦ w n + v i n) (fun i ↦ hwsum.summable.add (hv i)) hx
+  refine ⟨∑' n, b (e n) • φ n, fun q ↦ ?_, ?_⟩
+  · let a : StrongDual ℂ 𝓢(ℂ, ℂ) :=
+      (((q 0).factorial * (q 1).factorial : ℂ))⁻¹ •
+        (TemperedDistribution.delta (0 : ℂ)).comp
+          ((schwartzWirtingerZ ^ (q 0)).comp (schwartzWirtingerZBar ^ (q 1)))
+    have ha (f : 𝓢(ℂ, ℂ)) : a f =
+        (schwartzWirtingerZ ^ (q 0)) ((schwartzWirtingerZBar ^ (q 1)) f) 0 /
+          ((q 0).factorial * (q 1).factorial : ℂ) := by
+      change (((q 0).factorial * (q 1).factorial : ℂ))⁻¹ * _ = _
+      rw [div_eq_mul_inv, mul_comm]; rfl
+    have hap (n : ℕ) : a (φ n) = if q = e n then 1 else 0 := (ha _).trans ((hφ n).1 q)
+    rw [← ha, ContinuousLinearMap.map_tsum _ hsum]
+    simp only [map_smul, hap, smul_eq_mul]
+    rw [tsum_eq_single (e.symm q) fun n hn ↦ ?_]
+    · simp
+    · have hne : q ≠ e n := fun h ↦ hn (by rw [h, e.symm_apply_apply])
+      simp [hne]
+  · apply Seminorm.finset_sup_apply_lt hr
+    intro i hi
+    have him : i.2 ≤ m := Finset.le_sup (f := Prod.snd) hi
+    have hv0 : v i = 0 := by
+      funext n
+      dsimp only [v]
+      split_ifs with hn
+      · have hnm : n < (m + 1) ^ 2 := hn.trans_le (by gcongr)
+        have hb0 := hb (e n) (Finset.mem_image.mpr ⟨n, Finset.mem_range.mpr hnm, rfl⟩)
+        simp [hb0]
+      · rfl
+    have h := hbound i
+    rw [hv0] at h
+    simp only [Pi.zero_apply, add_zero, hwsum.tsum_eq] at h
+    exact h.trans_lt (by linarith)
+
+/-- A finite jet and an arbitrarily small tail give a quantitative Borel realization. -/
+private theorem complexSchwartzTaylor_equiv_bound (s : Finset (ℕ × ℕ)) :
+    ∃ t : Finset (Fin 2 →₀ ℕ), ∃ C : ℝ, 0 < C ∧
+      ∀ b : (Fin 2 →₀ ℕ) → ℂ, ∀ r : ℝ, 0 < r → ∃ f : 𝓢(ℂ, ℂ),
+        (∀ d : Fin 2 →₀ ℕ,
+          (schwartzWirtingerZ ^ (d 0)) ((schwartzWirtingerZBar ^ (d 1)) f) 0 /
+            ((d 0).factorial * (d 1).factorial : ℂ) = b d) ∧
+        (s.sup (schwartzSeminormFamily ℂ ℂ ℂ)) f < C * ∑ d ∈ t, ‖b d‖ + r := by
+  classical
+  obtain ⟨t, ht⟩ := complexSchwartzTaylor_equiv_tail s
+  obtain ⟨C, hC, hfinite⟩ := complexSchwartzTaylor_equiv_finite s t
+  refine ⟨t, C, hC, fun b r hr ↦ ?_⟩
+  obtain ⟨f, hf, hfb⟩ := hfinite b
+  obtain ⟨g, hg, hgb⟩ := ht (fun d ↦ if d ∈ t then 0 else b d)
+    (fun d hd ↦ by simp [hd]) r hr
+  refine ⟨f + g, fun d ↦ ?_, (map_add_le_add _ f g).trans_lt (add_lt_add_of_le_of_lt hfb hgb)⟩
+  simp only [map_add, add_apply, add_div, hf, hg]
+  split_ifs <;> simp
+
 /-- Paper: Theorem 5.3.2.5(2), p. 246.
 The complex flat quotient is identified with formal power series in two variables by the
 mixed Wirtinger Taylor coefficients, with the coefficientwise topology of (5.3.2.13).
@@ -2660,7 +3433,98 @@ theorem complexSchwartzTaylor_equiv :
       ∀ (f : 𝓢(ℂ, ℂ)) (s : Fin 2 →₀ ℕ),
         MvPowerSeries.coeff s (e (complexSchwartzFlatAtOrigin.mkQ f)) =
           (schwartzWirtingerZ^(s 0)) ((schwartzWirtingerZBar^(s 1)) f) 0 /
-            ((s 0).factorial * (s 1).factorial : ℂ) := by sorry
+            ((s 0).factorial * (s 1).factorial : ℂ) := by
+  classical
+  let a (d : Fin 2 →₀ ℕ) : StrongDual ℂ 𝓢(ℂ, ℂ) :=
+    (((d 0).factorial * (d 1).factorial : ℂ))⁻¹ •
+      (TemperedDistribution.delta (0 : ℂ)).comp
+        ((schwartzWirtingerZ ^ (d 0)).comp (schwartzWirtingerZBar ^ (d 1)))
+  have ha (d : Fin 2 →₀ ℕ) (f : 𝓢(ℂ, ℂ)) :
+      a d f = (schwartzWirtingerZ ^ (d 0)) ((schwartzWirtingerZBar ^ (d 1)) f) 0 /
+        ((d 0).factorial * (d 1).factorial : ℂ) := by
+    change (((d 0).factorial * (d 1).factorial : ℂ))⁻¹ * _ = _
+    rw [div_eq_mul_inv, mul_comm]
+    rfl
+  have hfact (d : Fin 2 →₀ ℕ) : ((d 0).factorial * (d 1).factorial : ℂ) ≠ 0 :=
+    mul_ne_zero (by exact_mod_cast Nat.factorial_ne_zero (d 0))
+      (by exact_mod_cast Nat.factorial_ne_zero (d 1))
+  let T : 𝓢(ℂ, ℂ) →ₗ[ℂ] MvPowerSeries (Fin 2) ℂ :=
+    { toFun := fun f d ↦ a d f
+      map_add' := fun f g ↦ by ext d; exact map_add (a d) f g
+      map_smul' := fun c f ↦ by ext d; exact map_smul (a d) c f }
+  have hT (f : 𝓢(ℂ, ℂ)) (d : Fin 2 →₀ ℕ) : MvPowerSeries.coeff d (T f) = a d f := rfl
+  have hTc : Continuous T := by
+    refine continuous_iff_continuousAt.mpr fun f ↦ ?_
+    rw [ContinuousAt, MvPowerSeries.WithPiTopology.tendsto_iff_coeff_tendsto]
+    intro d
+    simp only [hT]
+    exact (a d).continuous.tendsto f
+  let TL : 𝓢(ℂ, ℂ) →L[ℂ] MvPowerSeries (Fin 2) ℂ := ⟨T, hTc⟩
+  have hTL (f : 𝓢(ℂ, ℂ)) (d : Fin 2 →₀ ℕ) : MvPowerSeries.coeff d (TL f) = a d f := rfl
+  have hmem (f : 𝓢(ℂ, ℂ)) : f ∈ complexSchwartzFlatAtOrigin ↔ TL f = 0 := by
+    rw [mem_complexSchwartzFlatAtOrigin_iff, MvPowerSeries.ext_iff]
+    simp only [hTL, ha, map_zero, div_eq_zero_iff, hfact, or_false]
+    constructor
+    · intro h d
+      exact h (d 0) (d 1)
+    · intro h k l
+      let d : Fin 2 →₀ ℕ := Finsupp.equivFunOnFinite.symm ![k, l]
+      simpa [d] using h d
+  have hle : complexSchwartzFlatAtOrigin ≤ TL.ker := fun f hf ↦ (hmem f).mp hf
+  let E := complexSchwartzFlatAtOrigin.liftQL TL hle
+  have hE (f : 𝓢(ℂ, ℂ)) : E (complexSchwartzFlatAtOrigin.mkQ f) = TL f := rfl
+  have hinj : Function.Injective E := by
+    refine (injective_iff_map_eq_zero E).mpr fun y hy ↦ ?_
+    obtain ⟨f, rfl⟩ := complexSchwartzFlatAtOrigin.mkQ_surjective y
+    rw [hE] at hy
+    exact (Submodule.Quotient.mk_eq_zero _).mpr ((hmem f).mpr hy)
+  have hsurj : Function.Surjective E := by
+    intro p
+    obtain ⟨t, C, hC, hb⟩ := complexSchwartzTaylor_equiv_bound ∅
+    obtain ⟨f, hf, -⟩ := hb (fun d ↦ MvPowerSeries.coeff d p) 1 one_pos
+    refine ⟨complexSchwartzFlatAtOrigin.mkQ f, ?_⟩
+    ext d
+    rw [hE, hTL, ha, hf]
+  let e : (𝓢(ℂ, ℂ) ⧸ complexSchwartzFlatAtOrigin) ≃ₗ[ℂ] MvPowerSeries (Fin 2) ℂ :=
+    LinearEquiv.ofBijective E.toLinearMap ⟨hinj, hsurj⟩
+  have he (y : 𝓢(ℂ, ℂ) ⧸ complexSchwartzFlatAtOrigin) : e y = E y := rfl
+  have hsymm : Continuous e.symm := by
+    refine continuous_of_continuousAt_zero e.symm ?_
+    rw [ContinuousAt, map_zero]
+    intro V hV
+    have hq : complexSchwartzFlatAtOrigin.mkQ ⁻¹' V ∈ 𝓝 (0 : 𝓢(ℂ, ℂ)) :=
+      complexSchwartzFlatAtOrigin.mkQL.continuous.continuousAt.preimage_mem_nhds
+        (by simpa using hV)
+    obtain ⟨⟨s, r⟩, hr, hsub⟩ := (schwartz_withSeminorms ℂ ℂ ℂ).hasBasis_zero_ball.mem_iff.mp hq
+    obtain ⟨t, C, hC, hb⟩ := complexSchwartzTaylor_equiv_bound s
+    have hcont : Continuous (fun p : MvPowerSeries (Fin 2) ℂ ↦
+        C * ∑ d ∈ t, ‖MvPowerSeries.coeff d p‖) := by
+      fun_prop
+    have hW : ∀ᶠ p in 𝓝 (0 : MvPowerSeries (Fin 2) ℂ),
+        C * ∑ d ∈ t, ‖MvPowerSeries.coeff d p‖ < r / 2 := by
+      have h := hcont.tendsto 0
+      have hz : C * ∑ d ∈ t, ‖MvPowerSeries.coeff d (0 : MvPowerSeries (Fin 2) ℂ)‖ = 0 := by simp
+      rw [hz] at h
+      exact h.eventually (gt_mem_nhds (by linarith))
+    rw [Filter.mem_map]
+    filter_upwards [hW] with p hp
+    obtain ⟨f, hf, hfb⟩ := hb (fun d ↦ MvPowerSeries.coeff d p) (r / 2) (by linarith)
+    have hp' : e.symm p = complexSchwartzFlatAtOrigin.mkQ f := by
+      rw [LinearEquiv.symm_apply_eq, he, hE]
+      ext d
+      rw [hTL, ha, hf]
+    rw [Set.mem_preimage, hp']
+    apply hsub
+    apply (Seminorm.mem_ball_zero _).mpr
+    linarith
+  let eL : (𝓢(ℂ, ℂ) ⧸ complexSchwartzFlatAtOrigin) ≃L[ℂ] MvPowerSeries (Fin 2) ℂ :=
+    { e with
+      continuous_toFun := E.continuous
+      continuous_invFun := hsymm }
+  refine ⟨eL, fun f d ↦ ?_⟩
+  change MvPowerSeries.coeff d (TL f) = _
+  rw [hTL, ha]
+
 
 end ComplexOrigin
 

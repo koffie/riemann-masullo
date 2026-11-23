@@ -10,7 +10,9 @@ public import Mathlib.Topology.Algebra.Module.Spaces.WeakBilin
 public import Mathlib.Topology.Algebra.Module.Spaces.WeakDual
 public import Mathlib.Topology.Compactness.Compact
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
-import all RiemannMasullo.Ch10_TraceSpectral.Sec1
+import Mathlib.Analysis.Normed.Operator.Extend
+import Mathlib.Analysis.SpecificLimits.Basic
+import RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.Ch10_TraceSpectral.Sec3
 import all RiemannMasullo.AppC_LCTVS.Sec3a
 import all RiemannMasullo.AppC_LCTVS.Sec3a_part2
@@ -1067,6 +1069,178 @@ theorem exists_biorthogonalBasisLift (x : ι → E ⧸ E₀) (f : ι → StrongD
   choose u hu using lift
   exact ⟨u, hu, fun m n ↦ (congrArg (f m) (hu n).2.1).trans (_hbio m n)⟩
 
+private theorem exists_biorthogonalBasisLift_stable_coeff
+    {ι : Type*} [DecidableEq ι]
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℂ E]
+    (u : ι → E) (φ : ι → StrongDual ℂ E)
+    (hbio : ∀ m n, φ m (u n) = if m = n then (1 : ℂ) else 0) (c : ι →₀ ℂ) (j : ι) :
+    φ j (Finsupp.linearCombination ℂ u c) = c j := by
+  rw [Finsupp.linearCombination_apply]
+  unfold Finsupp.sum
+  rw [map_sum]
+  simp_rw [map_smul, hbio]
+  rw [Finset.sum_eq_single j]
+  · simp [smul_eq_mul]
+  · intro i _ hij
+    rw [ite_eq_right hij.symm]
+    simp [smul_eq_mul]
+  · intro hj
+    simp [Finsupp.notMem_support_iff.mp hj, smul_eq_mul]
+
+private theorem exists_biorthogonalBasisLift_stable_pert_le
+    {ι : Type*} [DecidableEq ι]
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℂ E]
+    (u y : ι → E) (φ : ι → StrongDual ℂ E)
+    (hbio : ∀ m n, φ m (u n) = if m = n then (1 : ℂ) else 0) (δ : ι → ℝ)
+    (hδ : ∀ m, 0 ≤ δ m) (hy : ∀ m, ‖y m‖ ≤ δ m) (hsum : Summable fun m => ‖φ m‖ * δ m)
+    (c : ι →₀ ℂ) :
+    ‖Finsupp.linearCombination ℂ y c‖ ≤
+      (∑' m, ‖φ m‖ * δ m) * ‖Finsupp.linearCombination ℂ u c‖ := by
+  have hcoeff (i : ι) :
+      ‖c i‖ ≤ ‖φ i‖ * ‖Finsupp.linearCombination ℂ u c‖ := by
+    have hcoe := exists_biorthogonalBasisLift_stable_coeff u φ hbio c i
+    simpa [hcoe] using
+      ContinuousLinearMap.le_opNorm (φ i) (Finsupp.linearCombination ℂ u c)
+  rw [Finsupp.linearCombination_apply]
+  unfold Finsupp.sum
+  refine (norm_sum_le _ _).trans ?_
+  have hstep₁ :
+      ∑ i ∈ c.support, ‖c i • y i‖ ≤ ∑ i ∈ c.support, ‖c i‖ * δ i := by
+    refine Finset.sum_le_sum fun i _ => ?_
+    rw [norm_smul]
+    exact mul_le_mul_of_nonneg_left (hy i) (norm_nonneg _)
+  have hstep₂ :
+      ∑ i ∈ c.support, ‖c i‖ * δ i ≤
+        ∑ i ∈ c.support, (‖φ i‖ * ‖Finsupp.linearCombination ℂ u c‖) * δ i := by
+    refine Finset.sum_le_sum fun i _ => ?_
+    exact mul_le_mul_of_nonneg_right (hcoeff i) (hδ i)
+  have hstep₃ :
+      ∑ i ∈ c.support, (‖φ i‖ * ‖Finsupp.linearCombination ℂ u c‖) * δ i =
+        (∑ i ∈ c.support, ‖φ i‖ * δ i) * ‖Finsupp.linearCombination ℂ u c‖ := by
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun i _ => by ring
+  have hstep₄ :
+      (∑ i ∈ c.support, ‖φ i‖ * δ i) * ‖Finsupp.linearCombination ℂ u c‖ ≤
+        (∑' m, ‖φ m‖ * δ m) * ‖Finsupp.linearCombination ℂ u c‖ := by
+    refine mul_le_mul_of_nonneg_right ?_ (norm_nonneg _)
+    exact hsum.sum_le_tsum c.support fun i _ => mul_nonneg (norm_nonneg _) (hδ i)
+  exact hstep₁.trans <| hstep₂.trans <| hstep₃.le.trans hstep₄
+
+private theorem exists_biorthogonalBasisLift_stable_denseRange
+    {ι : Type*} [DecidableEq ι]
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℂ E]
+    (u : ι → E) :
+    ∃ e : (ι →₀ ℂ) →ₗ[ℂ] closedSpan(u),
+      DenseRange e ∧ ∀ c, (e c : E) = Finsupp.linearCombination ℂ u c := by
+  let S := closedSpan(u)
+  let hmem : ∀ c : ι →₀ ℂ, Finsupp.linearCombination ℂ u c ∈ S := fun c =>
+    (Submodule.span ℂ (Set.range u)).le_topologicalClosure <| by
+      rw [← Finsupp.range_linearCombination]
+      exact LinearMap.mem_range_self _ c
+  refine ⟨(Finsupp.linearCombination ℂ u).codRestrict S hmem, ?_, fun c =>
+    LinearMap.codRestrict_apply _ _ c⟩
+  intro z
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  have hz : (z : E) ∈ closure (Submodule.span ℂ (Set.range u) : Set E) := by
+    rw [← Submodule.topologicalClosure_coe]
+    exact z.property
+  obtain ⟨v, hv, hdist⟩ := Metric.mem_closure_iff.mp hz ε hε
+  rw [SetLike.mem_coe, ← Finsupp.range_linearCombination] at hv
+  obtain ⟨c, rfl⟩ := hv
+  refine ⟨(Finsupp.linearCombination ℂ u).codRestrict S hmem c, mem_range_self _, ?_⟩
+  rw [dist_eq_norm, ← Submodule.norm_coe, Submodule.coe_sub, LinearMap.codRestrict_apply]
+  simpa [dist_eq_norm] using hdist
+
+private theorem exists_biorthogonalBasisLift_stable_unique
+    {ι : Type*} [DecidableEq ι]
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℂ E] [CompleteSpace E]
+    (u y : ι → E) (φ : ι → StrongDual ℂ E)
+    (hbio : ∀ m n, φ m (u n) = if m = n then (1 : ℂ) else 0) (δ : ι → ℝ)
+    (hδ : ∀ m, 0 ≤ δ m) (hy : ∀ m, ‖y m‖ ≤ δ m) (hsum : Summable fun m => ‖φ m‖ * δ m)
+    (hKlt : ∑' m, ‖φ m‖ * δ m < 1) :
+    ∃! T : closedSpan(u) ≃L[ℂ] closedSpan(fun m ↦ u m + y m),
+      ∀ (v : closedSpan(u)) (m : ι), v.val = u m → (T v).val = u m + y m := by
+  let K := ∑' m, ‖φ m‖ * δ m
+  have hK0 : 0 ≤ K := tsum_nonneg fun m => mul_nonneg (norm_nonneg _) (hδ m)
+  have hK1 : 0 < 1 - K := by linarith
+  obtain ⟨e₁, hdense₁, he₁⟩ := exists_biorthogonalBasisLift_stable_denseRange u
+  obtain ⟨e₂, hdense₂, he₂⟩ :=
+    exists_biorthogonalBasisLift_stable_denseRange fun m ↦ u m + y m
+  have hadd (c : ι →₀ ℂ) :
+      Finsupp.linearCombination ℂ u c + Finsupp.linearCombination ℂ y c =
+        Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c := by
+    simp only [Finsupp.linearCombination_apply, Finsupp.sum, smul_add, Finset.sum_add_distrib]
+  have hpert (c : ι →₀ ℂ) :=
+    exists_biorthogonalBasisLift_stable_pert_le u y φ hbio δ hδ hy hsum c
+  have hup (c : ι →₀ ℂ) :
+      ‖Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c‖ ≤
+        (1 + K) * ‖Finsupp.linearCombination ℂ u c‖ := by
+    calc ‖Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c‖
+        = ‖Finsupp.linearCombination ℂ u c + Finsupp.linearCombination ℂ y c‖ := by rw [← hadd]
+      _ ≤ ‖Finsupp.linearCombination ℂ u c‖ + ‖Finsupp.linearCombination ℂ y c‖ := norm_add_le _ _
+      _ ≤ ‖Finsupp.linearCombination ℂ u c‖ + K * ‖Finsupp.linearCombination ℂ u c‖ :=
+          add_le_add_right (hpert c) _
+      _ = (1 + K) * ‖Finsupp.linearCombination ℂ u c‖ := by ring
+  have hdown (c : ι →₀ ℂ) :
+      (1 - K) * ‖Finsupp.linearCombination ℂ u c‖ ≤
+        ‖Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c‖ := by
+    have htri :
+        ‖Finsupp.linearCombination ℂ u c‖ ≤
+          ‖Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c‖ +
+            ‖Finsupp.linearCombination ℂ y c‖ := by
+      have : Finsupp.linearCombination ℂ u c =
+          Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c +
+            (-Finsupp.linearCombination ℂ y c) := by
+        rw [← hadd]
+        abel
+      rw [this]
+      simpa using norm_add_le (Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c)
+        (-Finsupp.linearCombination ℂ y c)
+    linarith [hpert c]
+  have hnorm₁ : ∀ c, ‖e₂ c‖ ≤ (1 + K) * ‖e₁ c‖ := fun c => by
+    rw [← Submodule.norm_coe (e₁ c), ← Submodule.norm_coe (e₂ c), he₁, he₂]
+    exact hup c
+  have hnorm₂ : ∀ c, ‖e₁ c‖ ≤ (1 - K)⁻¹ * ‖e₂ c‖ := fun c => by
+    rw [← Submodule.norm_coe (e₁ c), ← Submodule.norm_coe (e₂ c), he₁, he₂]
+    rw [← mul_le_mul_iff_of_pos_left hK1]
+    calc (1 - K) * ‖Finsupp.linearCombination ℂ u c‖
+        ≤ ‖Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c‖ := hdown c
+      _ = (1 - K) * ((1 - K)⁻¹ * ‖Finsupp.linearCombination ℂ (fun m ↦ u m + y m) c‖) := by
+          rw [← mul_assoc, mul_inv_cancel₀ hK1.ne', one_mul]
+  let fL := LinearEquiv.refl ℂ (ι →₀ ℂ)
+  let T := fL.extend e₁ e₂ hdense₁ ⟨1 + K, hnorm₁⟩ hdense₂ ⟨(1 - K)⁻¹, hnorm₂⟩
+  have hTgen : ∀ (v : closedSpan(u)) (m : ι), v.val = u m → (T v).val = u m + y m := by
+    intro v m hv
+    have hv' : v = e₁ (Finsupp.single m 1) := by
+      apply Subtype.ext
+      rw [he₁, Finsupp.linearCombination_single, one_smul]
+      exact hv
+    rw [hv', LinearEquiv.extend_eq, LinearEquiv.refl_apply]
+    rw [he₂, Finsupp.linearCombination_single, one_smul]
+  refine ⟨T, hTgen, ?_⟩
+  intro T' hT'
+  apply ContinuousLinearEquiv.coe_injective
+  let s : Set (closedSpan(u)) := {v | ∃ m, (v : E) = u m}
+  have hs : Dense (Submodule.span ℂ s : Set (closedSpan(u))) := by
+    have hrange : Set.range e₁ ⊆ (Submodule.span ℂ s : Set _) := by
+      intro z hz
+      rcases hz with ⟨c, rfl⟩
+      rw [← Finsupp.sum_single c, Finsupp.sum]
+      rw [map_sum]
+      refine Submodule.sum_mem _ fun i _ => ?_
+      rw [← Finsupp.smul_single_one, map_smul]
+      refine Submodule.smul_mem _ _ (Submodule.subset_span ?_)
+      refine ⟨i, ?_⟩
+      rw [he₁, Finsupp.linearCombination_single, one_smul]
+    exact hdense₁.mono hrange
+  apply ContinuousLinearMap.ext_on hs
+  intro v hv
+  obtain ⟨m, hm⟩ := hv
+  apply Subtype.ext
+  rw [ContinuousLinearEquiv.coe_apply, ContinuousLinearEquiv.coe_apply]
+  rw [hTgen v m hm, hT' v m hm]
+
 /-- Paper: Lemma 10.4.2.5, p. 461. Lifts can be chosen to remain inside the
 enlarged collar under sufficiently small kernel perturbations. Each perturbed
 family has canonically isomorphic closed span via the assignment on its generators.
@@ -1084,7 +1258,66 @@ theorem exists_biorthogonalBasisLift_stable [Countable ι] (x : ι → E ⧸ E�
         (∀ m, u m + y m ∈ V ∧ E₀.mkQ (u m + y m) = x m ∧
           ‖u m + y m‖ ∈ Ioo (r - ε) (r' + ε)) ∧
         ∃! T : closedSpan(u) ≃L[ℂ] closedSpan(fun m ↦ u m + y m),
-          ∀ (v : closedSpan(u)) (m : ι), v.val = u m → (T v).val = u m + y m := by sorry
+          ∀ (v : closedSpan(u)) (m : ι), v.val = u m → (T v).val = u m + y m := by
+  obtain ⟨u, hu, _hbio'⟩ :=
+    exists_biorthogonalBasisLift E₀ V x f _hbio r r' ε _hr _hr' _hε _hεr _hcollar _hdense _himage
+  let φ : ι → StrongDual ℂ E := fun m => (f m).comp E₀.mkQL
+  have hφ : ∀ m n, φ m (u n) = if m = n then (1 : ℂ) else 0 := fun m n => by
+    rw [ContinuousLinearMap.comp_apply, Submodule.mkQL_apply, (hu n).2.1]
+    exact _hbio m n
+  let slack : ι → ℝ := fun m => min (‖u m‖ - (r - ε)) ((r' + ε) - ‖u m‖)
+  have hslack : ∀ m, 0 < slack m := fun m => by
+    have hm := (hu m).2.2
+    rw [mem_Ioo] at hm
+    exact lt_min (sub_pos.mpr hm.1) (sub_pos.mpr hm.2)
+  obtain ⟨ε', hε'pos, c, hc, hclt⟩ := NNReal.exists_pos_sum_of_countable (ε := 1) one_ne_zero ι
+  let δ : ι → ℝ := fun m => min (slack m) ((ε' m : ℝ) / (1 + ‖φ m‖))
+  have hδpos : ∀ m, 0 < δ m := fun m =>
+    lt_min (hslack m) (div_pos (NNReal.coe_pos.mpr (hε'pos m)) (by positivity : 0 < 1 + ‖φ m‖))
+  have hterm : ∀ m, ‖φ m‖ * δ m ≤ (ε' m : ℝ) := fun m => by
+    have hfrac : ‖φ m‖ / (1 + ‖φ m‖) ≤ 1 := by
+      rw [div_le_one (by positivity)]
+      linarith [norm_nonneg (φ m)]
+    calc ‖φ m‖ * δ m
+        ≤ ‖φ m‖ * ((ε' m : ℝ) / (1 + ‖φ m‖)) :=
+          mul_le_mul_of_nonneg_left (min_le_right _ _) (norm_nonneg _)
+      _ = (ε' m : ℝ) * (‖φ m‖ / (1 + ‖φ m‖)) := by ring
+      _ ≤ (ε' m : ℝ) * 1 :=
+          mul_le_mul_of_nonneg_left hfrac (NNReal.coe_nonneg _)
+      _ = (ε' m : ℝ) := mul_one _
+  have hsumε : Summable fun m => (ε' m : ℝ) := NNReal.summable_coe.mpr hc.summable
+  have hsum : Summable fun m => ‖φ m‖ * δ m :=
+    Summable.of_nonneg_of_le (fun m => mul_nonneg (norm_nonneg _) (hδpos m).le) hterm hsumε
+  have hK : ∑' m, ‖φ m‖ * δ m < 1 := by
+    have hle := hsum.tsum_le_tsum hterm hsumε
+    have heq : ∑' m, (ε' m : ℝ) = (c : ℝ) := (NNReal.hasSum_coe.mpr hc).tsum_eq
+    have hc1 : (c : ℝ) < 1 := NNReal.coe_lt_coe.mpr hclt
+    linarith
+  refine ⟨u, δ, hδpos, hu, ?_⟩
+  intro y hy
+  have hyδ : ∀ m, ‖y m‖ ≤ δ m := fun m => (hy m).2.le
+  have hδ0 : ∀ m, 0 ≤ δ m := fun m => (hδpos m).le
+  refine ⟨fun m => ?_, exists_biorthogonalBasisLift_stable_unique u y φ hφ δ hδ0 hyδ hsum hK⟩
+  have hym := hy m
+  rw [Submodule.mem_inf] at hym
+  refine ⟨V.add_mem (hu m).1 hym.1.1, ?_, ?_⟩
+  · have hy0 : E₀.mkQ (y m) = 0 := by
+      rw [Submodule.mkQ_apply]
+      exact (Submodule.Quotient.mk_eq_zero _).mpr hym.1.2
+    rw [map_add, (hu m).2.1, hy0, add_zero]
+  · have habs := abs_norm_sub_norm_le (u m + y m) (u m)
+    have hsub : (u m + y m) - u m = y m := by abel
+    rw [hsub] at habs
+    have hm := (hu m).2.2
+    rw [mem_Ioo] at hm
+    have hlow : ‖u m‖ - ‖y m‖ ≤ ‖u m + y m‖ := by linarith [abs_le.mp habs]
+    have hupp : ‖u m + y m‖ ≤ ‖u m‖ + ‖y m‖ := norm_add_le _ _
+    have hδlow : δ m ≤ ‖u m‖ - (r - ε) := (min_le_left _ _).trans (min_le_left _ _)
+    have hδup : δ m ≤ (r' + ε) - ‖u m‖ := (min_le_left _ _).trans (min_le_right _ _)
+    rw [mem_Ioo]
+    constructor
+    · linarith [hym.2]
+    · linarith [hym.2]
 
 /-- Paper: Terminology 10.4.2.1, p. 462. An ε-lift lies in the specified
 subspace, represents the given quotient vectors, has the prescribed pulled-back
@@ -1326,6 +1559,103 @@ theorem quotient_image_closedUnitBall_of_reflexive
 
 end ApproximateLifts
 
+private theorem exists_hilbertBasisLift_closedSpan_equiv_map
+    {X Y : Type*} [NormedAddCommGroup X] [NormedSpace ℂ X]
+    [NormedAddCommGroup Y] [NormedSpace ℂ Y]
+    (e : X ≃L[ℂ] Y) (b : _root_.SchauderBasis ℂ X) :
+    ∃ B : _root_.SchauderBasis ℂ Y,
+      (∀ n, B n = e (b n)) ∧
+      (∀ n, B.coord n = (b.coord n).comp e.symm.toContinuousLinearMap) := by
+  let S := e.symm.toContinuousLinearMap
+  let T := e.toContinuousLinearMap
+  refine ⟨{
+    basis := fun n => e (b n)
+    coord := fun n => (b.coord n).comp S
+    ortho := by intro i j; simpa [S] using b.ortho i j
+    expansion := by
+      intro y
+      have hh := T.hasSum (b.expansion (e.symm y))
+      simpa [T, S] using hh }, fun _ => rfl, fun _ => rfl⟩
+
+private theorem exists_hilbertBasisLift_closedSpan_equiv_orthogonal
+    {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℂ E] [CompleteSpace E]
+    (E₀ : Submodule ℂ E) [IsClosed (E₀ : Set E)]
+    (b : _root_.SchauderBasis ℂ (E ⧸ E₀)) :
+    ∃ B : _root_.SchauderBasis ℂ ↥E₀.orthogonal,
+      ∀ m, (B m : E) = (E₀.quotientEquivOrthogonal (b m) : E) ∧
+        E₀.mkQ (B m : E) = b m ∧ ‖(B m : E)‖ = ‖b m‖ := by
+  let e := E₀.quotientEquivOrthogonal.toContinuousLinearEquiv
+  obtain ⟨B, hB, _⟩ := exists_hilbertBasisLift_closedSpan_equiv_map e b
+  refine ⟨B, fun m => ?_⟩
+  have hval : (B m : E) = (E₀.quotientEquivOrthogonal (b m) : E) := by
+    rw [hB, LinearIsometryEquiv.coe_toContinuousLinearEquiv]
+  refine ⟨hval, ?_, ?_⟩
+  · rw [hval, Submodule.mkQ_apply]
+    exact (E₀.quotientEquivOrthogonal_symm_eq_mk _ (E₀.quotientEquivOrthogonal (b m)).property).symm.trans
+      (E₀.quotientEquivOrthogonal.symm_apply_apply (b m))
+  · rw [hval, Submodule.norm_coe]
+    exact E₀.quotientEquivOrthogonal.norm_map _
+
+private theorem exists_hilbertBasisLift_closedSpan_equiv_dense
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℂ E]
+    (Q : Submodule ℂ E) (B : _root_.SchauderBasis ℂ Q) :
+    ∃ e : (ℕ →₀ ℂ) →ₗ[ℂ] Q,
+      DenseRange e ∧ ∀ c, (e c : E) = Finsupp.linearCombination ℂ (fun m => (B m : E)) c := by
+  have hmem : ∀ c : ℕ →₀ ℂ, Finsupp.linearCombination ℂ (fun m => (B m : E)) c ∈ Q := fun c => by
+    have hspan : Submodule.span ℂ (Set.range fun m => (B m : E)) ≤ Q :=
+      Submodule.span_le.mpr (by rintro _ ⟨m, rfl⟩; exact (B m).property)
+    exact hspan <| by
+      rw [← Finsupp.range_linearCombination]
+      exact LinearMap.mem_range_self _ c
+  refine ⟨(Finsupp.linearCombination ℂ (fun m => (B m : E))).codRestrict Q hmem, ?_,
+    fun c => LinearMap.codRestrict_apply _ _ c⟩
+  intro q
+  rw [Metric.mem_closure_iff]
+  intro ε hε
+  obtain ⟨N, hN⟩ := (Metric.tendsto_atTop.mp (B.tendsto_proj q)) ε hε
+  let c : ℕ →₀ ℂ := ∑ i ∈ Finset.range N, Finsupp.single i (B.coord i q)
+  have hEq : (Finsupp.linearCombination ℂ (fun m => (B m : E))).codRestrict Q hmem c =
+      B.proj N q := by
+    apply Subtype.ext
+    rw [LinearMap.codRestrict_apply, map_sum]
+    simp_rw [Finsupp.linearCombination_single]
+    simp [SchauderBasis.proj_apply]
+  refine ⟨(Finsupp.linearCombination ℂ (fun m => (B m : E))).codRestrict Q hmem c,
+    mem_range_self _, ?_⟩
+  rw [hEq, dist_comm]
+  exact hN N le_rfl
+
+private theorem exists_hilbertBasisLift_closedSpan_equiv_perturb
+    {E : Type*} [NormedAddCommGroup E] [NormedSpace ℂ E]
+    (E₀ V : Submodule ℂ E) (o v : ℕ → E)
+    (hv : ∀ m, v m ∈ V ∧ E₀.mkQ (v m) = E₀.mkQ (o m))
+    (hdense : E₀ ≤ (V ⊓ E₀).topologicalClosure)
+    (η : ℕ → ℝ) (hη : ∀ m, 0 < η m) :
+    ∃ u : ℕ → E, ∀ m, u m ∈ V ∧ E₀.mkQ (u m) = E₀.mkQ (o m) ∧
+      u m - o m ∈ E₀ ∧ ‖u m - o m‖ < η m := by
+  have hex : ∀ m, ∃ w : E, w ∈ V ∧ E₀.mkQ w = E₀.mkQ (o m) ∧
+      w - o m ∈ E₀ ∧ ‖w - o m‖ < η m := fun m => by
+    have hdiff : v m - o m ∈ E₀ := by
+      have hmk : E₀.mkQ (v m) = E₀.mkQ (o m) := (hv m).2
+      rw [Submodule.mkQ_apply, Submodule.mkQ_apply, Submodule.Quotient.eq] at hmk
+      exact hmk
+    have hcl : v m - o m ∈ (V ⊓ E₀).topologicalClosure := hdense hdiff
+    rw [← SetLike.mem_coe, Submodule.topologicalClosure_coe] at hcl
+    obtain ⟨d, hd, hdist⟩ := Metric.mem_closure_iff.mp hcl (η m) (hη m)
+    rw [SetLike.mem_coe, Submodule.mem_inf] at hd
+    have hd0 : E₀.mkQ d = 0 := by
+      rw [Submodule.mkQ_apply]
+      exact (Submodule.Quotient.mk_eq_zero _).mpr hd.2
+    refine ⟨v m - d, V.sub_mem (hv m).1 hd.1, ?_, ?_, ?_⟩
+    · rw [map_sub, (hv m).2, hd0, sub_zero]
+    · have : (v m - d) - o m = (v m - o m) - d := by abel
+      rw [this]
+      exact E₀.sub_mem hdiff hd.2
+    · have : (v m - d) - o m = (v m - o m) - d := by abel
+      rw [this, ← dist_eq_norm]
+      exact hdist
+  exact ⟨fun m => Classical.choose (hex m), fun m => Classical.choose_spec (hex m)⟩
+
 /-- Paper: Remark 10.4.2.7, p. 463. In a Hilbert space, collar lifts in V
 can be chosen so that their closed span is isomorphic to the orthogonal
 complement of the kernel.
@@ -1343,7 +1673,204 @@ theorem exists_hilbertBasisLift_closedSpan_equiv {E : Type*} [NormedAddCommGroup
         ∀ y : ℕ → E, (∀ m, y m ∈ V ⊓ E₀ ∧ ‖y m‖ < δ m) →
           IsEpsilonBasisLift E₀ V b.basis b.coord r r' ε (fun m ↦ u m + y m) ∧
           ∃! T : closedSpan(u) ≃L[ℂ] closedSpan(fun m ↦ u m + y m),
-            ∀ (v : closedSpan(u)) (m : ℕ), v.val = u m → (T v).val = u m + y m := by sorry
+            ∀ (v : closedSpan(u)) (m : ℕ), v.val = u m → (T v).val = u m + y m := by
+  let ε : ℝ := r / 2
+  have hε : 0 < ε := by positivity
+  have hεr : ε < r := half_lt_self _hr
+  obtain ⟨B, hB⟩ := exists_hilbertBasisLift_closedSpan_equiv_orthogonal E₀ b
+  let o : ℕ → E := fun m => (B m : E)
+  let φ : ℕ → StrongDual ℂ E := fun m =>
+    (B.coord m).comp E₀.orthogonal.orthogonalProjectionOnto
+  have hφo : ∀ m n, φ m (o n) = if m = n then (1 : ℂ) else 0 := fun m n => by
+    have hfix : E₀.orthogonal.orthogonalProjectionOnto (o n) = B n := by
+      simp [o]
+    simp only [φ, ContinuousLinearMap.comp_apply, hfix]
+    by_cases hmn : m = n
+    · simp [hmn, B.ortho, Pi.single_eq_same]
+    · simp [hmn, B.ortho]
+  obtain ⟨ε', hε'pos, c0, hc0, hc0lt⟩ :=
+    NNReal.exists_pos_sum_of_countable (ε := 1) one_ne_zero ℕ
+  let η : ℕ → ℝ := fun m => min (ε / 2) ((ε' m : ℝ) / (1 + ‖φ m‖))
+  have hηpos : ∀ m, 0 < η m := fun m =>
+    lt_min (by positivity) (div_pos (NNReal.coe_pos.mpr (hε'pos m)) (by positivity : 0 < 1 + ‖φ m‖))
+  have hηle : ∀ m, η m ≤ ε / 2 := fun m => min_le_left _ _
+  have hη0 : ∀ m, 0 ≤ η m := fun m => (hηpos m).le
+  have hterm : ∀ m, ‖φ m‖ * η m ≤ (ε' m : ℝ) := fun m => by
+    have hfrac : ‖φ m‖ / (1 + ‖φ m‖) ≤ 1 := by
+      rw [div_le_one (by positivity)]
+      linarith [norm_nonneg (φ m)]
+    calc ‖φ m‖ * η m
+        ≤ ‖φ m‖ * ((ε' m : ℝ) / (1 + ‖φ m‖)) :=
+          mul_le_mul_of_nonneg_left (min_le_right _ _) (norm_nonneg _)
+      _ = (ε' m : ℝ) * (‖φ m‖ / (1 + ‖φ m‖)) := by ring
+      _ ≤ (ε' m : ℝ) * 1 :=
+          mul_le_mul_of_nonneg_left hfrac (NNReal.coe_nonneg _)
+      _ = (ε' m : ℝ) := mul_one _
+  have hsumε' : Summable fun m => (ε' m : ℝ) := NNReal.summable_coe.mpr hc0.summable
+  have hsumη : Summable fun m => ‖φ m‖ * η m :=
+    Summable.of_nonneg_of_le (fun m => mul_nonneg (norm_nonneg _) (hη0 m)) hterm hsumε'
+  have hKη : ∑' m, ‖φ m‖ * η m < 1 := by
+    have hle := hsumη.tsum_le_tsum hterm hsumε'
+    have heq : ∑' m, (ε' m : ℝ) = (c0 : ℝ) := (NNReal.hasSum_coe.mpr hc0).tsum_eq
+    have hc1 : (c0 : ℝ) < 1 := NNReal.coe_lt_coe.mpr hc0lt
+    linarith
+  choose v hvmem using fun m => (Submodule.mem_map).mp (_himage m)
+  have hv : ∀ m, v m ∈ V ∧ E₀.mkQ (v m) = E₀.mkQ (o m) := fun m =>
+    ⟨(hvmem m).1, (hvmem m).2.trans (hB m).2.1.symm⟩
+  obtain ⟨u, hu⟩ :=
+    exists_hilbertBasisLift_closedSpan_equiv_perturb E₀ V o v hv _hdense η hηpos
+  let z : ℕ → E := fun m => u m - o m
+  have hzlt : ∀ m, ‖z m‖ < η m := fun m => by simpa [z] using (hu m).2.2.2
+  have hzle : ∀ m, ‖z m‖ ≤ η m := fun m => (hzlt m).le
+  have hcollar_u : ∀ m, ‖u m‖ ∈ Ioo (r - ε) (r' + ε) := fun m => by
+    have hm := mem_Icc.mp (_hcollar m)
+    have hlow : ‖o m‖ - ‖z m‖ ≤ ‖u m‖ := by
+      have habs := abs_norm_sub_norm_le (u m) (o m)
+      have hsub : u m - o m = z m := rfl
+      rw [hsub] at habs
+      linarith [abs_le.mp habs]
+    have hupp : ‖u m‖ ≤ ‖o m‖ + ‖z m‖ := by
+      have hzdef : z m = u m - o m := rfl
+      have : u m = o m + z m := by rw [hzdef]; abel
+      rw [this]
+      exact norm_add_le _ _
+    have hzn : ‖z m‖ < ε / 2 := lt_of_lt_of_le (hzlt m) (hηle m)
+    rw [mem_Ioo]
+    constructor
+    · linarith [hm.1, (hB m).2.2, hzn, hε]
+    · linarith [hm.2, (hB m).2.2, hzn, hε]
+  have hbio : ∀ m n, b.coord m (b.basis n) = if m = n then (1 : ℂ) else 0 := fun m n => by
+    by_cases hmn : m = n
+    · simp [hmn, b.ortho, Pi.single_eq_same]
+    · simp [hmn, b.ortho]
+  have hu_lift : ∀ m, u m ∈ V ∧ E₀.mkQ (u m) = b m ∧ ‖u m‖ ∈ Icc (r - ε) (r' + ε) :=
+    fun m => by
+      have hm := hcollar_u m
+      rw [mem_Ioo] at hm
+      exact ⟨(hu m).1, (hu m).2.1.trans (hB m).2.1, mem_Icc.mpr ⟨hm.1.le, hm.2.le⟩⟩
+  have hlift : IsEpsilonBasisLift E₀ V b.basis b.coord r r' ε u :=
+    isEpsilonBasisLift_of_mkQ_eq E₀ V b.basis b.coord hbio hε hεr u hu_lift
+  obtain ⟨eQ, hdenseQ, heQ⟩ := exists_hilbertBasisLift_closedSpan_equiv_dense E₀.orthogonal B
+  have heQ' : ∀ c, (eQ c : E) = Finsupp.linearCombination ℂ o c := fun c => by
+    simpa [o] using heQ c
+  obtain ⟨eU, hdenseU, heU⟩ := exists_biorthogonalBasisLift_stable_denseRange u
+  let K := ∑' m, ‖φ m‖ * η m
+  have hK1 : 0 < 1 - K := by
+    have hK0 : 0 ≤ K := tsum_nonneg fun m => mul_nonneg (norm_nonneg _) (hη0 m)
+    linarith
+  have hpert (c : ℕ →₀ ℂ) :=
+    exists_biorthogonalBasisLift_stable_pert_le o z φ hφo η hη0 hzle hsumη c
+  have hadd (c : ℕ →₀ ℂ) :
+      Finsupp.linearCombination ℂ o c + Finsupp.linearCombination ℂ z c =
+        Finsupp.linearCombination ℂ (fun m => o m + z m) c := by
+    simp only [Finsupp.linearCombination_apply, Finsupp.sum, smul_add, Finset.sum_add_distrib]
+  have hu_eq : (fun m => o m + z m) = u := by
+    ext m
+    have hzdef : z m = u m - o m := rfl
+    rw [hzdef]
+    abel
+  have hup (c : ℕ →₀ ℂ) :
+      ‖Finsupp.linearCombination ℂ u c‖ ≤ (1 + K) * ‖Finsupp.linearCombination ℂ o c‖ := by
+    calc ‖Finsupp.linearCombination ℂ u c‖
+        = ‖Finsupp.linearCombination ℂ (fun m => o m + z m) c‖ := by rw [hu_eq]
+      _ = ‖Finsupp.linearCombination ℂ o c + Finsupp.linearCombination ℂ z c‖ := by rw [← hadd]
+      _ ≤ ‖Finsupp.linearCombination ℂ o c‖ + ‖Finsupp.linearCombination ℂ z c‖ := norm_add_le _ _
+      _ ≤ ‖Finsupp.linearCombination ℂ o c‖ + K * ‖Finsupp.linearCombination ℂ o c‖ :=
+          add_le_add_right (hpert c) _
+      _ = (1 + K) * ‖Finsupp.linearCombination ℂ o c‖ := by ring
+  have hdown (c : ℕ →₀ ℂ) :
+      (1 - K) * ‖Finsupp.linearCombination ℂ o c‖ ≤ ‖Finsupp.linearCombination ℂ u c‖ := by
+    have htri :
+        ‖Finsupp.linearCombination ℂ o c‖ ≤
+          ‖Finsupp.linearCombination ℂ u c‖ + ‖Finsupp.linearCombination ℂ z c‖ := by
+      have : Finsupp.linearCombination ℂ o c =
+          Finsupp.linearCombination ℂ (fun m => o m + z m) c +
+            (-Finsupp.linearCombination ℂ z c) := by
+        rw [← hadd]
+        abel
+      rw [this, hu_eq]
+      simpa using norm_add_le (Finsupp.linearCombination ℂ u c) (-Finsupp.linearCombination ℂ z c)
+    linarith [hpert c]
+  have hnorm₁ : ∀ c, ‖eU c‖ ≤ (1 + K) * ‖eQ c‖ := fun c => by
+    rw [← Submodule.norm_coe (eU c), ← Submodule.norm_coe (eQ c), heU, heQ']
+    exact hup c
+  have hnorm₂ : ∀ c, ‖eQ c‖ ≤ (1 - K)⁻¹ * ‖eU c‖ := fun c => by
+    rw [← Submodule.norm_coe (eU c), ← Submodule.norm_coe (eQ c), heU, heQ']
+    rw [← mul_le_mul_iff_of_pos_left hK1]
+    calc (1 - K) * ‖Finsupp.linearCombination ℂ o c‖
+        ≤ ‖Finsupp.linearCombination ℂ u c‖ := hdown c
+      _ = (1 - K) * ((1 - K)⁻¹ * ‖Finsupp.linearCombination ℂ u c‖) := by
+          rw [← mul_assoc, mul_inv_cancel₀ hK1.ne', one_mul]
+  let fL := LinearEquiv.refl ℂ (ℕ →₀ ℂ)
+  let T := fL.extend eQ eU hdenseQ ⟨1 + K, hnorm₁⟩ hdenseU ⟨(1 - K)⁻¹, hnorm₂⟩
+  obtain ⟨Bs, hBs, _⟩ := exists_hilbertBasisLift_closedSpan_equiv_map T B
+  have hval : ∀ m, (Bs m).val = u m := fun m => by
+    rw [hBs]
+    have hsingle : B m = eQ (Finsupp.single m 1) := by
+      apply Subtype.ext
+      rw [heQ', Finsupp.linearCombination_single, one_smul]
+    rw [hsingle, LinearEquiv.extend_eq, LinearEquiv.refl_apply]
+    rw [heU, Finsupp.linearCombination_single, one_smul]
+  let φQ : ℕ → StrongDual ℂ E := fun m => (b.coord m).comp E₀.mkQL
+  have hφQ : ∀ m n, φQ m (u n) = if m = n then (1 : ℂ) else 0 := fun m n => by
+    have hmk : E₀.mkQ (u n) = b n := (hu n).2.1.trans (hB n).2.1
+    simp only [φQ, ContinuousLinearMap.comp_apply, Submodule.mkQL_apply, hmk]
+    exact hbio m n
+  let slack : ℕ → ℝ := fun m => min (‖u m‖ - (r - ε)) ((r' + ε) - ‖u m‖)
+  have hslack : ∀ m, 0 < slack m := fun m => by
+    have hm := hcollar_u m
+    rw [mem_Ioo] at hm
+    exact lt_min (sub_pos.mpr hm.1) (sub_pos.mpr hm.2)
+  obtain ⟨εδ, hεδpos, cδ, hcδ, hcδlt⟩ :=
+    NNReal.exists_pos_sum_of_countable (ε := 1) one_ne_zero ℕ
+  let δ : ℕ → ℝ := fun m => min (slack m) ((εδ m : ℝ) / (1 + ‖φQ m‖))
+  have hδpos : ∀ m, 0 < δ m := fun m =>
+    lt_min (hslack m) (div_pos (NNReal.coe_pos.mpr (hεδpos m)) (by positivity : 0 < 1 + ‖φQ m‖))
+  have htermδ : ∀ m, ‖φQ m‖ * δ m ≤ (εδ m : ℝ) := fun m => by
+    have hfrac : ‖φQ m‖ / (1 + ‖φQ m‖) ≤ 1 := by
+      rw [div_le_one (by positivity)]
+      linarith [norm_nonneg (φQ m)]
+    calc ‖φQ m‖ * δ m
+        ≤ ‖φQ m‖ * ((εδ m : ℝ) / (1 + ‖φQ m‖)) :=
+          mul_le_mul_of_nonneg_left (min_le_right _ _) (norm_nonneg _)
+      _ = (εδ m : ℝ) * (‖φQ m‖ / (1 + ‖φQ m‖)) := by ring
+      _ ≤ (εδ m : ℝ) * 1 :=
+          mul_le_mul_of_nonneg_left hfrac (NNReal.coe_nonneg _)
+      _ = (εδ m : ℝ) := mul_one _
+  have hsumεδ : Summable fun m => (εδ m : ℝ) := NNReal.summable_coe.mpr hcδ.summable
+  have hsumδ : Summable fun m => ‖φQ m‖ * δ m :=
+    Summable.of_nonneg_of_le (fun m => mul_nonneg (norm_nonneg _) (hδpos m).le) htermδ hsumεδ
+  have hKδ : ∑' m, ‖φQ m‖ * δ m < 1 := by
+    have hle := hsumδ.tsum_le_tsum htermδ hsumεδ
+    have heq : ∑' m, (εδ m : ℝ) = (cδ : ℝ) := (NNReal.hasSum_coe.mpr hcδ).tsum_eq
+    have hc1 : (cδ : ℝ) < 1 := NNReal.coe_lt_coe.mpr hcδlt
+    linarith
+  refine ⟨u, ε, hlift, ⟨Bs, hval⟩, ⟨T.symm⟩, δ, hδpos, fun y hy => ?_⟩
+  have hyδ : ∀ m, ‖y m‖ ≤ δ m := fun m => (hy m).2.le
+  have hδ0 : ∀ m, 0 ≤ δ m := fun m => (hδpos m).le
+  refine ⟨?_, exists_biorthogonalBasisLift_stable_unique u y φQ hφQ δ hδ0 hyδ hsumδ hKδ⟩
+  refine isEpsilonBasisLift_of_mkQ_eq E₀ V b.basis b.coord hbio hε hεr (fun m => u m + y m) ?_
+  intro m
+  have hym := hy m
+  rw [Submodule.mem_inf] at hym
+  refine ⟨V.add_mem (hu m).1 hym.1.1, ?_, ?_⟩
+  · have hy0 : E₀.mkQ (y m) = 0 := by
+      rw [Submodule.mkQ_apply]
+      exact (Submodule.Quotient.mk_eq_zero _).mpr hym.1.2
+    rw [map_add, (hu m).2.1.trans (hB m).2.1, hy0, add_zero]
+  · have habs := abs_norm_sub_norm_le (u m + y m) (u m)
+    have hsub : (u m + y m) - u m = y m := by abel
+    rw [hsub] at habs
+    have hm := hcollar_u m
+    rw [mem_Ioo] at hm
+    have hlow : ‖u m‖ - ‖y m‖ ≤ ‖u m + y m‖ := by linarith [abs_le.mp habs]
+    have hupp : ‖u m + y m‖ ≤ ‖u m‖ + ‖y m‖ := norm_add_le _ _
+    have hδlow : δ m ≤ ‖u m‖ - (r - ε) := (min_le_left _ _).trans (min_le_left _ _)
+    have hδup : δ m ≤ (r' + ε) - ‖u m‖ := (min_le_left _ _).trans (min_le_right _ _)
+    rw [mem_Icc]
+    constructor
+    · linarith [hym.2]
+    · linarith [hym.2]
 
 /-- Paper: Theorem 10.4.2.8, p. 463. At each admissible cutoff, the operator
 obtained by spectral projection, convolution and cutoff is nuclear. -/
@@ -1382,6 +1909,120 @@ local notation "cutoffTraces(" op ", " eps ", " rho ", " test ", " t ")" =>
     let T := (op) a hα hs hc (test)
     ∃ hT : IsNuclearOperator (E := W₀) (F := W₀) T, (t) R = hilbertTrace (H := W₀) ⟨T, hT⟩)
 
+/-- A nuclear operator admits a rank-one expansion with summable trace norms. -/
+private theorem spectralRestriction_series
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (T : nuclearEndomorphisms H) :
+    ∃ (a : ℕ → ℂ) (l : ℕ → H →L[ℂ] ℂ) (y : ℕ → H),
+      Summable (fun n ↦ ‖a n‖ * (‖l n‖ * ‖y n‖)) ∧
+      ∀ v, HasSum (fun n ↦ (a n * l n v) • y n) (T.val v) := by
+  obtain ⟨a, l, y, ha, hl, hy, hseries⟩ := (isNuclearOperator_iff_isBanachNuclear _).mp T.property
+  obtain ⟨L, hL, hL'⟩ := (Metric.isBounded_range_of_tendsto l hl).exists_pos_norm_le
+  obtain ⟨Y, _, hY'⟩ := (Metric.isBounded_range_of_tendsto y hy).exists_pos_norm_le
+  refine ⟨a, l, y, (ha.mul_right (L * Y)).of_nonneg_of_le (fun n ↦ by positivity) ?_, hseries⟩
+  intro n
+  exact mul_le_mul_of_nonneg_left (mul_le_mul (hL' _ (mem_range_self n))
+    (hY' _ (mem_range_self n)) (norm_nonneg _) hL.le) (norm_nonneg _)
+
+/-- Cyclicity for a nuclear factor and an arbitrary bounded factor. -/
+theorem spectralRestriction_cyclic
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (A : H →L[ℂ] H) (T : nuclearEndomorphisms H) :
+    hilbertTrace ⟨A * T.val, mul_mem_nuclearEndomorphisms_left A T⟩ =
+      hilbertTrace ⟨T.val * A, mul_mem_nuclearEndomorphisms_right A T⟩ := by
+  obtain ⟨a, l, y, hcost, hs⟩ := spectralRestriction_series T
+  have hp (n : ℕ) : ‖a n‖ * (‖l n‖ * ‖A (y n)‖) ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * ‖A‖ := by
+    calc
+      _ ≤ ‖a n‖ * (‖l n‖ * (‖A‖ * ‖y n‖)) := by gcongr; exact A.le_opNorm _
+      _ = _ := by ring
+  have hq (n : ℕ) : ‖a n‖ * (‖(l n).comp A‖ * ‖y n‖) ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * ‖A‖ := by
+    calc
+      _ ≤ ‖a n‖ * ((‖l n‖ * ‖A‖) * ‖y n‖) := by gcongr; exact ContinuousLinearMap.opNorm_comp_le _ _
+      _ = _ := by ring
+  unfold hilbertTrace
+  rw [tsum_hilbertDiagonal_eq_series _ _ a l (fun n ↦ A (y n))
+    ((hcost.mul_right ‖A‖).of_nonneg_of_le (fun n ↦ by positivity) hp)
+    (fun x ↦ by change HasSum _ (A (T.val x)); simpa only [map_smul] using A.hasSum (hs x))]
+  exact (tsum_hilbertDiagonal_eq_series _ (T.val * A) a (fun n ↦ (l n).comp A) y
+    ((hcost.mul_right ‖A‖).of_nonneg_of_le (fun n ↦ by positivity) hq)
+    (fun x ↦ hs (A x))).symm
+
+/-- If uniformly bounded operators converge weakly to zero, their traces against a fixed
+nuclear operator tend to zero. -/
+private theorem spectralRestriction_weak_trace
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (S : ℝ → H →L[ℂ] H) (T : nuclearEndomorphisms H)
+    (C : ℝ) (hS : ∀ t, ‖S t‖ ≤ C)
+    (hw : ∀ v (l : H →L[ℂ] ℂ), Tendsto (fun t ↦ l (S t v)) atTop (𝓝 0)) :
+    Tendsto (fun t ↦ hilbertTrace ⟨S t * T.val, mul_mem_nuclearEndomorphisms_left (S t) T⟩)
+      atTop (𝓝 0) := by
+  obtain ⟨a, l, y, hcost, hs⟩ := spectralRestriction_series T
+  have hdom (t : ℝ) (n : ℕ) :
+      ‖a n‖ * (‖l n‖ * ‖S t (y n)‖) ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * C := by
+    have h := ((S t).le_opNorm (y n)).trans (mul_le_mul_of_nonneg_right (hS t) (norm_nonneg _))
+    calc
+      _ ≤ ‖a n‖ * (‖l n‖ * (C * ‖y n‖)) := by gcongr
+      _ = _ := by ring
+  have htr (t : ℝ) : hilbertTrace ⟨S t * T.val, mul_mem_nuclearEndomorphisms_left (S t) T⟩ =
+      ∑' n, a n * l n (S t (y n)) :=
+    tsum_hilbertDiagonal_eq_series _ _ _ _ _
+      ((hcost.mul_right C).of_nonneg_of_le (fun n ↦ by positivity) (hdom t))
+      (fun x ↦ by change HasSum _ (S t (T.val x)); simpa only [map_smul] using (S t).hasSum (hs x))
+  simp_rw [htr]
+  have h := tendsto_tsum_of_dominated_convergence (g := fun _ ↦ (0 : ℂ))
+    (hcost.mul_right C) (fun n ↦ by simpa using (hw (y n) (l n)).const_mul (a n))
+    (Eventually.of_forall fun t n ↦ (by
+      rw [norm_mul]
+      exact (mul_le_mul_of_nonneg_left ((l n).le_opNorm _) (norm_nonneg _)).trans (hdom t n)
+      : ‖a n * l n (S t (y n))‖ ≤ (‖a n‖ * (‖l n‖ * ‖y n‖)) * C))
+  simpa using h
+
+/-- A one-sided approximation of the commutator bounds the difference of the two traces. -/
+private theorem spectralRestriction_commutator_bound
+    {H : Type*} [NormedAddCommGroup H] [InnerProductSpace ℂ H] [CompleteSpace H]
+    (P A M B : H →L[ℂ] H) (hP : ‖P‖ ≤ 1) (hPA : IsNuclearOperator (P * A))
+    (hMA : IsNuclearOperator (M * A)) (E : nuclearEndomorphisms H)
+    (herr : M * A - A * M = A * B + E.val) :
+    ‖hilbertTrace ⟨(M * A) * P, mul_mem_nuclearEndomorphisms_right P ⟨_, hMA⟩⟩ -
+      hilbertTrace ⟨M * (P * A), mul_mem_nuclearEndomorphisms_left M ⟨_, hPA⟩⟩‖ ≤
+      ‖hilbertTrace ⟨B * (P * A), mul_mem_nuclearEndomorphisms_left B ⟨_, hPA⟩⟩‖ + traceNorm E := by
+  let PA : nuclearEndomorphisms H := ⟨P * A, hPA⟩
+  let MA : nuclearEndomorphisms H := ⟨M * A, hMA⟩
+  let left (U : H →L[ℂ] H) (T : nuclearEndomorphisms H) : nuclearEndomorphisms H :=
+    ⟨U * T.val, mul_mem_nuclearEndomorphisms_left U T⟩
+  let right (T : nuclearEndomorphisms H) (U : H →L[ℂ] H) : nuclearEndomorphisms H :=
+    ⟨T.val * U, mul_mem_nuclearEndomorphisms_right U T⟩
+  have hid : left P MA - right PA M = right PA B + left P E := by
+    apply Subtype.ext
+    change P * (M * A) - (P * A) * M = (P * A) * B + P * E.val
+    simpa only [mul_sub, mul_add, mul_assoc] using congrArg (P * ·) herr
+  obtain ⟨tr, htr⟩ := hilbertTrace_linear (H := H)
+  have htrace : hilbertTrace (left P MA) - hilbertTrace (right PA M) =
+      hilbertTrace (right PA B) + hilbertTrace (left P E) := by
+    rw [← htr _, ← htr _, ← htr _, ← htr _, ← map_sub, ← map_add, hid]
+  change ‖hilbertTrace (right MA P) - hilbertTrace (left M PA)‖ ≤
+    ‖hilbertTrace (left B PA)‖ + traceNorm E
+  rw [← spectralRestriction_cyclic P MA, spectralRestriction_cyclic M PA, htrace,
+    ← spectralRestriction_cyclic B PA]
+  exact (norm_add_le _ _).trans (add_le_add le_rfl ((norm_hilbertTrace_le (left P E)).trans
+    ((traceNorm_mul_left_le P E).trans (mul_le_of_le_one_left (traceNorm_nonneg E) hP))))
+
+/-- Paper: Theorem 10.4.2.8, pp. 463–464. The commutator of cutoff multiplication
+and ambient convolution can be approximated in trace norm by products `A * B R`, where `A` is
+convolution and the uniformly bounded operators `B R` tend to zero in the weak operator topology.
+Deviation: This sufficient estimate involves only the weighted ambient space. In log-norm
+coordinates the commutator is supported near the two ends of the cutoff interval. -/
+private theorem spectralRestriction_cutoff_commutator_approx (φ : BruhatCompactSupport C𝔽)
+    (ε : ℝ → ℝ) (ρ : ℝ → C𝔽 → ℝ) (_hε : Tendsto (fun R ↦ ε R * R) atTop (𝓝 0))
+    (_hρ : ∀ᶠ R in atTop, IsModulatedCutoff m𝔽 R (ε R) (ρ R) ∧
+      0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R) (η : ℝ) (_hη : 0 < η) :
+    let A : W₀ →L[ℂ] W₀ := A(φ)
+    ∃ (C : ℝ) (B : ℝ → W₀ →L[ℂ] W₀), (∀ R, ‖B R‖ ≤ C) ∧
+      (∀ v (l : W₀ →L[ℂ] ℂ), Tendsto (fun R ↦ l (B R v)) atTop (𝓝 0)) ∧
+      ∀ᶠ R in atTop, ∀ hc : IsModulatedCutoff m𝔽 R (ε R) (ρ R),
+        let M : W₀ →L[ℂ] W₀ := M(hc)
+        ∃ E : nuclearEndomorphisms W₀, M * A - A * M = A * B R + E.val ∧ traceNorm E < η := by sorry
+
 /-- Paper: Theorem 10.4.2.8, pp. 463–464. The trace of the cutoff times the
 spectral-to-geometric block tends to zero. By (10.4.1.11) and linearity of
 the trace this is the difference of the traces of the two composition orders.
@@ -1395,7 +2036,31 @@ theorem spectralRestriction_offDiagonal_trace_tendsto_zero (φ : BruhatCompactSu
     (l : ℝ → ℂ)
     (_hl : cutoffTraces(spectralTruncatedConvolution, ε, ρ, φ, l)) :
     ∃ r : ℝ → ℂ, cutoffTraces(spectralRestriction, ε, ρ, φ, r) ∧
-      Tendsto (fun R ↦ r R - l R) atTop (𝓝 0) := by sorry
+      Tendsto (fun R ↦ r R - l R) atTop (𝓝 0) := by
+  classical
+  let r (R : ℝ) : ℂ :=
+    if h : IsModulatedCutoff m𝔽 R (ε R) (ρ R) ∧ 0 < R⁻¹ + ε R ∧ R⁻¹ + ε R < R - ε R then
+      hilbertTrace ⟨_, spectralRestriction_nuclear a hα hs h.1 h.2 φ⟩ else 0
+  have hr : cutoffTraces(spectralRestriction, ε, ρ, φ, r) := by
+    filter_upwards [_hρ] with R h
+    exact ⟨h.1, spectralRestriction_nuclear a hα hs h.1 h.2 φ, dite_eq_left h⟩
+  refine ⟨r, hr, Metric.tendsto_nhds.mpr ?_⟩
+  intro η hη
+  obtain ⟨C, B, hC, hw, herror⟩ :=
+    spectralRestriction_cutoff_commutator_approx hα hs φ ε ρ _hε _hρ (η / 2) (half_pos hη)
+  have hPA := spectralProjection_convolution_nuclear (F := F) a hα hs φ _hquot
+  have hlim := spectralRestriction_weak_trace B ⟨_, hPA⟩ C hC hw
+  filter_upwards [hr, _hl, _hρ, herror, Metric.tendsto_nhds.mp hlim (η / 2) (half_pos hη)]
+    with R hrR hlR hcut herr hsmall
+  obtain ⟨hc, hn, hright⟩ := hrR
+  obtain ⟨hc', hn', hleft⟩ := hlR
+  obtain ⟨E, heq, hE⟩ := herr hc
+  have hMA := (truncatedConvolution_trace_split (F := F) a hα hs hc hcut.2 φ _hquot).choose
+  have hbound := spectralRestriction_commutator_bound Pspec (A(φ)) (M(hc)) (B R)
+    (Submodule.starProjection_norm_le _) hPA hMA E heq
+  rw [dist_zero_right] at hsmall ⊢
+  rw [hright, hleft]
+  exact hbound.trans_lt ((add_lt_add hsmall hE).trans_eq (add_halves η))
 
 /-- Paper: Theorem 10.4.2.8, p. 463. As the cutoff radius tends to infinity
 with width times radius tending to zero, the trace of convolution after
